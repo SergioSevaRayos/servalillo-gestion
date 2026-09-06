@@ -1,5 +1,10 @@
 <?php
 
+use App\Models\Driver;
+use App\Models\Route;
+use App\Models\Truck;
+use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -16,7 +21,7 @@ use Tests\TestCase;
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
-    ->beforeEach(fn () => $this->seed(\Database\Seeders\RolePermissionSeeder::class))
+    ->beforeEach(fn () => $this->seed(RolePermissionSeeder::class))
     ->in('Feature');
 
 /*
@@ -45,22 +50,28 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function makeUser(string $role): \App\Models\User
+function makeUser(string $role): User
 {
-    $user = \App\Models\User::factory()->create();
+    $user = User::factory()->create();
     $user->assignRole($role);
 
     return $user;
 }
 
-function makeRoute(string $date = '2026-09-10'): \App\Models\Route
+function makeRoute(string $date = '2026-09-10'): Route
 {
-    $truck = \App\Models\Truck::factory()->create();
-    $driver = \App\Models\Driver::factory()->for(\App\Models\User::factory(), 'user')->create();
+    $truck = Truck::factory()->create();
+    $driver = Driver::factory()->for(User::factory(), 'user')->create();
 
-    return \App\Models\Route::factory()->create([
+    return Route::factory()->create([
         'truck_id' => $truck->id,
         'driver_id' => $driver->id,
         'route_date' => $date,
     ]);
+}
+
+/** Data URL de un PNG 1x1 válido (cabecera mágica real), para simular la firma del cliente. */
+function fakeSignature(): string
+{
+    return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 }

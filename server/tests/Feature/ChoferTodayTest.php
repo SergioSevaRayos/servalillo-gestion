@@ -3,6 +3,7 @@
 use App\Enums\OdometerKind;
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
+use App\Jobs\ProcessDeliveryNote;
 use App\Livewire\Chofer\Today;
 use App\Models\DeliveryType;
 use App\Models\Driver;
@@ -11,7 +12,14 @@ use App\Models\Route;
 use App\Models\RouteStop;
 use App\Models\Truck;
 use App\Services\OdometerService;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+
+beforeEach(function () {
+    Storage::fake('r2');
+    Queue::fake();
+});
 
 /** Crea un chofer (User+Driver) y su ruta de hoy con N paradas pendientes. */
 function chofer(array $routeOverrides = [], int $stops = 3): array
@@ -105,6 +113,9 @@ it('completa una parada con cantidad y datos del tipo de reparto', function () {
         ->set('form.outcome', 'completed')
         ->set('form.delivered_quantity', 950)
         ->set('form.data.producto', 'Gasóleo A')
+        ->set('form.channel', 'physical')
+        ->set('form.signer_name', 'El encargado')
+        ->set('form.signature', fakeSignature())
         ->call('saveStop')
         ->assertHasNoErrors();
 
@@ -112,7 +123,29 @@ it('completa una parada con cantidad y datos del tipo de reparto', function () {
     expect($stop->status)->toBe(RouteStopStatus::Completed)
         ->and((float) $stop->delivered_quantity)->toBe(950.0)
         ->and($stop->data['producto'])->toBe('Gasóleo A')
-        ->and($stop->completed_at)->not->toBeNull();
+        ->and($stop->completed_at)->not->toBeNull()
+        ->and($stop->deliveryNote)->not->toBeNull()
+        ->and($stop->deliveryNote->signer_name)->toBe('El encargado');
+
+    Queue::assertPushed(ProcessDeliveryNote::class);
+});
+
+it('al entregar por email exige el email del cliente y la firma', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
+    $stop = $route->stops()->first();
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->set('form.outcome', 'completed')
+        ->set('form.delivered_quantity', 500)
+        ->set('form.channel', 'email')
+        ->set('form.recipient_email', '')
+        ->set('form.signer_name', 'Alguien')
+        ->set('form.signature', '')
+        ->call('saveStop')
+        ->assertHasErrors(['form.recipient_email', 'form.signature']);
+
+    expect($stop->fresh()->status)->toBe(RouteStopStatus::Pending);
 });
 
 it('exige cantidad al completar y motivo al fallar/omitir', function () {

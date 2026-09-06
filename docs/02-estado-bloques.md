@@ -10,8 +10,8 @@
 | 5 | Panel estadístico (KPIs + gráficos) | ✅ Hecho |
 | 6 | Panel de Mantenimiento (logs + auditoría) | ✅ Hecho |
 | 7 | Web operativa del Chofer | ✅ Hecho |
-| 8 | Albaranes (PDF + canales email/físico) + colas | ⬜ Siguiente |
-| 9 | API Flutter (Sanctum) | ⬜ |
+| 8 | Albaranes (PDF + canales email/físico) + colas | ✅ Hecho |
+| 9 | API Flutter (Sanctum) | ⬜ Siguiente |
 | 10 | App Flutter de tracking | ⬜ |
 
 ---
@@ -438,21 +438,51 @@ columna de paradas. Mobile-first, `.surface` siempre, nunca `.glass`.
 
 ---
 
+## Bloque 8 — lo que se ha construido
+
+**Albaranes** (`delivery_notes`), enganchado al cierre de parada del chofer.
+
+- **PDF = dompdf** (`barryvdh/laravel-dompdf`), no Spatie: el contenedor no tiene navegador headless.
+  Vista `resources/views/pdf/delivery-note.blade.php`, fuente Helvetica (PDF de ~2 KB).
+- **`DeliveryNoteService::createForStop()`**: al entregar una parada crea el `delivery_note` (número
+  `ALB-{año}-{6 díg}` secuencial, `customer_snapshot` congelado, firma PNG validada por cabecera
+  mágica y guardada en disco `r2`), estado `Queued`, y despacha `ProcessDeliveryNote`.
+- **`ProcessDeliveryNote`** (job, cola `database`): `Generating` → PDF a `r2` (`Generated`) →
+  `$channel->deliver()` (`Sent` / `DeliveredPhysically`). Reintenta 3×; `failed()` → `Failed`.
+- **Canales**: `EmailChannel` envía `DeliveryNoteMail` con el PDF adjunto (Mailpit en local);
+  `PhysicalChannel` solo marca entregado. `config/delivery.php` sin cambios estructurales.
+- **Chofer**: el modal de "Entregada" incluye canal + email + firmante + **firma en canvas**
+  (`signature_pad`, `<x-ui.signature-pad>`).
+- **Admin**: `/albaranes` (`App\Livewire\DeliveryNotes\Index`) con filtros + "Reprocesar" + "Marcar
+  entregado"; descarga de PDF en `GET /albaranes/{note}/pdf` (manager o chofer dueño).
+- Seeder: un albarán por cada parada completada del historial (~990), estados variados.
+- 13 tests nuevos (service + job + listado + descarga + validación de firma/email). **Suite: 113.**
+
+### Cómo probar el Bloque 8
+
+1. Como chofer (`pedro@`, jornada en curso): toca una parada → "Entregada", elige "Enviar por email",
+   pon un email, firma con el dedo, "Guardar".
+2. El contenedor `queue` procesa el job: el PDF aparece en `storage/app/private/r2/albaranes/` y el
+   correo (con PDF adjunto) en **Mailpit → http://localhost:8026**.
+3. Como `admin@`: **Albaranes** en el nav. Filtra por estado/canal, descarga un PDF, prueba
+   "Reprocesar" sobre uno en Error y "Marcar entregado" sobre uno físico.
+
+---
+
 ## Punto de continuación (última sesión: 2026-09-06)
 
-**Estado (cierre de sesión):** Bloques 1–7 terminados y verificados (**99 tests en verde**). Esta
-sesión: Bloque 5 (panel estadístico), Bloque 6 (panel de Mantenimiento) y Bloque 7 (web operativa del
-chofer). Antes se renombró `backend/` → `server/`, se pinó el volumen de Postgres, se arregló la
-replicación en máquina limpia y se subió a GitHub (`SergioSevaRayos/servalillo-gestion`; se trabaja
-en `develop`).
+**Estado (cierre de sesión):** Bloques 1–8 terminados y verificados (**113 tests en verde**). Esta
+sesión: Bloques 5 (estadísticas), 6 (mantenimiento), 7 (web del chofer + ruleta de odómetro) y 8
+(albaranes). Antes se renombró `backend/` → `server/`, se pinó el volumen de Postgres, se arregló la
+replicación en máquina limpia y se subió a GitHub (`SergioSevaRayos/servalillo-gestion`; `develop`).
 
-- **Siguiente = Bloque 8** (Albaranes). Al completar una parada hay que: crear el `delivery_note`
-  (número `ALB-2026-000123`, `customer_snapshot` congelado, canal `email`/`physical`), capturar la
-  **firma** del cliente (`deliveries.record_signature`, PNG validado a disco `r2`, nombre
-  `ulid().png`), generar el **PDF** (Spatie) y **entregarlo** vía el canal (Job en la cola). Contrato
-  y canales ya existen: `App\Contracts\DeliveryChannel` + `EmailChannel`/`PhysicalChannel` +
-  `config/delivery.php` (envío real está comentado, placeholder). Enum `DeliveryNoteStatus` ya está.
-  El `StopActionForm` del Bloque 7 es el punto donde engancharlo.
+- **Siguiente = Bloque 9** (API Flutter con Sanctum). Contrato en `docs/01` sección "API para Flutter"
+  (`/api/auth/login`, `/api/routes/today`, `/api/stops/{stop}/complete|fail|signature`,
+  `/api/routes/{route}/odometer`, etc.). "Todo con Form Requests + API Resources". Reutilizar el array
+  `rules()` de los `Form` objects donde tenga sentido. La lógica de negocio ya está en servicios
+  (`OdometerService`, `DeliveryNoteService`, `DeliveryTypeSchemaValidator`) — la API es otra capa de
+  entrada sobre lo mismo. `routes/api.php` existe pero está prácticamente vacío. Auth de dispositivo
+  (token Sanctum propio con habilidad `gps:ingest`) es más bien del Bloque 10.
 
 <details><summary>Historial Bloque 4 (sesión anterior)</summary>
 

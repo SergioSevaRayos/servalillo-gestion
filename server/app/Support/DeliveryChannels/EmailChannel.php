@@ -4,7 +4,9 @@ namespace App\Support\DeliveryChannels;
 
 use App\Contracts\DeliveryChannel;
 use App\Enums\DeliveryNoteStatus;
+use App\Mail\DeliveryNoteMail;
 use App\Models\DeliveryNote;
+use Illuminate\Support\Facades\Mail;
 
 class EmailChannel implements DeliveryChannel
 {
@@ -32,9 +34,7 @@ class EmailChannel implements DeliveryChannel
 
     public function deliver(DeliveryNote $note): void
     {
-        // Implementación real en el Bloque 8 (Mailable + adjunto PDF).
-        // Aquí solo el contrato: envía el correo y marca el estado.
-        // Mail::to($note->recipient_email)->send(new DeliveryNoteMail($note));
+        Mail::to($note->recipient_email)->send(new DeliveryNoteMail($note));
 
         $note->forceFill([
             'status' => DeliveryNoteStatus::Sent,

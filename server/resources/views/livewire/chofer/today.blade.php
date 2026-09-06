@@ -189,6 +189,36 @@
                                 </div>
                             @endforeach
                         @endif
+
+                        {{-- Albarán: canal + firma. Solo si aún no hay albarán para esta parada. --}}
+                        @if (! $s->deliveryNote)
+                            <div class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                                <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ __('Albarán') }}</p>
+
+                                <div class="mt-2 grid gap-3 sm:grid-cols-2">
+                                    <x-ui.select name="form.channel" label="{{ __('Cómo se entrega') }}" wire:model.live="form.channel">
+                                        <option value="email">{{ __('Enviar por email') }}</option>
+                                        <option value="physical">{{ __('Entrega en mano') }}</option>
+                                    </x-ui.select>
+
+                                    @if ($this->form->channel === 'email')
+                                        <x-ui.input name="form.recipient_email" type="email" label="{{ __('Email del cliente') }}" wire:model="form.recipient_email" />
+                                    @endif
+                                </div>
+
+                                <div class="mt-3">
+                                    <x-ui.input name="form.signer_name" label="{{ __('Nombre de quien firma') }}" wire:model="form.signer_name" />
+                                </div>
+
+                                <div class="mt-3">
+                                    <x-ui.signature-pad wire:model="form.signature" sync-on="stop-action" />
+                                </div>
+                            </div>
+                        @else
+                            <p class="rounded-lg bg-slate-100 p-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                {{ __('Albarán :n · :estado', ['n' => $s->deliveryNote->number, 'estado' => $s->deliveryNote->status->label()]) }}
+                            </p>
+                        @endif
                     @else
                         <x-ui.textarea name="form.reason" label="{{ $this->form->outcome === 'failed' ? __('Motivo del fallo') : __('Motivo para omitir') }}" wire:model="form.reason" rows="3" />
                     @endif

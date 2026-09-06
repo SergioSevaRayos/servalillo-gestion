@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Controllers\DeliveryNoteController;
 use App\Http\Controllers\ThemeController;
 use App\Livewire\Chofer\Today;
 use App\Livewire\Dashboard\Index as DashboardIndex;
+use App\Livewire\DeliveryNotes\Index as DeliveryNotesIndex;
 use App\Livewire\Drivers\Index as DriversIndex;
 use App\Livewire\Maintenance\Audits as MaintenanceAudits;
 use App\Livewire\Maintenance\Errors as MaintenanceErrors;
@@ -52,7 +54,15 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
     // El tablero es la vista principal de "Rutas"; la ficha CRUD clásica queda en /rutas/listado.
     Route::get('rutas', RoutesBoard::class)->name('routes.board');
     Route::get('rutas/listado', RoutesIndex::class)->name('routes.index');
+
+    Route::get('albaranes', DeliveryNotesIndex::class)->middleware('permission:delivery_notes.view')->name('delivery-notes.index');
 });
+
+/*
+| Descarga del PDF de un albarán: manager o el chofer dueño de la parada (lo decide la Policy).
+*/
+Route::get('albaranes/{note}/pdf', [DeliveryNoteController::class, 'pdf'])
+    ->middleware('auth')->name('delivery-notes.pdf');
 
 /*
 |--------------------------------------------------------------------------

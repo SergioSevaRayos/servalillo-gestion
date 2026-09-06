@@ -1,5 +1,6 @@
 import Sortable from 'sortablejs';
 import Chart from 'chart.js/auto';
+import SignaturePad from 'signature_pad';
 
 function applyThemeClass(value) {
     const isDark = value === 'dark'
@@ -128,7 +129,56 @@ document.addEventListener('livewire:init', () => {
 */
 const WHEEL_ITEM_H = 44;
 
+/*
+| Firma del cliente (albarán, Bloque 8). Canvas + signature_pad; exporta un PNG data URL a la
+| propiedad Livewire indicada por wire:model (vía x-modelable). Se re-dimensiona al abrir el modal
+| (un canvas con display:none tiene tamaño 0) escuchando open-modal, igual que <x-ui.digit-wheel>.
+*/
 document.addEventListener('alpine:init', () => {
+    Alpine.data('signaturePad', ({ syncOn }) => ({
+        value: '',
+        pad: null,
+
+        init() {
+            const canvas = this.$refs.canvas;
+            this.pad = new SignaturePad(canvas, {
+                penColor: getComputedStyle(document.documentElement).getPropertyValue('--sig-ink') || '#0f172a',
+            });
+            this.pad.addEventListener('endStroke', () => {
+                this.value = this.pad.isEmpty() ? '' : this.pad.toDataURL('image/png');
+            });
+            this.$nextTick(() => this.resize());
+            window.addEventListener('resize', () => this.resize());
+            if (syncOn) {
+                window.addEventListener('open-modal', (e) => {
+                    if (e.detail == syncOn) {
+                        setTimeout(() => this.resize(), 80);
+                    }
+                });
+            }
+        },
+
+        // Ajusta el buffer del canvas al tamaño real en pantalla (retina) sin perder el trazo.
+        resize() {
+            const canvas = this.$refs.canvas;
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            const data = this.pad.toData();
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext('2d').scale(ratio, ratio);
+            this.pad.clear();
+            if (data.length) {
+                this.pad.fromData(data);
+                this.value = this.pad.toDataURL('image/png');
+            }
+        },
+
+        clear() {
+            this.pad.clear();
+            this.value = '';
+        },
+    }));
+
     Alpine.data('digitWheel', ({ count, initial, model }) => ({
         count,
         model,

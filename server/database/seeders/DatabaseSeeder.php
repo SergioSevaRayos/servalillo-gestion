@@ -2,9 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Enums\DeliveryNoteStatus;
 use App\Enums\OdometerKind;
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
+use App\Models\DeliveryNote;
 use App\Models\DeliveryType;
 use App\Models\Device;
 use App\Models\Driver;
@@ -136,6 +138,9 @@ class DatabaseSeeder extends Seeder
 
         // --- Auditoría + errores (para el panel de Mantenimiento del Bloque 6) ---
         $this->seedMaintenanceData($admin, $maintenance);
+
+        // --- Albaranes (Bloque 8) ------------------------------------------
+        $this->seedDeliveryNotes($admin);
 
         $this->command->info('Seed completo. Usuarios: admin@ / soporte@ / pedro@ ... contraseña "password".');
     }
@@ -360,6 +365,60 @@ class DatabaseSeeder extends Seeder
                 'url' => 'http://localhost:8000/'.fake()->randomElement(['dashboard', 'rutas', 'livewire/update']),
                 'method' => fake()->randomElement(['GET', 'POST']),
                 'occurred_at' => $when,
+            ]);
+        }
+    }
+
+    /**
+     * Un albarán por cada parada completada del historial (Bloque 8). Estados variados;
+     * no se genera PDF real ni se encola nada (es un seeder).
+     */
+    private function seedDeliveryNotes(User $creator): void
+    {
+        if (DeliveryNote::query()->exists()) {
+            return;
+        }
+
+        $completed = RouteStop::query()
+            ->where('status', RouteStopStatus::Completed->value)
+            ->whereDoesntHave('deliveryNote')
+            ->with('route')
+            ->get();
+
+        $seq = 0;
+
+        foreach ($completed as $stop) {
+            $seq++;
+            $channel = fake()->boolean(70) ? 'email' : 'physical';
+            $issuedAt = $stop->completed_at ?? $stop->route?->route_date ?? now();
+
+            $status = $channel === 'email'
+                ? fake()->randomElement([
+                    DeliveryNoteStatus::Sent,
+                    DeliveryNoteStatus::Sent,
+                    DeliveryNoteStatus::Generated,
+                    DeliveryNoteStatus::Failed,
+                ])
+                : DeliveryNoteStatus::DeliveredPhysically;
+
+            DeliveryNote::create([
+                'route_stop_id' => $stop->id,
+                'number' => 'ALB-'.Carbon::parse($issuedAt)->year.'-'.str_pad((string) $seq, 6, '0', STR_PAD_LEFT),
+                'issued_at' => $issuedAt,
+                'customer_snapshot' => [
+                    'name' => $stop->customer_name,
+                    'tax_id' => strtoupper(fake()->bothify('?########')),
+                    'address' => $stop->address,
+                ],
+                'delivered_quantity' => $stop->delivered_quantity,
+                'signer_name' => fake()->name(),
+                'delivery_channel' => $channel,
+                'recipient_email' => $channel === 'email' ? fake()->safeEmail() : null,
+                'status' => $status,
+                'failure_reason' => $status === DeliveryNoteStatus::Failed ? 'Dirección de correo rechazada por el servidor' : null,
+                'sent_at' => $status === DeliveryNoteStatus::Sent ? $issuedAt : null,
+                'delivered_at' => $status === DeliveryNoteStatus::DeliveredPhysically ? $issuedAt : null,
+                'created_by' => $creator->id,
             ]);
         }
     }

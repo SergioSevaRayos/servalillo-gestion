@@ -8,6 +8,7 @@ use App\Enums\RouteStopStatus;
 use App\Livewire\Forms\StopActionForm;
 use App\Models\Route;
 use App\Models\RouteStop;
+use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
 use App\Services\OdometerService;
 use Illuminate\Validation\ValidationException;
@@ -83,7 +84,7 @@ class Today extends Component
         $this->guardStarted();
         $this->authorize('complete', $this->form->stop);
 
-        $this->form->apply(app(DeliveryTypeSchemaValidator::class));
+        $this->form->apply(app(DeliveryTypeSchemaValidator::class), app(DeliveryNoteService::class));
 
         unset($this->route);
         $this->dispatch('close-modal', 'stop-action');

@@ -44,6 +44,11 @@ new class extends Component
                                 {{ __('Camiones') }}
                             </x-nav-link>
                         @endcan
+                        @can('viewAny', \App\Models\DeliveryNote::class)
+                            <x-nav-link :href="route('delivery-notes.index')" :active="request()->routeIs('delivery-notes.*')" wire:navigate>
+                                {{ __('Albaranes') }}
+                            </x-nav-link>
+                        @endcan
                         @can('viewAny', \App\Models\User::class)
                             <x-nav-link :href="route('users.index')" :active="request()->routeIs('users.index')" wire:navigate>
                                 {{ __('Usuarios') }}
@@ -113,6 +118,11 @@ new class extends Component
                 @can('viewAny', \App\Models\Truck::class)
                     <x-responsive-nav-link :href="route('trucks.index')" :active="request()->routeIs('trucks.index')" wire:navigate>
                         {{ __('Camiones') }}
+                    </x-responsive-nav-link>
+                @endcan
+                @can('viewAny', \App\Models\DeliveryNote::class)
+                    <x-responsive-nav-link :href="route('delivery-notes.index')" :active="request()->routeIs('delivery-notes.*')" wire:navigate>
+                        {{ __('Albaranes') }}
                     </x-responsive-nav-link>
                 @endcan
                 @can('viewAny', \App\Models\User::class)
