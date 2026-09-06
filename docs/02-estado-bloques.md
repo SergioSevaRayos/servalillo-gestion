@@ -8,8 +8,8 @@
 | 3 | Panel Administrador (CRUDs Livewire) | ✅ Hecho |
 | 4 | Tablero Kanban de rutas + drag & drop de paradas | ✅ Hecho |
 | 5 | Panel estadístico (KPIs + gráficos) | ✅ Hecho |
-| 6 | Panel de Mantenimiento (logs + auditoría) | ⬜ Siguiente |
-| 7 | Web operativa del Chofer | ⬜ |
+| 6 | Panel de Mantenimiento (logs + auditoría) | ✅ Hecho |
+| 7 | Web operativa del Chofer | ⬜ Siguiente |
 | 8 | Albaranes (PDF + canales email/físico) + colas | ⬜ |
 | 9 | API Flutter (Sanctum) | ⬜ |
 | 10 | App Flutter de tracking | ⬜ |
@@ -374,19 +374,56 @@ docker compose exec laravel.test php artisan migrate:fresh --seed
 
 ---
 
+## Bloque 6 — lo que se ha construido
+
+**Panel de Mantenimiento** (`/mantenimiento`, exclusivo del rol `mantenimiento`). 3 sub-vistas con
+pestañas compartidas (`<x-maintenance.tabs>`):
+
+- **Auditoría** (`App\Livewire\Maintenance\Audits`, `/mantenimiento/auditoria`): lista de `Audit`
+  (`owen-it/laravel-auditing`) con filtros — búsqueda por usuario/modelo, tipo de modelo (constante
+  `Audits::MODELS`), evento, rango de fechas. Modal con `getModified()` (campo / antes / después) +
+  URL / IP / user-agent.
+- **Errores del sistema** (`Errors`, `/mantenimiento/errores`): lista de `ErrorLog` (5xx que captura
+  `App\Support\ErrorLogger`). Filtros + modal con la traza (`context['trace']`). Acciones: eliminar
+  uno y **purgar los de > 30 días**.
+- **Log de la aplicación** (`SystemLog`, `/mantenimiento/log`): visor de `storage/logs/*.log`. Lee
+  solo la cola del archivo (512 KB), parte las entradas por la cabecera con fecha, filtra por nivel
+  y texto. `safePath()` bloquea path traversal (solo `*.log` dentro de `storage/logs`).
+
+- Enlace "Mantenimiento" en el nav solo con `isMaintenance()` (nuevo helper en `User`).
+- El auditing está desactivado en consola, así que el seeder inserta ~35 filas de `audits` y 9
+  `ErrorLog` de ejemplo a mano (`seedMaintenanceData()`, con guarda de idempotencia).
+- Tests: `tests/Feature/MaintenancePanelTest.php` (10: acceso + filtros + purga + path traversal).
+  **Suite total: 86 passed.**
+
+### Cómo probar el Bloque 6
+
+1. Entra como `soporte@servalillo.test` (mantenimiento) → aparece "Mantenimiento" en el nav.
+2. Auditoría: filtra por modelo "Camión" y evento "Modificado"; abre "Ver" en una fila.
+3. Errores: busca "Reverb", abre el detalle, prueba "Purgar > 30 días".
+4. Log: cambia de nivel a "Error", busca texto, despliega una entrada para ver la traza.
+5. Como `admin@servalillo.test` → `/mantenimiento/*` da 403.
+
+**Pendiente conocido:** la paginación de los listados Livewire (Bloques 3 y 6) sale en inglés —
+Livewire usa su vista propia, no la `vendor/pagination/tailwind.blade.php` restilizada. Fix pequeño y
+transversal, aún sin hacer.
+
+---
+
 ## Punto de continuación (última sesión: 2026-09-06)
 
-**Estado (cierre de sesión):** Bloques 1–5 terminados y verificados (**76 tests en verde**). El
-Bloque 5 (panel estadístico) se construyó esta sesión: `/dashboard` es ahora un componente Livewire
-con `FleetStatsService`, selector de rango, 4 gráficos Chart.js y 2 tablas; el seeder genera ~90 días
-de historial. Verificado en el navegador (claro/oscuro, cambio de rango). Antes de esto se renombró
-`backend/` → `server/`, se pinó el volumen de Postgres (`servalillo-pgsql`), se arregló la
-replicación en máquina limpia (BD `testing` automática, `withoutVite()` en los tests) y se subió a
-GitHub (`SergioSevaRayos/servalillo-gestion`, ramas `main`/`test`/`develop`; se trabaja en `develop`).
+**Estado (cierre de sesión):** Bloques 1–6 terminados y verificados (**86 tests en verde**). Esta
+sesión: Bloque 5 (panel estadístico, `/dashboard` Livewire + `FleetStatsService` + Chart.js) y
+Bloque 6 (panel de Mantenimiento: auditoría + errores + visor de log). Antes se renombró `backend/`
+→ `server/`, se pinó el volumen de Postgres (`servalillo-pgsql`), se arregló la replicación en
+máquina limpia (BD `testing` automática, `withoutVite()`) y se subió a GitHub
+(`SergioSevaRayos/servalillo-gestion`; se trabaja en `develop`).
 
-- **Siguiente = Bloque 6** (Panel de Mantenimiento: `owen-it/laravel-auditing` + tabla `error_logs` +
-  log-viewer). Rutas ya reservadas en el grupo `maintenance.*` de `routes/web.php`. Permisos
-  `audits.view` / `system_logs.view` (solo rol `mantenimiento`).
+- **Siguiente = Bloque 7** (Web operativa del Chofer). Ruta `chofer.today` (`/chofer/ruta`) es hoy un
+  placeholder. Puede reutilizar `<x-routes.stop-card>`, el patrón de modal y buena parte del tablero
+  Kanban del Bloque 4 (una sola columna = su ruta de hoy). Usar **`.surface`, nunca `.glass`** en la
+  web del chofer. Permisos del chofer: `routes.view.own`, `deliveries.complete`,
+  `deliveries.record_signature`, `odometer.record`, `delivery_notes.view`.
 
 <details><summary>Historial Bloque 4 (sesión anterior)</summary>
 

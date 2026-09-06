@@ -3,6 +3,9 @@
 use App\Http\Controllers\ThemeController;
 use App\Livewire\Dashboard\Index as DashboardIndex;
 use App\Livewire\Drivers\Index as DriversIndex;
+use App\Livewire\Maintenance\Audits as MaintenanceAudits;
+use App\Livewire\Maintenance\Errors as MaintenanceErrors;
+use App\Livewire\Maintenance\SystemLog as MaintenanceSystemLog;
 use App\Livewire\Routes\Board as RoutesBoard;
 use App\Livewire\Routes\Index as RoutesIndex;
 use App\Livewire\Trucks\Index as TrucksIndex;
@@ -56,7 +59,10 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'role:mantenimiento'])->prefix('mantenimiento')->name('maintenance.')->group(function () {
-    // Panel de logs — Bloque 6.
+    Route::redirect('/', '/mantenimiento/auditoria')->name('index');
+    Route::get('auditoria', MaintenanceAudits::class)->middleware('permission:audits.view')->name('audits');
+    Route::get('errores', MaintenanceErrors::class)->middleware('permission:system_logs.view')->name('errors');
+    Route::get('log', MaintenanceSystemLog::class)->middleware('permission:system_logs.view')->name('logs');
 });
 
 /*

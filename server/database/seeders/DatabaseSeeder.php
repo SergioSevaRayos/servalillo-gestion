@@ -8,6 +8,7 @@ use App\Enums\RouteStopStatus;
 use App\Models\DeliveryType;
 use App\Models\Device;
 use App\Models\Driver;
+use App\Models\ErrorLog;
 use App\Models\OdometerReading;
 use App\Models\Route;
 use App\Models\RouteStop;
@@ -18,6 +19,7 @@ use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
+use OwenIt\Auditing\Models\Audit;
 
 class DatabaseSeeder extends Seeder
 {
@@ -131,6 +133,9 @@ class DatabaseSeeder extends Seeder
 
         // --- Historial (para el panel estadístico del Bloque 5) ------------
         $this->seedHistory($drivers, [$gasoleo, $agua], $admin);
+
+        // --- Auditoría + errores (para el panel de Mantenimiento del Bloque 6) ---
+        $this->seedMaintenanceData($admin, $maintenance);
 
         $this->command->info('Seed completo. Usuarios: admin@ / soporte@ / pedro@ ... contraseña "password".');
     }
@@ -281,6 +286,81 @@ class DatabaseSeeder extends Seeder
                 OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::Start->value, 'value' => $start, 'recorded_at' => $date->copy()->setTime(7, 10)]);
                 OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::End->value, 'value' => $end, 'recorded_at' => $date->copy()->setTime(16, 5)]);
             }
+        }
+    }
+
+    /**
+     * Auditoría y errores de ejemplo para el panel de Mantenimiento (Bloque 6).
+     *
+     * El auditing real está desactivado en consola (`config/audit.php` → `console => false`),
+     * así que las filas de `audits` se insertan a mano imitando eventos web reales.
+     */
+    private function seedMaintenanceData(User $admin, User $maintenance): void
+    {
+        if (Audit::query()->exists()) {
+            return;
+        }
+
+        $routes = Route::inRandomOrder()->limit(15)->get();
+        $trucks = Truck::all();
+        $actors = [$admin, $maintenance];
+
+        foreach (range(1, 35) as $n) {
+            $when = Carbon::now()->subDays(fake()->numberBetween(0, 25))->subMinutes(fake()->numberBetween(0, 1440));
+            $actor = fake()->randomElement($actors);
+            [$model, $old, $new] = fake()->randomElement([
+                [$routes->random(), ['status' => 'draft'], ['status' => 'published']],
+                [$routes->random(), ['name' => 'Ruta antigua'], ['name' => 'Ruta '.fake()->word()]],
+                [$trucks->random(), ['odometer' => fake()->numberBetween(90000, 200000)], ['odometer' => fake()->numberBetween(200001, 320000)]],
+                [$trucks->random(), ['is_active' => true], ['is_active' => false]],
+            ]);
+            $event = fake()->randomElement(['updated', 'updated', 'updated', 'created', 'deleted']);
+
+            Audit::create([
+                'user_type' => User::class,
+                'user_id' => $actor->id,
+                'event' => $event,
+                'auditable_type' => $model::class,
+                'auditable_id' => $model->id,
+                'old_values' => $event === 'created' ? [] : $old,
+                'new_values' => $event === 'deleted' ? [] : $new,
+                'url' => 'http://localhost:8000/'.fake()->randomElement(['rutas', 'camiones', 'rutas/listado']),
+                'ip_address' => fake()->ipv4(),
+                'user_agent' => 'Mozilla/5.0 (Seed)',
+                'tags' => null,
+                'created_at' => $when,
+                'updated_at' => $when,
+            ]);
+        }
+
+        $exceptions = [
+            ['Illuminate\Database\QueryException', 'SQLSTATE[23505]: Unique violation: 7 ERROR: duplicate key value violates unique constraint "routes_truck_id_route_date_unique"', 'app/Livewire/Routes/Board.php', 118],
+            ['ErrorException', 'Undefined array key "litros_pedido"', 'app/Services/DeliveryTypeSchemaValidator.php', 64],
+            ['Symfony\Component\HttpKernel\Exception\HttpException', 'Server Error', 'vendor/laravel/framework/src/Illuminate/Foundation/Application.php', 1220],
+            ['RuntimeException', 'Reverb connection refused on 127.0.0.1:8080', 'app/Events/GpsPositionReceived.php', 41],
+            ['TypeError', 'App\\Services\\FleetStatsService::report(): Argument #1 ($from) must be of type Carbon\\Carbon, null given', 'app/Livewire/Dashboard/Index.php', 44],
+        ];
+
+        foreach (range(1, 9) as $n) {
+            [$class, $message, $file, $line] = fake()->randomElement($exceptions);
+            $when = Carbon::now()->subDays(fake()->numberBetween(0, 40))->subMinutes(fake()->numberBetween(0, 1440));
+
+            ErrorLog::create([
+                'level' => 'error',
+                'message' => $message,
+                'exception_class' => $class,
+                'file' => $file,
+                'line' => $line,
+                'context' => ['trace' => [
+                    ['file' => $file, 'line' => $line, 'function' => 'handle'],
+                    ['file' => 'vendor/livewire/livewire/src/Mechanisms/HandleRequests/HandleRequests.php', 'line' => 96, 'function' => 'handleUpdate'],
+                    ['file' => 'public/index.php', 'line' => 17, 'function' => 'run'],
+                ]],
+                'user_id' => fake()->boolean(70) ? fake()->randomElement($actors)->id : null,
+                'url' => 'http://localhost:8000/'.fake()->randomElement(['dashboard', 'rutas', 'livewire/update']),
+                'method' => fake()->randomElement(['GET', 'POST']),
+                'occurred_at' => $when,
+            ]);
         }
     }
 }

@@ -52,4 +52,10 @@ class User extends Authenticatable implements Auditable
     {
         return $this->hasAnyRole(['administrador', 'mantenimiento']);
     }
+
+    /** Soporte técnico: único rol con acceso al panel de Mantenimiento (auditoría + logs). */
+    public function isMaintenance(): bool
+    {
+        return $this->hasRole('mantenimiento');
+    }
 }

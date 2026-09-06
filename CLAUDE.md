@@ -276,6 +276,31 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - El `DatabaseSeeder` genera ~90 días de rutas históricas (`seedHistory()`, con guarda de idempotencia)
   para que el panel tenga datos. `migrate:fresh --seed` deja ~230 rutas y ~1100 paradas.
 
+### Panel de Mantenimiento (Bloque 6)
+- **Exclusivo del rol `mantenimiento`** (no `administrador`). Grupo `maintenance.*` en `routes/web.php`
+  con `role:mantenimiento`; enlace "Mantenimiento" en el nav solo si `auth()->user()->isMaintenance()`.
+- 3 sub-vistas con pestañas compartidas (`<x-maintenance.tabs>`):
+  - **`/mantenimiento/auditoria`** (`App\Livewire\Maintenance\Audits`) — lista de `OwenIt\Auditing\
+    Models\Audit` con filtros (búsqueda por usuario/modelo, tipo de modelo, evento, rango de fechas).
+    Modal de detalle con `$audit->getModified()` (campo / antes / después) + url/ip/user-agent.
+    La policy de `Audit` se registra a mano en `AppServiceProvider` (`Gate::policy`), no se
+    auto-descubre porque el modelo vive en el paquete.
+  - **`/mantenimiento/errores`** (`Errors`) — lista de `ErrorLog` (excepciones 5xx que captura
+    `App\Support\ErrorLogger`). Filtros + modal con traza (`context['trace']`). Acciones: borrar uno
+    (`deleteLog`) y purgar los de > 30 días (`purgeOld`).
+  - **`/mantenimiento/log`** (`SystemLog`) — visor de `storage/logs/*.log`. Lee **solo la cola** del
+    archivo (`TAIL_BYTES`) para no cargar logs enormes, parte las entradas por la cabecera con fecha,
+    filtra por nivel y texto. `safePath()` valida que el nombre sea `*.log` dentro de `storage/logs`
+    (sin path traversal) — si tocas esto, mantén esa comprobación.
+- El auditing real está **desactivado en consola** (`config/audit.php` → `console => false`), así que
+  el seeder inserta filas de `audits` a mano (`seedMaintenanceData()`) imitando eventos web, además
+  de unos cuantos `ErrorLog` de ejemplo.
+- **Pendiente conocido (no es del Bloque 6):** la paginación de los listados Livewire sale en inglés
+  ("Showing X to Y of Z results"). Livewire usa su propia vista `livewire::tailwind`, no la
+  `resources/views/vendor/pagination/tailwind.blade.php` ya restilizada. Afecta también a los
+  listados del Bloque 3. Se arregla apuntando Livewire a esa vista (o publicando
+  `resources/views/vendor/livewire/tailwind.blade.php`) + un `lang/es.json` con las 4 cadenas.
+
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
 - Regla de negocio: **1 camión = 1 ruta por día** (índice único `routes.truck_id + route_date`).

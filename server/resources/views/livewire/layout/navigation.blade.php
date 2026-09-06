@@ -49,6 +49,11 @@ new class extends Component
                                 {{ __('Usuarios') }}
                             </x-nav-link>
                         @endcan
+                        @if (auth()->user()->isMaintenance())
+                            <x-nav-link :href="route('maintenance.index')" :active="request()->routeIs('maintenance.*')" wire:navigate>
+                                {{ __('Mantenimiento') }}
+                            </x-nav-link>
+                        @endif
                     @else
                         <x-nav-link :href="route('chofer.today')" :active="request()->routeIs('chofer.*')" wire:navigate>
                             {{ __('Mi ruta') }}
@@ -115,6 +120,11 @@ new class extends Component
                         {{ __('Usuarios') }}
                     </x-responsive-nav-link>
                 @endcan
+                @if (auth()->user()->isMaintenance())
+                    <x-responsive-nav-link :href="route('maintenance.index')" :active="request()->routeIs('maintenance.*')" wire:navigate>
+                        {{ __('Mantenimiento') }}
+                    </x-responsive-nav-link>
+                @endif
                 <x-responsive-nav-link :href="route('style-guide')" :active="request()->routeIs('style-guide')" wire:navigate>
                     {{ __('Guía de estilo') }}
                 </x-responsive-nav-link>
