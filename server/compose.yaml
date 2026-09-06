@@ -9,6 +9,7 @@ services:
                 WWWUSER: '${WWWUSER:-1000}'
                 WWWGROUP: '${WWWGROUP:-1000}'
         image: servalillo/app
+        restart: unless-stopped
         extra_hosts:
             - 'host.docker.internal:host-gateway'
         ports:
@@ -57,6 +58,8 @@ services:
             POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
         volumes:
             - 'sail-pgsql:/var/lib/postgresql'
+            # Crea la BD `testing` en el primer arranque de un volumen nuevo (ver el .sql).
+            - './docker/pgsql/create-testing-database.sql:/docker-entrypoint-initdb.d/10-create-testing-database.sql'
         networks:
             - sail
         healthcheck:
