@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+|--------------------------------------------------------------------------
+| Sistema de diseño — capa base
+|--------------------------------------------------------------------------
+*/
+@layer base {
+    html {
+        @apply antialiased;
+    }
+
+    body {
+        @apply bg-slate-50 text-slate-700 dark:bg-slate-950 dark:text-slate-300;
+    }
+
+    /* Foco visible consistente en toda la app (accesibilidad), sin el anillo azul por defecto del navegador. */
+    :focus-visible {
+        @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-slate-50 dark:ring-offset-slate-950;
+    }
+
+    /* Alpine no oculta [x-cloak] por sí solo: evita el parpadeo de elementos con x-show antes de hidratar. */
+    [x-cloak] {
+        display: none !important;
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Sistema de diseño — composiciones reutilizadas por los componentes Blade
+|--------------------------------------------------------------------------
+| Solo lo que no se puede expresar con limpieza como clases de utilidad sueltas.
+| Todo lo demás vive en resources/views/components/ui/*.
+*/
+@layer components {
+    /* "Chrome" que flota sobre contenido: barra de navegación, modales, tarjetas KPI,
+       toasts, selector de tema. NUNCA en tablas, formularios o la web del chofer. */
+    .glass {
+        @apply bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl backdrop-saturate-150
+               border border-white/60 dark:border-white/10 shadow-glass;
+    }
+
+    /* Superficie sólida de alto contraste: tablas, formularios, contenido denso, web del chofer. */
+    .surface {
+        @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-soft;
+    }
+
+    /*
+    | Tarjeta "cogida" al arrastrarla en el tablero Kanban (SortableJS `chosenClass`).
+    | Tiene que ser UNA sola clase: SortableJS hace classList.add(options.chosenClass) con el
+    | valor tal cual, y classList no admite un token con espacios (ahí es donde fallaba antes).
+    */
+    .stop-card-chosen {
+        /* ring-inset: el anillo se dibuja hacia DENTRO del borde de la tarjeta, no hacia fuera.
+           Con ring normal (outset) se recortaba contra el borde de scroll de la columna. */
+        @apply ring-2 ring-inset ring-primary-400 shadow-soft-lg;
+    }
+
+    /*
+    | Tabla → tarjetas en móvil (patrón responsive-table-to-cards, sin JS).
+    | Ver <x-ui.table> para el uso: cada <td> necesita data-label="Cabecera".
+    */
+    .table-responsive {
+        @apply w-full text-left text-sm text-slate-600 dark:text-slate-300;
+    }
+    .table-responsive thead {
+        @apply text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500;
+    }
+    .table-responsive th {
+        @apply px-4 py-3 font-medium;
+    }
+    .table-responsive tbody tr {
+        @apply border-t border-slate-100 dark:border-slate-800;
+    }
+    .table-responsive tbody tr:hover {
+        @apply bg-slate-50 dark:bg-slate-800/50;
+    }
+    .table-responsive td {
+        @apply px-4 py-3 align-middle;
+    }
+
+    @media (max-width: 767px) {
+        .table-responsive thead {
+            @apply hidden;
+        }
+        .table-responsive,
+        .table-responsive tbody,
+        .table-responsive tr,
+        .table-responsive td {
+            @apply block w-full;
+        }
+        .table-responsive tbody tr {
+            @apply surface rounded-xl mb-3 border-t-0 last:mb-0;
+        }
+        .table-responsive tbody tr:hover {
+            @apply bg-transparent dark:bg-transparent;
+        }
+        .table-responsive td {
+            @apply flex items-center justify-between gap-4 border-b border-slate-100 px-3 py-2 text-right last:border-b-0 dark:border-slate-800;
+        }
+        .table-responsive td::before {
+            content: attr(data-label);
+            @apply text-left text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500;
+        }
+    }
+
+    /*
+    | Scrollbar discreta a juego con el sistema de diseño (tablero Kanban del Bloque 4:
+    | scroll vertical dentro de cada columna, scroll horizontal entre columnas).
+    | scrollbar-color para Firefox; ::-webkit-scrollbar para Chrome/Safari/Edge.
+    */
+    .themed-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: theme('colors.slate.300') transparent;
+    }
+    .dark .themed-scrollbar {
+        scrollbar-color: theme('colors.slate.600') transparent;
+    }
+    .themed-scrollbar::-webkit-scrollbar {
+        width: 7px;
+        height: 7px;
+    }
+    .themed-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .themed-scrollbar::-webkit-scrollbar-thumb {
+        @apply bg-slate-300 dark:bg-slate-600;
+        border-radius: 9999px;
+    }
+    .themed-scrollbar::-webkit-scrollbar-thumb:hover {
+        @apply bg-slate-400 dark:bg-slate-500;
+    }
+}

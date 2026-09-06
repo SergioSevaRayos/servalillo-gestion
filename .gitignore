@@ -1,0 +1,17 @@
+/server/vendor
+/server/node_modules
+/server/public/build
+/server/public/hot
+/server/public/storage
+/server/storage/*.key
+/server/storage/pail
+/server/.env
+/server/.env.backup
+/server/.env.production
+/server/.phpunit.result.cache
+/server/auth.json
+/mobile/build
+/mobile/.dart_tool
+/mobile/.flutter-plugins-dependencies
+.DS_Store
+*.log

@@ -1,0 +1,85 @@
+# Stack local de Gestión Servalillo.
+# Se sigue usando el helper `./vendor/bin/sail` (alias de docker compose).
+services:
+    laravel.test:
+        build:
+            context: ./docker/php
+            dockerfile: Dockerfile
+            args:
+                WWWUSER: '${WWWUSER:-1000}'
+                WWWGROUP: '${WWWGROUP:-1000}'
+        image: servalillo/app
+        extra_hosts:
+            - 'host.docker.internal:host-gateway'
+        ports:
+            - '${APP_PORT:-8000}:80'
+        environment:
+            LARAVEL_SAIL: 1
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            - pgsql
+            - mailpit
+
+    queue:
+        image: servalillo/app
+        command: php artisan queue:work --sleep=1 --tries=3 --max-time=3600
+        restart: unless-stopped
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            - laravel.test
+
+    reverb:
+        image: servalillo/app
+        command: php artisan reverb:start --host=0.0.0.0 --port=8080
+        restart: unless-stopped
+        ports:
+            - '${REVERB_PORT:-8080}:8080'
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            - laravel.test
+
+    pgsql:
+        image: 'postgres:18-alpine'
+        ports:
+            - '${FORWARD_DB_PORT:-5433}:5432'
+        environment:
+            POSTGRES_DB: '${DB_DATABASE}'
+            POSTGRES_USER: '${DB_USERNAME}'
+            POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
+        volumes:
+            - 'sail-pgsql:/var/lib/postgresql'
+        networks:
+            - sail
+        healthcheck:
+            test: ['CMD', 'pg_isready', '-q', '-d', '${DB_DATABASE}', '-U', '${DB_USERNAME}']
+            retries: 5
+            timeout: 5s
+
+    mailpit:
+        image: 'axllent/mailpit:latest'
+        ports:
+            - '${FORWARD_MAILPIT_PORT:-1025}:1025'
+            - '${FORWARD_MAILPIT_DASHBOARD_PORT:-8026}:8025'
+        networks:
+            - sail
+
+networks:
+    sail:
+        driver: bridge
+
+volumes:
+    sail-pgsql:
+        driver: local
+        # Nombre fijo: la identidad del volumen no depende del nombre de la carpeta
+        # (que es el "project name" de Compose). Al renombrar el directorio del repo
+        # los datos de Postgres siguen en este mismo volumen.
+        name: servalillo-pgsql
