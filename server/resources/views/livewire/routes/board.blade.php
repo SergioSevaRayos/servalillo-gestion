@@ -70,10 +70,10 @@
                         <x-ui.badge :variant="$route->status->badgeVariant()">{{ $route->status->label() }}</x-ui.badge>
                     </div>
                     <p class="text-xs text-slate-400">{{ __(':n paradas', ['n' => $route->stops->count()]) }}</p>
-                    @if ($route->tank_reconciliation_note)
-                        <p class="mt-1 flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400" title="{{ $route->tank_reconciliation_note }}">
+                    @if ($route->liter_discrepancy_note)
+                        <p class="mt-1 flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400" title="{{ $route->liter_discrepancy_note }}">
                             <svg class="mt-px h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" /></svg>
-                            <span class="line-clamp-2">{{ __('Ajuste de cisterna:') }} {{ $route->tank_reconciliation_note }}</span>
+                            <span class="line-clamp-2">{{ __('Ajuste de contador:') }} {{ $route->liter_discrepancy_note }}</span>
                         </p>
                     @endif
                 </div>

@@ -323,15 +323,17 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - Autorización: `RoutePolicy::operate` y `RouteStopPolicy::complete` (permiso + `owns()`), ya existían.
 - `<x-chofer.stop-card>` es la tarjeta táctil del chofer (grande, sin drag), distinta de
   `<x-routes.stop-card>` (Kanban del admin).
-- **Cisterna / cuadre de litros:** columnas nuevas en `routes` (`tank_loaded_liters`,
-  `tank_remaining_liters`, `tank_reconciliation_note`). "Empezar jornada" pide los litros cargados
-  (prefill = `trucks.capacity_liters`); "Terminar jornada" pide los litros que quedan. Si
-  `cargado − entregado − restante` supera `config('servalillo.tank_tolerance_liters')` (def. 0), el
-  modal avisa ("faltan/sobran N L") y **obliga a un motivo del ajuste** antes de cerrar la jornada;
-  al finalizar con ajuste sale un toast `warning`. El panel del chofer muestra siempre cargado /
-  entregado / debería-quedar. Helpers en el modelo `Route`: `deliveredLiters()`,
-  `tankTheoreticalRemaining()`, `tankDiscrepancy()`. El tablero Kanban del admin marca la columna con
-  un aviso ámbar si la ruta tiene `tank_reconciliation_note`.
+- **Contador de litros / cuadre:** es un contador de litros *dispensados* (como el cuentakilómetros,
+  pero de litros), **independiente de la cisterna** (el camión puede rellenar o no durante el día).
+  `trucks.liter_meter` guarda la última lectura conocida; `routes.liter_meter_start` /
+  `liter_meter_end` / `liter_discrepancy_note` la jornada. "Empezar jornada" pide la lectura del
+  contador (prefill = `trucks.liter_meter`); el panel del chofer muestra un contador **dinámico**
+  ("al empezar X → va por X + repartido"). "Terminar jornada" pide la lectura real; si
+  `(fin − inicio) − repartido` supera `config('servalillo.liter_meter_tolerance')` (def. 0), el modal
+  avisa ("el contador marca N L más/menos de lo repartido") y **obliga a un motivo del ajuste** antes
+  de cerrar; toast `warning` al finalizar con ajuste. Al terminar, `trucks.liter_meter` = lectura de
+  fin. Helpers en `Route`: `deliveredLiters()`, `literMeterExpected()`, `literDiscrepancy()`. El
+  tablero Kanban del admin marca la columna con aviso ámbar si hay `liter_discrepancy_note`.
 - **`<x-ui.digit-wheel>`** = selector de km tipo "ruleta" (una columna scroll-snap por dígito) para
   las lecturas de odómetro. Se integra con Livewire vía `x-modelable="value"` + `wire:model`; la
   lógica de scroll está en `Alpine.data('digitWheel')` (`app.js`). Gotchas:

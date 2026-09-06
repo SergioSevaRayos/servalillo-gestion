@@ -16,7 +16,7 @@ class Truck extends Model implements Auditable
 
     protected $fillable = [
         'plate', 'code', 'description', 'capacity_liters', 'compartments',
-        'model', 'year', 'odometer', 'is_active', 'notes',
+        'model', 'year', 'odometer', 'liter_meter', 'is_active', 'notes',
     ];
 
     protected function casts(): array
@@ -26,6 +26,7 @@ class Truck extends Model implements Auditable
             'compartments' => 'integer',
             'year' => 'integer',
             'odometer' => 'integer',
+            'liter_meter' => 'integer',
             'is_active' => 'boolean',
         ];
     }

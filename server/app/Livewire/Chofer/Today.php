@@ -28,14 +28,14 @@ class Today extends Component
     /** Lectura de odómetro que se está introduciendo (inicio/fin de jornada). */
     public ?int $odometer = null;
 
-    /** Litros cargados en la cisterna (modal de empezar jornada). */
-    public ?int $tankLoaded = null;
+    /** Lectura del contador de litros al empezar la jornada. */
+    public ?int $meterStart = null;
 
-    /** Litros que quedan en la cisterna (modal de terminar jornada). */
-    public ?int $tankRemaining = null;
+    /** Lectura del contador de litros al terminar la jornada. */
+    public ?int $meterEnd = null;
 
-    /** Motivo del ajuste si los litros no cuadran. */
-    public ?string $tankNote = null;
+    /** Motivo del ajuste si el contador no cuadra con lo repartido. */
+    public ?string $meterNote = null;
 
     public function mount(): void
     {
@@ -81,21 +81,22 @@ class Today extends Component
     }
 
     /**
-     * Estado de la cisterna: cargado, entregado a clientes y lo que debería quedar.
+     * Contador de litros: lectura al empezar, repartido en la jornada y por dónde
+     * debería ir el contador ahora mismo (inicio + repartido).
      *
-     * @return array{loaded: ?int, delivered: float, theoretical: ?float, has: bool}
+     * @return array{start: ?int, delivered: float, expected: ?float, has: bool}
      */
     #[Computed]
-    public function tank(): array
+    public function meter(): array
     {
         $route = $this->route;
         $delivered = $route ? $route->deliveredLiters() : 0.0;
 
         return [
-            'loaded' => $route?->tank_loaded_liters,
+            'start' => $route?->liter_meter_start,
             'delivered' => $delivered,
-            'theoretical' => $route?->tankTheoreticalRemaining(),
-            'has' => $route?->tank_loaded_liters !== null,
+            'expected' => $route?->literMeterExpected(),
+            'has' => $route?->liter_meter_start !== null,
         ];
     }
 
@@ -135,7 +136,7 @@ class Today extends Component
     {
         $this->authorizeRoute();
         $this->odometer = $this->route->truck?->odometer;
-        $this->tankLoaded = $this->route->truck?->capacity_liters;
+        $this->meterStart = $this->route->truck?->liter_meter;
         $this->resetErrorBag();
         $this->dispatch('open-modal', 'start-day');
     }
@@ -146,17 +147,17 @@ class Today extends Component
         $this->resetValidation();
 
         $value = $this->validateOdometer();
-        $loaded = $this->validateInt('tankLoaded', 'Introduce los litros cargados en la cisterna.');
+        $meter = $this->validateInt('meterStart', 'Introduce la lectura del contador de litros.');
 
         $this->runOdometer(fn () => $odometers->recordStart($this->route, $value));
         $this->route->update([
             'status' => RouteStatus::InProgress,
             'started_at' => now(),
-            'tank_loaded_liters' => $loaded,
+            'liter_meter_start' => $meter,
         ]);
 
         unset($this->route);
-        $this->odometer = $this->tankLoaded = null;
+        $this->odometer = $this->meterStart = null;
         $this->dispatch('close-modal', 'start-day');
         $this->dispatch('toast', message: 'Jornada iniciada.', variant: 'success');
     }
@@ -173,25 +174,25 @@ class Today extends Component
             ?? $readings[OdometerKind::Start->value]
             ?? $this->route->truck?->odometer;
 
-        // Prellenar los litros restantes con lo que "debería" quedar: así, si todo cuadra,
-        // el chofer solo confirma; si midió otra cosa, lo cambia y salta el aviso.
-        $this->tankRemaining = $this->route->tank_remaining_liters
-            ?? (int) round($this->route->tankTheoreticalRemaining() ?? 0);
-        $this->tankNote = $this->route->tank_reconciliation_note;
+        // Prellenar con "por dónde debería ir" (inicio + repartido): si todo cuadra el chofer
+        // solo confirma; si el contador marca otra cosa, lo cambia y salta el aviso.
+        $this->meterEnd = $this->route->liter_meter_end
+            ?? (int) round($this->route->literMeterExpected() ?? 0);
+        $this->meterNote = $this->route->liter_discrepancy_note;
 
         $this->resetErrorBag();
         $this->dispatch('open-modal', 'end-day');
     }
 
-    /** Litros que faltan (>0) o sobran (<0) según lo introducido en el modal de terminar jornada. */
+    /** (fin introducido − inicio) − repartido. >0 = marca de más, <0 = de menos. */
     #[Computed]
-    public function endDayDiscrepancy(): ?float
+    public function endMeterDiscrepancy(): ?float
     {
-        $theoretical = $this->route?->tankTheoreticalRemaining();
+        $route = $this->route;
 
-        return ($theoretical === null || $this->tankRemaining === null)
+        return ($route?->liter_meter_start === null || $this->meterEnd === null)
             ? null
-            : $theoretical - $this->tankRemaining;
+            : ($this->meterEnd - $route->liter_meter_start) - $route->deliveredLiters();
     }
 
     public function endDay(OdometerService $odometers): void
@@ -200,16 +201,16 @@ class Today extends Component
         $this->resetValidation();
 
         $value = $this->validateOdometer();
-        $remaining = $this->validateInt('tankRemaining', 'Introduce los litros que quedan en la cisterna.');
+        $meter = $this->validateInt('meterEnd', 'Introduce la lectura del contador de litros.');
 
-        $discrepancy = ($this->route->tankTheoreticalRemaining() ?? 0) - $remaining;
-        $tolerance = (int) config('servalillo.tank_tolerance_liters', 0);
+        $discrepancy = ($meter - ($this->route->liter_meter_start ?? $meter)) - $this->route->deliveredLiters();
+        $tolerance = (int) config('servalillo.liter_meter_tolerance', 0);
         $adjusted = abs($discrepancy) > $tolerance;
 
         // No cuadra y no hay explicación → se bloquea y se avisa (misma "notificación" en la vista).
-        if ($adjusted && blank($this->tankNote)) {
+        if ($adjusted && blank($this->meterNote)) {
             throw ValidationException::withMessages([
-                'tankNote' => 'Los datos no coinciden. Explica el ajuste para poder cerrar la jornada.',
+                'meterNote' => 'El contador no cuadra con lo repartido. Explica el ajuste para poder cerrar la jornada.',
             ]);
         }
 
@@ -217,17 +218,18 @@ class Today extends Component
         $this->route->update([
             'status' => RouteStatus::Completed,
             'completed_at' => now(),
-            'tank_remaining_liters' => $remaining,
-            'tank_reconciliation_note' => $adjusted ? trim($this->tankNote) : null,
+            'liter_meter_end' => $meter,
+            'liter_discrepancy_note' => $adjusted ? trim($this->meterNote) : null,
         ]);
+        $this->route->truck?->update(['liter_meter' => $meter]);
 
         unset($this->route);
-        $this->odometer = $this->tankRemaining = null;
-        $this->tankNote = null;
+        $this->odometer = $this->meterEnd = null;
+        $this->meterNote = null;
         $this->dispatch('close-modal', 'end-day');
         $this->dispatch('toast',
             message: $adjusted
-                ? sprintf('Jornada finalizada con un ajuste de %s L.', number_format(abs($discrepancy), 0, ',', '.'))
+                ? sprintf('Jornada finalizada con un ajuste de %s L en el contador.', number_format(abs($discrepancy), 0, ',', '.'))
                 : 'Jornada finalizada.',
             variant: $adjusted ? 'warning' : 'success',
         );
@@ -248,7 +250,7 @@ class Today extends Component
 
     private function validateOdometer(): int
     {
-        return $this->validateInt('odometer', 'Introduce la lectura del contador.');
+        return $this->validateInt('odometer', 'Introduce la lectura del cuentakilómetros.');
     }
 
     private function validateInt(string $field, string $requiredMessage): int

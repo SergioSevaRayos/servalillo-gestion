@@ -20,7 +20,7 @@ class Route extends Model implements Auditable
     protected $fillable = [
         'code', 'route_date', 'truck_id', 'driver_id', 'status',
         'name', 'notes', 'started_at', 'completed_at', 'created_by',
-        'tank_loaded_liters', 'tank_remaining_liters', 'tank_reconciliation_note',
+        'liter_meter_start', 'liter_meter_end', 'liter_discrepancy_note',
     ];
 
     protected function casts(): array
@@ -30,12 +30,12 @@ class Route extends Model implements Auditable
             'status' => RouteStatus::class,
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
-            'tank_loaded_liters' => 'integer',
-            'tank_remaining_liters' => 'integer',
+            'liter_meter_start' => 'integer',
+            'liter_meter_end' => 'integer',
         ];
     }
 
-    /** Litros ya entregados a clientes en esta ruta (paradas completadas). */
+    /** Litros ya repartidos a clientes en esta ruta (paradas completadas). */
     public function deliveredLiters(): float
     {
         return (float) $this->stops
@@ -43,25 +43,23 @@ class Route extends Model implements Auditable
             ->sum('delivered_quantity');
     }
 
-    /** Litros que deberían quedar en la cisterna = cargado − entregado. */
-    public function tankTheoreticalRemaining(): ?float
+    /** Por dónde debería ir el contador ahora mismo = lectura de inicio + litros repartidos. */
+    public function literMeterExpected(): ?float
     {
-        return $this->tank_loaded_liters === null
+        return $this->liter_meter_start === null
             ? null
-            : $this->tank_loaded_liters - $this->deliveredLiters();
+            : $this->liter_meter_start + $this->deliveredLiters();
     }
 
     /**
-     * Diferencia entre lo que debería quedar y lo medido al terminar.
-     * >0 = falta producto (se perdió/derramó); <0 = sobra (raro). null si no hay datos.
+     * (fin − inicio) − repartido. >0 = el contador marca más de lo repartido
+     * (mermas/derrames); <0 = marca menos (raro). null si faltan datos.
      */
-    public function tankDiscrepancy(): ?float
+    public function literDiscrepancy(): ?float
     {
-        $theoretical = $this->tankTheoreticalRemaining();
-
-        return ($theoretical === null || $this->tank_remaining_liters === null)
+        return ($this->liter_meter_start === null || $this->liter_meter_end === null)
             ? null
-            : $theoretical - $this->tank_remaining_liters;
+            : ($this->liter_meter_end - $this->liter_meter_start) - $this->deliveredLiters();
     }
 
     public function truck(): BelongsTo

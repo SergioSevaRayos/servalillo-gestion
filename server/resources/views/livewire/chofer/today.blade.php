@@ -41,27 +41,28 @@
                 </div>
             </div>
 
-            {{-- Cisterna: litros cargados, entregados y lo que debería quedar --}}
-            @if ($this->tank['has'])
-                @php
-                    $tk = $this->tank;
-                    $usedPct = $tk['loaded'] > 0 ? min(100, round($tk['delivered'] / $tk['loaded'] * 100)) : 0;
-                @endphp
+            {{-- Contador de litros: cómo estaba al empezar y por dónde va con cada reparto --}}
+            @if ($this->meter['has'])
+                @php $mt = $this->meter; @endphp
                 <div class="mt-4 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
                     <div class="flex items-center justify-between text-sm">
-                        <span class="font-medium text-slate-700 dark:text-slate-200">{{ __('Cisterna') }}</span>
-                        <span class="text-slate-500 dark:text-slate-400">{{ __('cargado :n L', ['n' => number_format($tk['loaded'], 0, ',', '.')]) }}</span>
+                        <span class="font-medium text-slate-700 dark:text-slate-200">{{ __('Contador de litros') }}</span>
+                        <span class="text-slate-500 dark:text-slate-400">{{ __('repartido hoy: :n L', ['n' => number_format($mt['delivered'], 0, ',', '.')]) }}</span>
                     </div>
-                    <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-                        <div class="h-full rounded-full bg-primary-500" style="width: {{ $usedPct }}%"></div>
+                    <div class="mt-2 flex items-end justify-between">
+                        <div>
+                            <p class="text-xs text-slate-400">{{ __('Al empezar') }}</p>
+                            <p class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ number_format($mt['start'], 0, ',', '.') }}</p>
+                        </div>
+                        <span class="pb-1 text-slate-300 dark:text-slate-600">→</span>
+                        <div class="text-right">
+                            <p class="text-xs text-slate-400">{{ __('Va por') }}</p>
+                            <p class="text-xl font-bold tabular-nums text-primary-600 dark:text-primary-400">{{ number_format($mt['expected'], 0, ',', '.') }}</p>
+                        </div>
                     </div>
-                    <div class="mt-2 flex justify-between text-sm">
-                        <span class="text-slate-500 dark:text-slate-400">{{ __('Entregado: :n L', ['n' => number_format($tk['delivered'], 0, ',', '.')]) }}</span>
-                        <span class="font-medium text-slate-700 dark:text-slate-200">{{ __('Debería quedar: :n L', ['n' => number_format(max(0, $tk['theoretical']), 0, ',', '.')]) }}</span>
-                    </div>
-                    @if ($route->tank_reconciliation_note)
+                    @if ($route->liter_discrepancy_note)
                         <p class="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
-                            <span class="font-medium">{{ __('Ajuste registrado:') }}</span> {{ $route->tank_reconciliation_note }}
+                            <span class="font-medium">{{ __('Ajuste registrado:') }}</span> {{ $route->liter_discrepancy_note }}
                         </p>
                     @endif
                 </div>
@@ -73,12 +74,12 @@
                     <x-ui.button class="w-full justify-center" size="lg" wire:click="openStartDay">
                         {{ __('Empezar jornada') }}
                     </x-ui.button>
-                    <p class="mt-2 text-center text-xs text-slate-400">{{ __('Registra el contador de inicio para poder operar las paradas.') }}</p>
+                    <p class="mt-2 text-center text-xs text-slate-400">{{ __('Anota las lecturas del camión para poder operar las paradas.') }}</p>
                 @elseif (! $this->finished)
                     @php $startReading = $route->odometerReadings->firstWhere('kind', \App\Enums\OdometerKind::Start)?->value; @endphp
                     @if ($startReading !== null)
                         <p class="mb-3 text-center text-sm text-slate-500 dark:text-slate-400">
-                            {{ __('Contador de inicio: :km km', ['km' => number_format($startReading, 0, ',', '.')]) }}
+                            {{ __('Km de inicio: :km', ['km' => number_format($startReading, 0, ',', '.')]) }}
                         </p>
                     @endif
                     <x-ui.button variant="secondary" class="w-full justify-center" size="lg" wire:click="openEndDay">
@@ -90,15 +91,15 @@
                         $end = $route->odometerReadings->firstWhere('kind', \App\Enums\OdometerKind::End)?->value;
                     @endphp
                     <div class="grid grid-cols-3 gap-3 text-center">
-                        <div><p class="text-xs text-slate-400">{{ __('Contador inicio') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ $start !== null ? number_format($start, 0, ',', '.') : '—' }}</p></div>
-                        <div><p class="text-xs text-slate-400">{{ __('Contador fin') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ $end !== null ? number_format($end, 0, ',', '.') : '—' }}</p></div>
+                        <div><p class="text-xs text-slate-400">{{ __('Km inicio') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ $start !== null ? number_format($start, 0, ',', '.') : '—' }}</p></div>
+                        <div><p class="text-xs text-slate-400">{{ __('Km fin') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ $end !== null ? number_format($end, 0, ',', '.') : '—' }}</p></div>
                         <div><p class="text-xs text-slate-400">{{ __('Km jornada') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ ($start !== null && $end !== null) ? number_format($end - $start, 0, ',', '.') : '—' }}</p></div>
                     </div>
-                    @if ($route->tank_loaded_liters !== null)
+                    @if ($route->liter_meter_start !== null)
                         <div class="mt-3 grid grid-cols-3 gap-3 text-center">
-                            <div><p class="text-xs text-slate-400">{{ __('Cargado') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ number_format($route->tank_loaded_liters, 0, ',', '.') }} L</p></div>
-                            <div><p class="text-xs text-slate-400">{{ __('Entregado') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ number_format($route->deliveredLiters(), 0, ',', '.') }} L</p></div>
-                            <div><p class="text-xs text-slate-400">{{ __('Restante') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ $route->tank_remaining_liters !== null ? number_format($route->tank_remaining_liters, 0, ',', '.').' L' : '—' }}</p></div>
+                            <div><p class="text-xs text-slate-400">{{ __('Contador inicio') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ number_format($route->liter_meter_start, 0, ',', '.') }}</p></div>
+                            <div><p class="text-xs text-slate-400">{{ __('Contador fin') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ $route->liter_meter_end !== null ? number_format($route->liter_meter_end, 0, ',', '.') : '—' }}</p></div>
+                            <div><p class="text-xs text-slate-400">{{ __('Repartido') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ number_format($route->deliveredLiters(), 0, ',', '.') }} L</p></div>
                         </div>
                     @endif
                     <p class="mt-3 text-center text-sm font-medium text-emerald-700 dark:text-emerald-400">{{ __('Jornada finalizada') }}</p>
@@ -124,15 +125,15 @@
     <x-modal name="start-day" max-width="sm">
         <form wire:submit="startDay" class="p-6">
             <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ __('Empezar jornada') }}</h3>
-            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ __('Ajusta la lectura del cuentakilómetros del camión ahora mismo.') }}</p>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ __('Anota las lecturas del camión antes de salir.') }}</p>
             <div class="mt-4">
-                <p class="mb-2 text-center text-sm font-medium text-slate-500 dark:text-slate-400">{{ __('Contador (km)') }}</p>
+                <p class="mb-2 text-center text-sm font-medium text-slate-500 dark:text-slate-400">{{ __('Cuentakilómetros') }}</p>
                 <x-ui.digit-wheel wire:model="odometer" :value="$route?->truck?->odometer ?? 0" sync-on="start-day" />
             </div>
             <div class="mt-4">
-                <x-ui.input name="tankLoaded" type="number" inputmode="numeric"
-                    label="{{ __('Litros cargados en la cisterna') }}" wire:model="tankLoaded"
-                    help="{{ $route?->truck?->capacity_liters ? __('Capacidad del camión: :n L', ['n' => number_format($route->truck->capacity_liters, 0, ',', '.')]) : null }}" />
+                <x-ui.input name="meterStart" type="number" inputmode="numeric"
+                    label="{{ __('Contador de litros') }}" wire:model="meterStart"
+                    help="{{ $route?->truck?->liter_meter ? __('Última lectura registrada: :n', ['n' => number_format($route->truck->liter_meter, 0, ',', '.')]) : null }}" />
             </div>
             <div class="mt-6 flex justify-end gap-3">
                 <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cancelar') }}</x-ui.button>
@@ -149,36 +150,36 @@
                 <p class="mt-1 text-sm text-amber-600 dark:text-amber-400">{{ __('Quedan :n paradas sin cerrar. Aun así puedes terminar la jornada.', ['n' => $this->pendingCount]) }}</p>
             @endif
             <div class="mt-4">
-                <p class="mb-2 text-center text-sm font-medium text-slate-500 dark:text-slate-400">{{ __('Contador (km)') }}</p>
+                <p class="mb-2 text-center text-sm font-medium text-slate-500 dark:text-slate-400">{{ __('Cuentakilómetros') }}</p>
                 <x-ui.digit-wheel wire:model="odometer" :value="$route?->truck?->odometer ?? 0" sync-on="end-day" />
             </div>
 
-            {{-- Cisterna: comprobación de que lo medido cuadra con cargado − entregado --}}
+            {{-- Contador de litros: (fin − inicio) debe cuadrar con lo repartido --}}
             <div class="mt-4">
-                @php $theo = $route?->tankTheoreticalRemaining(); $disc = $this->endDayDiscrepancy(); @endphp
-                @if ($theo !== null)
+                @php $disc = $this->endMeterDiscrepancy(); @endphp
+                @if ($route?->liter_meter_start !== null)
                     <p class="mb-1 text-xs text-slate-500 dark:text-slate-400">
-                        {{ __('Cargado :c L · entregado :e L · debería quedar :t L', [
-                            'c' => number_format($route->tank_loaded_liters, 0, ',', '.'),
-                            'e' => number_format($this->tank['delivered'], 0, ',', '.'),
-                            't' => number_format(max(0, $theo), 0, ',', '.'),
+                        {{ __('Al empezar :s · repartido hoy :r L · debería marcar :e', [
+                            's' => number_format($route->liter_meter_start, 0, ',', '.'),
+                            'r' => number_format($this->meter['delivered'], 0, ',', '.'),
+                            'e' => number_format($route->literMeterExpected(), 0, ',', '.'),
                         ]) }}
                     </p>
                 @endif
-                <x-ui.input name="tankRemaining" type="number" inputmode="numeric"
-                    label="{{ __('Litros que quedan en la cisterna') }}" wire:model.live.debounce.500ms="tankRemaining" />
+                <x-ui.input name="meterEnd" type="number" inputmode="numeric"
+                    label="{{ __('Contador de litros ahora') }}" wire:model.live.debounce.500ms="meterEnd" />
 
-                @if ($disc !== null && abs($disc) > (int) config('servalillo.tank_tolerance_liters', 0))
+                @if ($disc !== null && abs($disc) > (int) config('servalillo.liter_meter_tolerance', 0))
                     <div class="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
                         <p class="font-medium">
                             {{ $disc > 0
-                                ? __('Los datos no coinciden: faltan :n L.', ['n' => number_format($disc, 0, ',', '.')])
-                                : __('Los datos no coinciden: sobran :n L.', ['n' => number_format(abs($disc), 0, ',', '.')]) }}
+                                ? __('El contador marca :n L más de lo repartido.', ['n' => number_format($disc, 0, ',', '.')])
+                                : __('El contador marca :n L menos de lo repartido.', ['n' => number_format(abs($disc), 0, ',', '.')]) }}
                         </p>
                         <div class="mt-2">
-                            <x-ui.textarea name="tankNote" wire:model="tankNote" rows="2"
+                            <x-ui.textarea name="meterNote" wire:model="meterNote" rows="2"
                                 label="{{ __('Motivo del ajuste') }}"
-                                placeholder="{{ __('Ej: se perdieron 4 L al soltarse la manguera y derramarse.') }}" />
+                                placeholder="{{ __('Ej: se soltó la manguera y se derramaron 4 L por el suelo.') }}" />
                         </div>
                     </div>
                 @endif

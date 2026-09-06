@@ -23,6 +23,7 @@ class TruckFactory extends Factory
             'model' => fake()->randomElement(['Volvo FH', 'Scania R', 'MAN TGX', 'Iveco S-Way']),
             'year' => fake()->numberBetween(2015, 2025),
             'odometer' => fake()->numberBetween(50000, 400000),
+            'liter_meter' => fake()->numberBetween(100000, 900000),
             'is_active' => true,
         ];
     }

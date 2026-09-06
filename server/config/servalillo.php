@@ -26,12 +26,12 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Cisterna
+    | Contador de litros
     |--------------------------------------------------------------------------
-    | Al terminar la jornada, si los litros que quedan en la cisterna no cuadran
-    | con "lo cargado − lo entregado a los clientes" por más de esta tolerancia,
-    | se avisa al chofer y se le pide un motivo del ajuste.
+    | Al terminar la jornada, si (lectura fin − lectura inicio) del contador no
+    | cuadra con lo repartido a los clientes por más de esta tolerancia, se avisa
+    | al chofer y se le pide un motivo del ajuste.
     */
-    'tank_tolerance_liters' => (int) env('TANK_TOLERANCE_LITERS', 0),
+    'liter_meter_tolerance' => (int) env('LITER_METER_TOLERANCE', 0),
 
 ];

@@ -95,6 +95,7 @@ class DatabaseSeeder extends Seeder
                 'model' => ['Volvo FH', 'Scania R450', 'MAN TGX', 'Iveco S-Way'][$i],
                 'year' => [2019, 2021, 2022, 2020][$i],
                 'odometer' => [285000, 142000, 96000, 210000][$i],
+                'liter_meter' => [1458320, 892100, 640540, 1120890][$i],
                 'is_active' => true,
             ]);
 
@@ -157,7 +158,7 @@ class DatabaseSeeder extends Seeder
                 'created_by' => $creator->id,
                 'started_at' => in_array($status, [RouteStatus::InProgress, RouteStatus::Completed]) ? $date->copy()->setTime(7, 15) : null,
                 'completed_at' => $status === RouteStatus::Completed ? $date->copy()->setTime(15, 40) : null,
-                'tank_loaded_liters' => in_array($status, [RouteStatus::InProgress, RouteStatus::Completed]) ? $truck->capacity_liters : null,
+                'liter_meter_start' => in_array($status, [RouteStatus::InProgress, RouteStatus::Completed]) ? $truck->liter_meter : null,
             ]
         );
 
@@ -207,12 +208,14 @@ class DatabaseSeeder extends Seeder
                 ['truck_id' => $truck->id, 'driver_id' => $driver->id, 'value' => $truck->odometer + 180, 'recorded_at' => $date->copy()->setTime(15, 35)]
             );
 
-            // Cisterna: la ruta completada de ayer cerró con un pequeño descuadre (ejemplo para el panel).
+            // Contador de litros: la ruta de ayer cerró con un pequeño descuadre (ejemplo para el panel).
             $delivered = $route->stops()->where('status', RouteStopStatus::Completed->value)->sum('delivered_quantity');
+            $end = (int) ($truck->liter_meter + $delivered + 4);
             $route->update([
-                'tank_remaining_liters' => (int) ($truck->capacity_liters - $delivered - 4),
-                'tank_reconciliation_note' => 'Se soltó la manguera del depósito y se derramaron unos 4 L por el suelo.',
+                'liter_meter_end' => $end,
+                'liter_discrepancy_note' => 'Se soltó la manguera del depósito y se derramaron unos 4 L por el suelo.',
             ]);
+            $truck->update(['liter_meter' => $end]);
         }
     }
 
@@ -232,6 +235,7 @@ class DatabaseSeeder extends Seeder
 
         $trucks = Truck::orderBy('code')->get()->values();
         $odometerCursor = $trucks->mapWithKeys(fn (Truck $t) => [$t->id => $t->odometer - 15000]);
+        $literCursor = $trucks->mapWithKeys(fn (Truck $t) => [$t->id => max(0, $t->liter_meter - 400000)]);
 
         for ($daysAgo = 90; $daysAgo >= 2; $daysAgo--) {
             $date = Carbon::today()->subDays($daysAgo);
@@ -298,7 +302,21 @@ class DatabaseSeeder extends Seeder
 
                 OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::Start->value, 'value' => $start, 'recorded_at' => $date->copy()->setTime(7, 10)]);
                 OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::End->value, 'value' => $end, 'recorded_at' => $date->copy()->setTime(16, 5)]);
+
+                // Contador de litros: avanza lo repartido + alguna merma ocasional.
+                $meterStart = $literCursor[$truck->id];
+                $repartido = (int) $route->stops()->where('status', RouteStopStatus::Completed->value)->sum('delivered_quantity');
+                $merma = fake()->boolean(15) ? fake()->numberBetween(2, 12) : 0;
+                $meterEnd = $meterStart + $repartido + $merma;
+                $literCursor[$truck->id] = $meterEnd;
+                $route->update([
+                    'liter_meter_start' => $meterStart,
+                    'liter_meter_end' => $meterEnd,
+                    'liter_discrepancy_note' => $merma ? "Merma de {$merma} L: goteo en la manguera durante el reparto." : null,
+                ]);
             }
+
+            $trucks->each(fn (Truck $t) => $t->update(['liter_meter' => $literCursor[$t->id]]));
         }
     }
 
