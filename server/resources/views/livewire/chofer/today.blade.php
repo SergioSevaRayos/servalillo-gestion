@@ -157,6 +157,37 @@
 
                 <form wire:submit="saveStop" class="mt-4 space-y-4">
                     @if ($this->form->outcome === 'completed')
+                        @php $needsSignature = $this->form->channelRequiresSignature(); @endphp
+
+                        {{-- Cómo se entrega el albarán: primera decisión, condiciona el resto del formulario. --}}
+                        @if (! $s->deliveryNote)
+                            <div>
+                                <x-input-label :value="__('Cómo se entrega el albarán')" />
+                                <div class="mt-1 grid grid-cols-2 gap-2">
+                                    @foreach (['email' => __('Enviar por email'), 'physical' => __('Entrega en mano')] as $value => $label)
+                                        <button
+                                            type="button"
+                                            wire:click="$set('form.channel', '{{ $value }}')"
+                                            @class([
+                                                'rounded-lg border px-2 py-2 text-sm font-medium transition-colors',
+                                                'border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300' => $this->form->channel === $value,
+                                                'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800' => $this->form->channel !== $value,
+                                            ])
+                                        >{{ $label }}</button>
+                                    @endforeach
+                                </div>
+                                @if (! $needsSignature)
+                                    <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                                        {{ __('Se entrega la copia impresa en mano; el cliente firma el papel.') }}
+                                    </p>
+                                @endif
+                            </div>
+                        @else
+                            <p class="rounded-lg bg-slate-100 p-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                {{ __('Albarán :n · :estado', ['n' => $s->deliveryNote->number, 'estado' => $s->deliveryNote->status->label()]) }}
+                            </p>
+                        @endif
+
                         <x-ui.input name="form.delivered_quantity" type="number" step="any" inputmode="decimal"
                             label="{{ __('Litros entregados') }}" wire:model="form.delivered_quantity" />
 
@@ -190,44 +221,15 @@
                             @endforeach
                         @endif
 
-                        {{-- Albarán: canal + firma. Solo si aún no hay albarán para esta parada. --}}
+                        {{-- Campos del albarán, según el canal elegido arriba. --}}
                         @if (! $s->deliveryNote)
-                            <div class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-                                <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ __('Albarán') }}</p>
-
-                                @php $needsSignature = $this->form->channelRequiresSignature(); @endphp
-
-                                <div class="mt-2 grid gap-3 sm:grid-cols-2">
-                                    <x-ui.select name="form.channel" label="{{ __('Cómo se entrega') }}" wire:model.live="form.channel">
-                                        <option value="email">{{ __('Enviar por email') }}</option>
-                                        <option value="physical">{{ __('Entrega en mano (papel)') }}</option>
-                                    </x-ui.select>
-
-                                    @if ($this->form->channel === 'email')
-                                        <x-ui.input name="form.recipient_email" type="email" label="{{ __('Email del cliente') }}" wire:model="form.recipient_email" />
-                                    @endif
-                                </div>
-
-                                @if ($needsSignature)
-                                    <div class="mt-3">
-                                        <x-ui.input name="form.signer_name" label="{{ __('Nombre de quien firma') }}" wire:model="form.signer_name" />
-                                    </div>
-                                    <div class="mt-3">
-                                        <x-ui.signature-pad wire:model="form.signature" sync-on="stop-action" />
-                                    </div>
-                                @else
-                                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                                        {{ __('Se entrega la copia impresa del albarán en mano; el cliente firma el papel.') }}
-                                    </p>
-                                    <div class="mt-2">
-                                        <x-ui.input name="form.signer_name" label="{{ __('Recibido por (opcional)') }}" wire:model="form.signer_name" />
-                                    </div>
-                                @endif
-                            </div>
-                        @else
-                            <p class="rounded-lg bg-slate-100 p-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                                {{ __('Albarán :n · :estado', ['n' => $s->deliveryNote->number, 'estado' => $s->deliveryNote->status->label()]) }}
-                            </p>
+                            @if ($needsSignature)
+                                <x-ui.input name="form.recipient_email" type="email" label="{{ __('Email del cliente') }}" wire:model="form.recipient_email" />
+                                <x-ui.input name="form.signer_name" label="{{ __('Nombre de quien firma') }}" wire:model="form.signer_name" />
+                                <x-ui.signature-pad wire:model="form.signature" sync-on="stop-action" />
+                            @else
+                                <x-ui.input name="form.signer_name" label="{{ __('Recibido por (opcional)') }}" wire:model="form.signer_name" />
+                            @endif
                         @endif
                     @else
                         <x-ui.textarea name="form.reason" label="{{ $this->form->outcome === 'failed' ? __('Motivo del fallo') : __('Motivo para omitir') }}" wire:model="form.reason" rows="3" />
