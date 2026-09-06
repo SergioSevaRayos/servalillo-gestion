@@ -25,6 +25,11 @@ class EmailChannel implements DeliveryChannel
         return true;
     }
 
+    public function requiresSignature(): bool
+    {
+        return true;
+    }
+
     public function validationRules(): array
     {
         return [

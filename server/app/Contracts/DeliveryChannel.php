@@ -16,6 +16,12 @@ interface DeliveryChannel
     public function requiresPdf(): bool;
 
     /**
+     * ¿Se captura la firma del cliente en el teléfono?
+     * En "entrega en mano" no: el chofer lleva albaranes en papel y firma el cliente allí.
+     */
+    public function requiresSignature(): bool;
+
+    /**
      * Reglas de validación extra para el formulario de "completar entrega"
      * cuando se elige este canal (ej. email obligatorio).
      *

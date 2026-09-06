@@ -24,6 +24,12 @@ class PhysicalChannel implements DeliveryChannel
         return true;
     }
 
+    public function requiresSignature(): bool
+    {
+        // El chofer lleva albaranes en papel; el cliente firma la copia física.
+        return false;
+    }
+
     public function validationRules(): array
     {
         return [];

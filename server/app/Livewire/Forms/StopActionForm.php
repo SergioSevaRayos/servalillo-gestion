@@ -65,9 +65,16 @@ class StopActionForm extends Form
 
         if ($this->outcome === 'completed' && ! $this->stop?->deliveryNote) {
             $rules['channel'] = ['required', 'string'];
-            $rules['signer_name'] = ['required', 'string', 'max:120'];
-            $rules['signature'] = ['required', 'string', 'starts_with:data:image/png;base64,'];
             $rules += app(DeliveryNoteService::class)->rulesForChannel($this->channel);
+
+            if ($this->channelRequiresSignature()) {
+                // Email: el cliente firma en el teléfono.
+                $rules['signer_name'] = ['required', 'string', 'max:120'];
+                $rules['signature'] = ['required', 'string', 'starts_with:data:image/png;base64,'];
+            } else {
+                // Entrega en mano: la firma va en el albarán de papel; "recibido por" es opcional.
+                $rules['signer_name'] = ['nullable', 'string', 'max:120'];
+            }
         }
 
         return $rules;
@@ -83,6 +90,11 @@ class StopActionForm extends Form
             'signer_name.required' => 'Indica quién firma.',
             'recipient_email.required' => 'Indica el email del cliente para enviarle el albarán.',
         ];
+    }
+
+    public function channelRequiresSignature(): bool
+    {
+        return app(DeliveryNoteService::class)->channelRequiresSignature($this->channel);
     }
 
     public function apply(DeliveryTypeSchemaValidator $schemaValidator, DeliveryNoteService $notes): void
@@ -104,12 +116,12 @@ class StopActionForm extends Form
             ]);
 
             if (! $stop->deliveryNote()->exists()) {
-                $notes->createForStop($stop->refresh(), [
+                $notes->createForStop($stop->refresh(), array_filter([
                     'channel' => $this->channel,
                     'recipient_email' => $this->recipient_email,
                     'signer_name' => $this->signer_name,
-                    'signature' => $this->signature,
-                ], auth()->id());
+                    'signature' => $this->signature ?: null,
+                ], fn ($v) => $v !== null), auth()->id());
             }
         } else {
             $stop->update([

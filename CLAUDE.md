@@ -345,9 +345,13 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - **`ProcessDeliveryNote`** (job, 3 reintentos): `Generating` → renderiza PDF a `r2` (`Generated`) →
   `$channel->deliver($note)` fija el estado final (`Sent` / `DeliveredPhysically`). `failed()` deja
   `Failed` + `failure_reason`.
-- **Canales** (`config/delivery.php`): `EmailChannel` ahora envía de verdad (`DeliveryNoteMail` con el
-  PDF adjunto, a `recipient_email`; Mailpit en local). `PhysicalChannel` no envía nada, solo marca
-  `DeliveredPhysically`. Añadir un canal = clase nueva + entrada en config (sin migración).
+- **Canales** (`config/delivery.php`): `EmailChannel` envía `DeliveryNoteMail` con el PDF adjunto a
+  `recipient_email` (Mailpit en local). `PhysicalChannel` = **entrega en mano en papel**: no envía
+  nada digital, solo marca `DeliveredPhysically`. Añadir un canal = clase nueva + entrada en config.
+- **Firma según canal:** el contrato tiene `requiresSignature()`. `email` → sí (el cliente firma en
+  el teléfono, canvas). `physical` → **no** (el chofer lleva albaranes en papel; el cliente firma el
+  papel). En `physical` el formulario del chofer oculta la firma y solo pide "Recibido por"
+  (opcional). `StopActionForm::rules()` y la vista se ramifican con `channelRequiresSignature()`.
 - **Firma:** canvas + `signature_pad` (`<x-ui.signature-pad>`, Alpine `signaturePad` en `app.js`).
   Igual que la ruleta: `x-modelable` + `wire:model`, y se re-dimensiona al abrir el modal (canvas
   con `display:none` mide 0). Se exporta PNG data URL; el servicio valida la **cabecera mágica real

@@ -195,10 +195,12 @@
                             <div class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
                                 <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ __('Albarán') }}</p>
 
+                                @php $needsSignature = $this->form->channelRequiresSignature(); @endphp
+
                                 <div class="mt-2 grid gap-3 sm:grid-cols-2">
                                     <x-ui.select name="form.channel" label="{{ __('Cómo se entrega') }}" wire:model.live="form.channel">
                                         <option value="email">{{ __('Enviar por email') }}</option>
-                                        <option value="physical">{{ __('Entrega en mano') }}</option>
+                                        <option value="physical">{{ __('Entrega en mano (papel)') }}</option>
                                     </x-ui.select>
 
                                     @if ($this->form->channel === 'email')
@@ -206,13 +208,21 @@
                                     @endif
                                 </div>
 
-                                <div class="mt-3">
-                                    <x-ui.input name="form.signer_name" label="{{ __('Nombre de quien firma') }}" wire:model="form.signer_name" />
-                                </div>
-
-                                <div class="mt-3">
-                                    <x-ui.signature-pad wire:model="form.signature" sync-on="stop-action" />
-                                </div>
+                                @if ($needsSignature)
+                                    <div class="mt-3">
+                                        <x-ui.input name="form.signer_name" label="{{ __('Nombre de quien firma') }}" wire:model="form.signer_name" />
+                                    </div>
+                                    <div class="mt-3">
+                                        <x-ui.signature-pad wire:model="form.signature" sync-on="stop-action" />
+                                    </div>
+                                @else
+                                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                                        {{ __('Se entrega la copia impresa del albarán en mano; el cliente firma el papel.') }}
+                                    </p>
+                                    <div class="mt-2">
+                                        <x-ui.input name="form.signer_name" label="{{ __('Recibido por (opcional)') }}" wire:model="form.signer_name" />
+                                    </div>
+                                @endif
                             </div>
                         @else
                             <p class="rounded-lg bg-slate-100 p-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">

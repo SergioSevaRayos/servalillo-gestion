@@ -21,7 +21,7 @@ class DeliveryNoteService
     public function __construct(private DeliveryChannelManager $channels) {}
 
     /**
-     * @param  array{channel: string, recipient_email?: ?string, signer_name: string, signature?: ?string}  $input
+     * @param  array{channel: string, recipient_email?: ?string, signer_name?: ?string, signature?: ?string}  $input
      */
     public function createForStop(RouteStop $stop, array $input, ?int $userId = null): DeliveryNote
     {
@@ -46,8 +46,8 @@ class DeliveryNoteService
                 'delivered_quantity' => $stop->delivered_quantity,
                 'odometer_reading' => $stop->route?->odometerReadings
                     ->firstWhere('kind.value', 'end')?->value,
-                'signer_name' => $input['signer_name'],
-                'signature_path' => isset($input['signature'])
+                'signer_name' => $input['signer_name'] ?? null,
+                'signature_path' => ! empty($input['signature'])
                     ? $this->storeSignature($input['signature'])
                     : null,
                 'delivery_channel' => $channel->key(),
@@ -84,6 +84,14 @@ class DeliveryNoteService
         }
 
         return $this->channels->get($channelKey)->validationRules();
+    }
+
+    /** ¿El canal captura la firma en el teléfono? (email sí, entrega en mano no). */
+    public function channelRequiresSignature(?string $channelKey): bool
+    {
+        return $channelKey
+            && $this->channels->exists($channelKey)
+            && $this->channels->get($channelKey)->requiresSignature();
     }
 
     private function nextNumber(): string

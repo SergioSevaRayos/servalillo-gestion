@@ -113,7 +113,8 @@ it('completa una parada con cantidad y datos del tipo de reparto', function () {
         ->set('form.outcome', 'completed')
         ->set('form.delivered_quantity', 950)
         ->set('form.data.producto', 'Gasóleo A')
-        ->set('form.channel', 'physical')
+        ->set('form.channel', 'email')
+        ->set('form.recipient_email', 'cliente@example.com')
         ->set('form.signer_name', 'El encargado')
         ->set('form.signature', fakeSignature())
         ->call('saveStop')
@@ -125,9 +126,28 @@ it('completa una parada con cantidad y datos del tipo de reparto', function () {
         ->and($stop->data['producto'])->toBe('Gasóleo A')
         ->and($stop->completed_at)->not->toBeNull()
         ->and($stop->deliveryNote)->not->toBeNull()
-        ->and($stop->deliveryNote->signer_name)->toBe('El encargado');
+        ->and($stop->deliveryNote->signer_name)->toBe('El encargado')
+        ->and($stop->deliveryNote->signature_path)->not->toBeNull();
 
     Queue::assertPushed(ProcessDeliveryNote::class);
+});
+
+it('la entrega en mano no pide firma en el teléfono', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
+    $stop = $route->stops()->first();
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->set('form.outcome', 'completed')
+        ->set('form.delivered_quantity', 400)
+        ->set('form.channel', 'physical')
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    $note = $stop->fresh()->deliveryNote;
+    expect($note)->not->toBeNull()
+        ->and($note->delivery_channel)->toBe('physical')
+        ->and($note->signature_path)->toBeNull();
 });
 
 it('al entregar por email exige el email del cliente y la firma', function () {
