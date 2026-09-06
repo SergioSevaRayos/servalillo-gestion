@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ThemeController;
+use App\Livewire\Dashboard\Index as DashboardIndex;
 use App\Livewire\Drivers\Index as DriversIndex;
 use App\Livewire\Routes\Board as RoutesBoard;
 use App\Livewire\Routes\Index as RoutesIndex;
@@ -35,7 +36,9 @@ Route::get('home', function () {
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function () {
-    Route::view('dashboard', 'dashboard')->name('dashboard');
+    // Panel estadístico (Bloque 5). El permiso `stats.view` lo tiene administrador;
+    // mantenimiento pasa por el Gate::before de superusuario técnico.
+    Route::get('dashboard', DashboardIndex::class)->middleware('permission:stats.view')->name('dashboard');
     Route::view('style-guide', 'style-guide')->name('style-guide');
 
     Route::get('chofers', DriversIndex::class)->name('drivers.index');

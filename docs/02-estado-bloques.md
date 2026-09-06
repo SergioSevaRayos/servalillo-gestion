@@ -7,8 +7,8 @@
 | 2 | Sistema de diseño Tailwind (claro/oscuro, componentes, gota animada) | ✅ Hecho |
 | 3 | Panel Administrador (CRUDs Livewire) | ✅ Hecho |
 | 4 | Tablero Kanban de rutas + drag & drop de paradas | ✅ Hecho |
-| 5 | Panel estadístico | ⬜ Siguiente |
-| 6 | Panel de Mantenimiento (logs + auditoría) | ⬜ |
+| 5 | Panel estadístico (KPIs + gráficos) | ✅ Hecho |
+| 6 | Panel de Mantenimiento (logs + auditoría) | ⬜ Siguiente |
 | 7 | Web operativa del Chofer | ⬜ |
 | 8 | Albaranes (PDF + canales email/físico) + colas | ⬜ |
 | 9 | API Flutter (Sanctum) | ⬜ |
@@ -331,9 +331,66 @@ cd server && docker compose up -d && npm run dev
 
 ---
 
+## Bloque 5 — lo que se ha construido
+
+**Panel estadístico del Administrador**, montado sobre `/dashboard` (que deja de ser un `Route::view`
+y pasa a ser el componente Livewire `App\Livewire\Dashboard\Index`).
+
+- **`App\Services\FleetStatsService`** — punto único de agregación. `report($from, $to)` devuelve:
+  - `kpis`: rutas del periodo, rutas activas hoy, entregas completadas/falladas, tasa de éxito, litros
+    entregados, % de cumplimiento, paradas sin asignar, camiones/chóferes activos.
+  - `operations`: serie diaria de paradas completadas vs falladas + desglose de estados de ruta.
+  - `volume`: litros planificados vs entregados (paradas cerradas) + desglose por tipo de reparto.
+  - `by_driver`: completadas / falladas / tasa de fallo / litros por chofer.
+  - `by_truck`: días con ruta / km (por lecturas de odómetro inicio-fin) / litros / capacidad.
+  - Todo con agregación en Postgres (`count(*) filter (where ...)`), excluyendo soft-deletes a mano.
+- **`Index` (Livewire)**: `#[Url] $range` en `{7d,30d,90d,year}` (def. `30d`), `abort_unless` con
+  `stats.view` en `mount()`, y `permission:stats.view` en la ruta. `setRange()` reemite `stats-updated`.
+- **Chart.js** (`chart.js@4`, fijado, `import ... from 'chart.js/auto'` en `app.js`). 4 gráficos
+  (línea de paradas/día, donut de estados de ruta, donut de litros por tipo, barras apiladas por
+  chofer) en un bloque `wire:ignore`; el componente Alpine `window.statsCharts` los crea una vez y
+  los actualiza por evento. Las instancias **no** se guardan en el estado de Alpine (Proxy reactivo
+  sobre Chart.js → stack overflow) — detalle en `CLAUDE.md`.
+- Vista: `resources/views/livewire/dashboard/index.blade.php`. KPIs con `<x-ui.stat-card>` (`.glass`),
+  gráficos y tablas con `<x-ui.card>` (`.surface`) + `<x-ui.table>` con `data-label` para móvil.
+- **Seeder**: `DatabaseSeeder::seedHistory()` genera ~90 días de rutas pasadas (completadas y alguna
+  cancelada, con paradas, cantidades, fallos y odómetro). Guarda de idempotencia por fecha.
+- Tests: `tests/Feature/FleetStatsServiceTest.php` (8, cálculos del service) y
+  `tests/Feature/DashboardStatsTest.php` (7, acceso + rango + KPIs). Total suite: **76 passed**.
+
+### Cómo probar el Bloque 5
+
+```bash
+cd server && docker compose up -d && npm run build
+docker compose exec laravel.test php artisan migrate:fresh --seed
+```
+
+1. Entra como `admin@servalillo.test` → caes en `/dashboard` (Panel estadístico).
+2. Cambia el rango (7 días / 30 / 90 / Año) → KPIs, gráficos y tablas se actualizan; el rango queda
+   en la URL (`?range=7d`).
+3. Cambia el tema claro/oscuro → los gráficos siguen legibles sin recargar.
+4. `soporte@servalillo.test` (mantenimiento) también entra; un chofer recibe 403.
+5. `docker compose exec laravel.test php artisan test` → 76 passed.
+
+---
+
 ## Punto de continuación (última sesión: 2026-09-06)
 
-**Estado:** Bloques 1, 2, 3 y 4 terminados y verificados (62 tests en verde). El usuario pidió
+**Estado (cierre de sesión):** Bloques 1–5 terminados y verificados (**76 tests en verde**). El
+Bloque 5 (panel estadístico) se construyó esta sesión: `/dashboard` es ahora un componente Livewire
+con `FleetStatsService`, selector de rango, 4 gráficos Chart.js y 2 tablas; el seeder genera ~90 días
+de historial. Verificado en el navegador (claro/oscuro, cambio de rango). Antes de esto se renombró
+`backend/` → `server/`, se pinó el volumen de Postgres (`servalillo-pgsql`), se arregló la
+replicación en máquina limpia (BD `testing` automática, `withoutVite()` en los tests) y se subió a
+GitHub (`SergioSevaRayos/servalillo-gestion`, ramas `main`/`test`/`develop`; se trabaja en `develop`).
+
+- **Siguiente = Bloque 6** (Panel de Mantenimiento: `owen-it/laravel-auditing` + tabla `error_logs` +
+  log-viewer). Rutas ya reservadas en el grupo `maintenance.*` de `routes/web.php`. Permisos
+  `audits.view` / `system_logs.view` (solo rol `mantenimiento`).
+
+<details><summary>Historial Bloque 4 (sesión anterior)</summary>
+
+El usuario pidió
 explícitamente el tablero Kanban tras ver que el Bloque 3 solo traía la tabla CRUD — quedó claro que
 Bloque 3 = ficha, Bloque 4 = tablero, y ambos están ya completos. Tras la primera pasada, tres rondas de
 pulido de UX ya aplicadas: solo se arrastran paradas "Pendiente" (con tono apagado, no candado, para las
@@ -350,14 +407,12 @@ anillo de la tarjeta "cogida" se recortaba contra el borde de la columna al arra
 se corrigió un carácter suelto (`´`) que había roto la sintaxis de `VerifyEmailController.php` — no
 relacionado con este trabajo, apareció al tener el archivo abierto en el editor, tumbaba toda la suite.
 
-**Bloque 4 se considera terminado y pulido** tras esta sesión — 62 tests en verde, comprobado
+**Bloque 4 se considera terminado y pulido** tras esa sesión — 62 tests en verde, comprobado
 manualmente en el navegador (dark mode, arrastre dentro/entre columnas, scroll de columna).
 
+</details>
+
 **Pendiente / dónde retomar:**
-- **Siguiente = Bloque 5** (panel estadístico / KPIs del Administrador). El dashboard actual ya tiene
-  4 `<x-ui.stat-card>` con consultas simples inline (ver `resources/views/dashboard.blade.php`); el
-  Bloque 5 debería formalizar esto (más KPIs, gráficos, quizá un Service/Computed dedicado en vez de
-  consultas directas en la vista).
 - `config/delivery.php` ya define los canales, pero `EmailChannel`/`PhysicalChannel` tienen el envío real
   comentado (placeholder) — se completa en el Bloque 8.
 - Rutas placeholder pendientes de desarrollar: `chofer.today` (Bloque 7 — su tablero de una sola columna
@@ -366,7 +421,8 @@ manualmente en el navegador (dark mode, arrastre dentro/entre columnas, scroll d
 - El tablero no tiene aún noción de "capacidad del camión" ni valida que la suma de `planned_quantity`
   de una columna no supere `trucks.capacity_liters` — no estaba en el alcance pedido, valorar si hace
   falta antes del Bloque 8 (albaranes).
-- Git: repo inicializado, **sin commits**. El usuario decidirá cuándo commitear.
+- Git: en GitHub (`SergioSevaRayos/servalillo-gestion`). Flujo **sin ramas de feature**: se commitea
+  directo en `develop`; `develop → test` (probar / VPS) y `test → main` (visto bueno) solo por merge.
 
 **Cosas a tener presentes:**
 - `npm run dev` puede quedar corriendo en segundo plano entre sesiones. Si `public/hot` existe pero no

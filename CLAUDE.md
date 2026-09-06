@@ -248,6 +248,34 @@ Backed enums con `->label()` en español; casteados en los modelos.
   scroll propio una barra fina a juego con el sistema de diseño (claro/oscuro), en vez de la nativa del
   navegador. Úsala en cualquier `overflow-y-auto`/`overflow-x-auto` nuevo antes de dejar la del sistema.
 
+### Panel estadístico (Bloque 5)
+- **`/dashboard` es ahora un componente Livewire** (`App\Livewire\Dashboard\Index`), ya no un
+  `Route::view`. Sigue siendo la landing de gestión (redirección post-login de admin/mantenimiento) pero
+  es el panel de KPIs completo. Ruta con `->middleware('permission:stats.view')` **y** `abort_unless`
+  en `mount()` (los tests via `Livewire::test` se saltan el middleware de ruta).
+- **`App\Services\FleetStatsService`** es el único sitio donde se agregan las métricas. `report(Carbon
+  $from, Carbon $to)` devuelve un array con `kpis`, `operations` (serie diaria + estados de ruta),
+  `volume` (planificado vs entregado + por tipo de reparto), `by_driver`, `by_truck`. Todo con
+  **agregación en BD** (Query Builder + `filter (where ...)` de Postgres), no trayendo filas. Como
+  `routes`/`route_stops` usan SoftDeletes y el Query Builder no las scopea, cada consulta añade
+  `whereNull('...deleted_at')` a mano — si tocas el service, no lo olvides.
+- Toda la operativa se cuenta por la **fecha de la ruta** (`routes.route_date`), no por `completed_at`,
+  para que "el periodo" sea coherente entre paradas completadas y falladas.
+- Rango de fechas: `#[Url] $range` en `{7d,30d,90d,year}` (constante `Index::RANGES`), def. `30d`.
+- **Gráficos = Chart.js** (`npm install --save-exact chart.js`, `import Chart from 'chart.js/auto'` en
+  `app.js`). Componente Alpine `window.statsCharts(initial)`:
+  - Los `<canvas>` van dentro de un bloque **`wire:ignore`** para que el morph de Livewire no los
+    toque al cambiar de rango. En su lugar, `setRange()` hace `$this->dispatch('stats-updated',
+    charts: $this->chartData())` y el listener de Alpine solo hace `chart.update()`.
+  - **Las instancias de Chart NUNCA se guardan en `this`** del componente Alpine — Alpine haría un
+    Proxy reactivo de todo el árbol interno de Chart.js (con referencias circulares) → *"Maximum call
+    stack size exceeded"*. Se quedan en una variable local del closure de `init()`; solo se expone
+    `_cleanup` (una función) para el `destroy()`.
+  - Colores fijos que funcionan en claro y oscuro (slate-400 semitransparente para ejes) → no hace
+    falta reconstruir los charts al cambiar de tema.
+- El `DatabaseSeeder` genera ~90 días de rutas históricas (`seedHistory()`, con guarda de idempotencia)
+  para que el panel tenga datos. `migrate:fresh --seed` deja ~230 rutas y ~1100 paradas.
+
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
 - Regla de negocio: **1 camión = 1 ruta por día** (índice único `routes.truck_id + route_date`).

@@ -5,8 +5,8 @@ namespace Database\Seeders;
 use App\Enums\OdometerKind;
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
-use App\Models\Device;
 use App\Models\DeliveryType;
+use App\Models\Device;
 use App\Models\Driver;
 use App\Models\OdometerReading;
 use App\Models\Route;
@@ -124,10 +124,13 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        // --- Rutas de ejemplo ----------------------------------------------
+        // --- Rutas de ejemplo (hoy / ayer, para el tablero) ----------------
         $this->seedRoute($drivers[0], Truck::where('code', 'C-01')->first(), $today, RouteStatus::InProgress, $gasoleo, $admin);
         $this->seedRoute($drivers[1], Truck::where('code', 'C-02')->first(), $today, RouteStatus::Published, $agua, $admin);
         $this->seedRoute($drivers[2], Truck::where('code', 'C-03')->first(), $today->copy()->subDay(), RouteStatus::Completed, $gasoleo, $admin);
+
+        // --- Historial (para el panel estadístico del Bloque 5) ------------
+        $this->seedHistory($drivers, [$gasoleo, $agua], $admin);
 
         $this->command->info('Seed completo. Usuarios: admin@ / soporte@ / pedro@ ... contraseña "password".');
     }
@@ -192,6 +195,92 @@ class DatabaseSeeder extends Seeder
                 ['route_id' => $route->id, 'kind' => OdometerKind::End->value],
                 ['truck_id' => $truck->id, 'driver_id' => $driver->id, 'value' => $truck->odometer + 180, 'recorded_at' => $date->copy()->setTime(15, 35)]
             );
+        }
+    }
+
+    /**
+     * Genera ~90 días de rutas pasadas con paradas completadas/falladas, cantidades y lecturas
+     * de odómetro, para que el panel estadístico (Bloque 5) tenga algo que mostrar.
+     *
+     * @param  array<int, Driver>  $drivers
+     * @param  array<int, DeliveryType>  $types
+     */
+    private function seedHistory(array $drivers, array $types, User $creator): void
+    {
+        // Idempotencia básica: si ya hay rutas de hace más de una semana, el historial ya está sembrado.
+        if (Route::where('route_date', '<', Carbon::today()->subDays(7))->exists()) {
+            return;
+        }
+
+        $trucks = Truck::orderBy('code')->get()->values();
+        $odometerCursor = $trucks->mapWithKeys(fn (Truck $t) => [$t->id => $t->odometer - 15000]);
+
+        for ($daysAgo = 90; $daysAgo >= 2; $daysAgo--) {
+            $date = Carbon::today()->subDays($daysAgo);
+
+            if ($date->isSunday()) {
+                continue;
+            }
+
+            foreach ($trucks as $i => $truck) {
+                // No todos los camiones salen todos los días.
+                if (fake()->boolean($date->isSaturday() ? 40 : 82) === false) {
+                    continue;
+                }
+
+                $driver = $drivers[$i % count($drivers)];
+                $type = $types[$i % count($types)];
+                $cancelled = fake()->boolean(6);
+
+                $route = Route::create([
+                    'code' => 'R-'.$date->format('Ymd').'-'.$truck->code,
+                    'route_date' => $date->toDateString(),
+                    'truck_id' => $truck->id,
+                    'driver_id' => $driver->id,
+                    'status' => $cancelled ? RouteStatus::Cancelled : RouteStatus::Completed,
+                    'name' => 'Ruta '.$date->isoFormat('D MMM').' · '.$truck->code,
+                    'created_by' => $creator->id,
+                    'started_at' => $cancelled ? null : $date->copy()->setTime(7, 15),
+                    'completed_at' => $cancelled ? null : $date->copy()->setTime(fake()->numberBetween(14, 17), 30),
+                ]);
+
+                if ($cancelled) {
+                    continue;
+                }
+
+                $stopCount = fake()->numberBetween(3, 7);
+                for ($s = 1; $s <= $stopCount; $s++) {
+                    $planned = fake()->numberBetween(2, 20) * 100;
+                    $failed = fake()->boolean(9);
+                    // Alguna entrega se queda algo corta respecto a lo planificado.
+                    $delivered = $failed ? null : (fake()->boolean(80) ? $planned : $planned - fake()->numberBetween(1, 4) * 50);
+
+                    RouteStop::create([
+                        'route_id' => $route->id,
+                        'position' => $s,
+                        'customer_name' => fake()->company(),
+                        'address' => fake()->streetAddress().', '.fake()->randomElement(['Santa Cruz', 'La Laguna', 'Tegueste', 'El Rosario']),
+                        'latitude' => fake()->latitude(28.4, 28.55),
+                        'longitude' => fake()->longitude(-16.5, -16.2),
+                        'delivery_type_id' => $type->id,
+                        'status' => $failed ? RouteStopStatus::Failed : RouteStopStatus::Completed,
+                        'planned_quantity' => $planned,
+                        'delivered_quantity' => $delivered,
+                        'completed_at' => $failed ? null : $date->copy()->setTime(8 + intdiv($s, 2), ($s % 2) * 30),
+                        'failure_reason' => $failed ? fake()->randomElement(['Cliente ausente', 'Acceso bloqueado', 'Pedido anulado en puerta']) : null,
+                        'data' => $type->slug === 'gasoleo'
+                            ? ['producto' => 'Gasóleo A', 'litros_pedido' => $planned, 'forma_pago' => 'Contado', 'requiere_bomba' => false]
+                            : ['litros_pedido' => $planned, 'tipo_deposito' => 'Aljibe', 'potable' => true],
+                    ]);
+                }
+
+                $start = $odometerCursor[$truck->id];
+                $end = $start + fake()->numberBetween(60, 240);
+                $odometerCursor[$truck->id] = $end;
+
+                OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::Start->value, 'value' => $start, 'recorded_at' => $date->copy()->setTime(7, 10)]);
+                OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::End->value, 'value' => $end, 'recorded_at' => $date->copy()->setTime(16, 5)]);
+            }
         }
     }
 }
