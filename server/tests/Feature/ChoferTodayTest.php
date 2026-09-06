@@ -26,13 +26,16 @@ function chofer(array $routeOverrides = [], int $stops = 3): array
 {
     $user = makeUser('chofer');
     $driver = Driver::factory()->create(['user_id' => $user->id]);
-    $truck = Truck::factory()->create(['odometer' => 100000]);
+    $truck = Truck::factory()->create(['odometer' => 100000, 'capacity_liters' => 13000]);
+
+    $started = ($routeOverrides['status'] ?? null) === RouteStatus::InProgress;
 
     $route = Route::factory()->create([
         'driver_id' => $driver->id,
         'truck_id' => $truck->id,
         'route_date' => today(),
         'status' => RouteStatus::Published,
+        'tank_loaded_liters' => $started ? 13000 : null,
         ...$routeOverrides,
     ]);
 
@@ -59,18 +62,35 @@ it('un chofer sin ruta hoy ve el estado vacío', function () {
         ->assertSee('No tienes ninguna ruta asignada para hoy');
 });
 
-it('empezar jornada registra el contador de inicio y pone la ruta En curso', function () {
+it('empezar jornada registra contador y carga de la cisterna, y pone la ruta En curso', function () {
     [$user, $driver, $route, $truck] = chofer();
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('openStartDay')
+        ->assertSet('tankLoaded', 13000) // prellenado con la capacidad del camión
         ->set('odometer', 100050)
+        ->set('tankLoaded', 12800)
         ->call('startDay')
         ->assertHasNoErrors();
 
-    expect($route->fresh()->status)->toBe(RouteStatus::InProgress)
-        ->and($route->fresh()->started_at)->not->toBeNull()
+    $route->refresh();
+    expect($route->status)->toBe(RouteStatus::InProgress)
+        ->and($route->started_at)->not->toBeNull()
+        ->and($route->tank_loaded_liters)->toBe(12800)
         ->and(OdometerReading::where('route_id', $route->id)->where('kind', 'start')->value('value'))->toBe(100050);
+});
+
+it('empezar jornada exige los litros cargados', function () {
+    [$user, $driver, $route] = chofer();
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openStartDay')
+        ->set('odometer', 100050)
+        ->set('tankLoaded', null)
+        ->call('startDay')
+        ->assertHasErrors('tankLoaded');
+
+    expect($route->fresh()->status)->toBe(RouteStatus::Published);
 });
 
 it('rechaza un contador de inicio menor que el odómetro del camión', function () {
@@ -221,9 +241,39 @@ it('terminar jornada registra el contador de fin, actualiza el camión y complet
         ->call('endDay')
         ->assertHasNoErrors();
 
-    expect($route->fresh()->status)->toBe(RouteStatus::Completed)
+    $route->refresh();
+    expect($route->status)->toBe(RouteStatus::Completed)
         ->and($truck->fresh()->odometer)->toBe(100180)
-        ->and(OdometerReading::where('route_id', $route->id)->where('kind', 'end')->value('value'))->toBe(100180);
+        ->and(OdometerReading::where('route_id', $route->id)->where('kind', 'end')->value('value'))->toBe(100180)
+        ->and($route->tank_remaining_liters)->toBe(13000)          // cargado 13000 − 0 entregado
+        ->and($route->tank_reconciliation_note)->toBeNull();
+});
+
+it('si los litros de la cisterna no cuadran, exige un motivo del ajuste', function () {
+    [$user, $driver, $route, $truck] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
+    OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::Start->value, 'value' => 100000, 'recorded_at' => now()]);
+    // Una entrega de 1000 L → debería quedar 12000.
+    $route->stops()->first()->update(['status' => RouteStopStatus::Completed, 'delivered_quantity' => 1000, 'completed_at' => now()]);
+
+    $c = Livewire::actingAs($user)->test(Today::class)
+        ->call('openEndDay')
+        ->assertSet('tankRemaining', 12000)
+        ->set('odometer', 100100)
+        ->set('tankRemaining', 11996)   // faltan 4 L
+        ->call('endDay')
+        ->assertHasErrors('tankNote');
+
+    expect($route->fresh()->status)->toBe(RouteStatus::InProgress);
+
+    // Con el motivo, cierra y lo guarda.
+    $c->set('tankNote', 'Se soltó la manguera y se derramaron 4 L')
+        ->call('endDay')
+        ->assertHasNoErrors();
+
+    $route->refresh();
+    expect($route->status)->toBe(RouteStatus::Completed)
+        ->and($route->tank_remaining_liters)->toBe(11996)
+        ->and($route->tank_reconciliation_note)->toContain('manguera');
 });
 
 it('el modal de terminar jornada se prellena con la lectura de inicio', function () {

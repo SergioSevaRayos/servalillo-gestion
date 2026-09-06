@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\RouteStatus;
+use App\Enums\RouteStopStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -19,6 +20,7 @@ class Route extends Model implements Auditable
     protected $fillable = [
         'code', 'route_date', 'truck_id', 'driver_id', 'status',
         'name', 'notes', 'started_at', 'completed_at', 'created_by',
+        'tank_loaded_liters', 'tank_remaining_liters', 'tank_reconciliation_note',
     ];
 
     protected function casts(): array
@@ -28,7 +30,38 @@ class Route extends Model implements Auditable
             'status' => RouteStatus::class,
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
+            'tank_loaded_liters' => 'integer',
+            'tank_remaining_liters' => 'integer',
         ];
+    }
+
+    /** Litros ya entregados a clientes en esta ruta (paradas completadas). */
+    public function deliveredLiters(): float
+    {
+        return (float) $this->stops
+            ->where('status', RouteStopStatus::Completed)
+            ->sum('delivered_quantity');
+    }
+
+    /** Litros que deberían quedar en la cisterna = cargado − entregado. */
+    public function tankTheoreticalRemaining(): ?float
+    {
+        return $this->tank_loaded_liters === null
+            ? null
+            : $this->tank_loaded_liters - $this->deliveredLiters();
+    }
+
+    /**
+     * Diferencia entre lo que debería quedar y lo medido al terminar.
+     * >0 = falta producto (se perdió/derramó); <0 = sobra (raro). null si no hay datos.
+     */
+    public function tankDiscrepancy(): ?float
+    {
+        $theoretical = $this->tankTheoreticalRemaining();
+
+        return ($theoretical === null || $this->tank_remaining_liters === null)
+            ? null
+            : $theoretical - $this->tank_remaining_liters;
     }
 
     public function truck(): BelongsTo

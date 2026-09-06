@@ -157,6 +157,7 @@ class DatabaseSeeder extends Seeder
                 'created_by' => $creator->id,
                 'started_at' => in_array($status, [RouteStatus::InProgress, RouteStatus::Completed]) ? $date->copy()->setTime(7, 15) : null,
                 'completed_at' => $status === RouteStatus::Completed ? $date->copy()->setTime(15, 40) : null,
+                'tank_loaded_liters' => in_array($status, [RouteStatus::InProgress, RouteStatus::Completed]) ? $truck->capacity_liters : null,
             ]
         );
 
@@ -205,6 +206,13 @@ class DatabaseSeeder extends Seeder
                 ['route_id' => $route->id, 'kind' => OdometerKind::End->value],
                 ['truck_id' => $truck->id, 'driver_id' => $driver->id, 'value' => $truck->odometer + 180, 'recorded_at' => $date->copy()->setTime(15, 35)]
             );
+
+            // Cisterna: la ruta completada de ayer cerró con un pequeño descuadre (ejemplo para el panel).
+            $delivered = $route->stops()->where('status', RouteStopStatus::Completed->value)->sum('delivered_quantity');
+            $route->update([
+                'tank_remaining_liters' => (int) ($truck->capacity_liters - $delivered - 4),
+                'tank_reconciliation_note' => 'Se soltó la manguera del depósito y se derramaron unos 4 L por el suelo.',
+            ]);
         }
     }
 

@@ -24,4 +24,14 @@ return [
     */
     'gps_retention_days' => (int) env('GPS_RETENTION_DAYS', 90),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Cisterna
+    |--------------------------------------------------------------------------
+    | Al terminar la jornada, si los litros que quedan en la cisterna no cuadran
+    | con "lo cargado − lo entregado a los clientes" por más de esta tolerancia,
+    | se avisa al chofer y se le pide un motivo del ajuste.
+    */
+    'tank_tolerance_liters' => (int) env('TANK_TOLERANCE_LITERS', 0),
+
 ];
