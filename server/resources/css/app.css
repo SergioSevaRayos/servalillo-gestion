@@ -132,4 +132,40 @@
     .themed-scrollbar::-webkit-scrollbar-thumb:hover {
         @apply bg-slate-400 dark:bg-slate-500;
     }
+
+    /*
+    | Selector de dígitos estilo "ruleta" (contador del chofer, Bloque 7).
+    | Una columna por dígito, scroll-snap vertical, item central = seleccionado.
+    | El alto de item (44px) está fijado también en app.js (digitWheel) — si cambias uno, cambia el otro.
+    */
+    .digit-wheel {
+        @apply relative flex w-max gap-1 rounded-xl bg-white px-3 py-2 dark:bg-slate-900;
+    }
+    .digit-wheel::before,
+    .digit-wheel::after {
+        content: '';
+        @apply pointer-events-none absolute inset-x-0 z-20 h-11;
+    }
+    .digit-wheel::before {
+        @apply top-0 rounded-t-xl bg-gradient-to-b from-white to-transparent dark:from-slate-900;
+    }
+    .digit-wheel::after {
+        @apply bottom-0 rounded-b-xl bg-gradient-to-t from-white to-transparent dark:from-slate-900;
+    }
+    .digit-wheel__band {
+        @apply pointer-events-none absolute inset-x-2 top-1/2 z-10 h-11 -translate-y-1/2 rounded-lg bg-primary-500/10 ring-1 ring-primary-500/30;
+    }
+    .digit-wheel__col {
+        @apply relative h-[132px] w-9 snap-y snap-mandatory overflow-y-scroll scroll-smooth;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+    .digit-wheel__col::-webkit-scrollbar {
+        display: none;
+    }
+    .digit-wheel__item {
+        @apply flex h-11 shrink-0 snap-center items-center justify-center text-2xl font-semibold tabular-nums text-slate-800 dark:text-slate-100;
+    }
 }

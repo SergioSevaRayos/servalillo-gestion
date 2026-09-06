@@ -85,9 +85,10 @@
     <x-modal name="start-day" max-width="sm">
         <form wire:submit="startDay" class="p-6">
             <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ __('Empezar jornada') }}</h3>
-            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ __('Anota la lectura del cuentakilómetros del camión ahora mismo.') }}</p>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ __('Ajusta la lectura del cuentakilómetros del camión ahora mismo.') }}</p>
             <div class="mt-4">
-                <x-ui.input name="odometer" type="number" label="{{ __('Contador (km)') }}" wire:model="odometer" inputmode="numeric" />
+                <p class="mb-2 text-center text-sm font-medium text-slate-500 dark:text-slate-400">{{ __('Contador (km)') }}</p>
+                <x-ui.digit-wheel wire:model="odometer" :value="$route?->truck?->odometer ?? 0" sync-on="start-day" />
             </div>
             <div class="mt-6 flex justify-end gap-3">
                 <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cancelar') }}</x-ui.button>
@@ -104,7 +105,8 @@
                 <p class="mt-1 text-sm text-amber-600 dark:text-amber-400">{{ __('Quedan :n paradas sin cerrar. Aun así puedes terminar la jornada.', ['n' => $this->pendingCount]) }}</p>
             @endif
             <div class="mt-4">
-                <x-ui.input name="odometer" type="number" label="{{ __('Contador (km)') }}" wire:model="odometer" inputmode="numeric" />
+                <p class="mb-2 text-center text-sm font-medium text-slate-500 dark:text-slate-400">{{ __('Contador (km)') }}</p>
+                <x-ui.digit-wheel wire:model="odometer" :value="$route?->truck?->odometer ?? 0" sync-on="end-day" />
             </div>
             <div class="mt-6 flex justify-end gap-3">
                 <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cancelar') }}</x-ui.button>

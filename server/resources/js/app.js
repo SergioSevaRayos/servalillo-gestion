@@ -121,6 +121,78 @@ document.addEventListener('livewire:init', () => {
 });
 
 /*
+| Selector de dígitos estilo "ruleta" (contador del chofer, Bloque 7). Una columna por dígito,
+| scroll-snap vertical. El valor = concatenación de los dígitos centrados. Se integra con Livewire
+| vía x-modelable + wire:model (ver <x-ui.digit-wheel>).
+| El alto de item (44px) está fijado también en app.css (.digit-wheel__item h-11).
+*/
+const WHEEL_ITEM_H = 44;
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('digitWheel', ({ count, initial, model }) => ({
+        count,
+        model,
+        value: Number(initial) || 0,
+        _lock: false,
+
+        init() {
+            // Cambios que vienen de fuera (servidor vía wire:model) reposicionan las ruletas.
+            this.$watch('value', (v) => {
+                if (! this._lock) {
+                    this.write(v);
+                }
+            });
+            this.$nextTick(() => this.write(this.value));
+        },
+
+        // El modal acaba de abrirse (estaba display:none). El servidor pudo fijar el valor justo antes,
+        // así que lo re-leemos de Livewire y colocamos las ruletas cuando ya hay layout.
+        resync() {
+            const pull = () => {
+                if (this.model && this.$wire) {
+                    const v = Number(this.$wire.get(this.model));
+                    if (! Number.isNaN(v)) {
+                        this._lock = true;
+                        this.value = v;
+                        this.$nextTick(() => { this._lock = false; });
+                    }
+                }
+                this.write(this.value);
+            };
+            requestAnimationFrame(() => setTimeout(pull, 80));
+        },
+
+        cols() {
+            return Array.from(this.$refs.cols.querySelectorAll('[data-col]'));
+        },
+
+        write(n) {
+            const s = String(Math.max(0, Math.floor(Number(n) || 0)))
+                .padStart(this.count, '0')
+                .slice(-this.count);
+
+            this.cols().forEach((el, i) => {
+                el.scrollTop = Number(s[i]) * WHEEL_ITEM_H;
+            });
+        },
+
+        onScroll() {
+            const str = this.cols()
+                .map((el) => Math.max(0, Math.min(9, Math.round(el.scrollTop / WHEEL_ITEM_H))))
+                .join('');
+
+            const next = parseInt(str || '0', 10);
+
+            if (next !== this.value) {
+                this._lock = true;
+                this.value = next;
+                this.$nextTick(() => { this._lock = false; });
+            }
+        },
+    }));
+});
+
+/*
 | Panel estadístico (Bloque 5). Los <canvas> viven dentro de un bloque wire:ignore para que
 | el morph de Livewire no los toque al cambiar de rango; en su lugar, el componente Livewire
 | emite `stats-updated` con los datasets nuevos y aquí solo hacemos chart.update().

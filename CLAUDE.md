@@ -323,6 +323,15 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - Autorización: `RoutePolicy::operate` y `RouteStopPolicy::complete` (permiso + `owns()`), ya existían.
 - `<x-chofer.stop-card>` es la tarjeta táctil del chofer (grande, sin drag), distinta de
   `<x-routes.stop-card>` (Kanban del admin).
+- **`<x-ui.digit-wheel>`** = selector de km tipo "ruleta" (una columna scroll-snap por dígito) para
+  las lecturas de odómetro. Se integra con Livewire vía `x-modelable="value"` + `wire:model`; la
+  lógica de scroll está en `Alpine.data('digitWheel')` (`app.js`). Gotchas:
+  - El alto de item (`44px`) está **duplicado** en `app.css` (`.digit-wheel__item` → `h-11`) y en
+    `app.js` (`WHEEL_ITEM_H`). Si cambias uno, cambia el otro.
+  - Cuando el modal se abre (`open-modal`), el componente re-lee el valor con `$wire.get()` y
+    recoloca las ruletas (`resync()`), porque al estar `display:none` no se puede fijar `scrollTop`.
+  - El detalle del evento `open-modal` de Livewire llega **envuelto en array** — compáralo con `==`
+    (como hace `<x-modal>`), nunca con `===`.
 
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
