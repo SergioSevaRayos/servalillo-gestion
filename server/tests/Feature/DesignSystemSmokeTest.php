@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Driver;
 use App\Models\User;
 
 test('el dashboard renderiza con el sistema de diseño para un administrador', function () {
@@ -37,10 +38,12 @@ test('los 4 módulos del Bloque 3 cargan para un administrador', function () {
 test('la web del chofer no usa cristal en el contenido operativo', function () {
     $user = User::factory()->create();
     $user->assignRole('chofer');
-    \App\Models\Driver::factory()->create(['user_id' => $user->id]);
+    Driver::factory()->create(['user_id' => $user->id]);
 
     $response = $this->actingAs($user)->get('/chofer/ruta');
 
     $response->assertOk();
-    $response->assertSee('Bloque 7');
+    $response->assertSee('Mi ruta de hoy');
+    // El contenido operativo del chofer va sobre .surface, nunca .glass.
+    $response->assertSee('surface', escape: false);
 });

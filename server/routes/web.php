@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ThemeController;
+use App\Livewire\Chofer\Today;
 use App\Livewire\Dashboard\Index as DashboardIndex;
 use App\Livewire\Drivers\Index as DriversIndex;
 use App\Livewire\Maintenance\Audits as MaintenanceAudits;
@@ -71,8 +72,7 @@ Route::middleware(['auth', 'role:mantenimiento'])->prefix('mantenimiento')->name
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'role:chofer'])->prefix('chofer')->name('chofer.')->group(function () {
-    Route::view('ruta', 'chofer.placeholder')->name('today');
-    // Operativa completa — Bloque 7.
+    Route::get('ruta', Today::class)->name('today');
 });
 
 /*

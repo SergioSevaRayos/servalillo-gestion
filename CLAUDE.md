@@ -301,6 +301,29 @@ Backed enums con `->label()` en español; casteados en los modelos.
   listados del Bloque 3. Se arregla apuntando Livewire a esa vista (o publicando
   `resources/views/vendor/livewire/tailwind.blade.php`) + un `lang/es.json` con las 4 cadenas.
 
+### Web operativa del Chofer (Bloque 7)
+- **`/chofer/ruta` (`chofer.today`) es `App\Livewire\Chofer\Today`** (ya no un placeholder). Muestra
+  **la ruta de hoy del chofer** (`routes` donde `driver_id` = su `driver->id` y `route_date` = hoy)
+  como una sola columna de paradas. Mobile-first, siempre `.surface`, **nunca `.glass`**.
+- **Ciclo de jornada** (lo controla el chofer, no el admin):
+  - "Empezar jornada" → modal con lectura de odómetro de inicio → `OdometerService::recordStart()` +
+    ruta pasa a `InProgress` (`started_at`). Las paradas no se pueden operar hasta empezar
+    (`guardStarted()` en el componente + tarjetas `disabled` en la vista).
+  - "Terminar jornada" → odómetro de fin → `OdometerService::recordEnd()` (que además **fija
+    `trucks.odometer`** al valor de fin, dentro de una transacción) + ruta pasa a `Completed`.
+  - `App\Services\OdometerService` valida: no negativo, inicio ≥ odómetro del camión, fin ≥ inicio.
+    Lanza `ValidationException` con clave `value`; el componente la reetiqueta a `odometer` (el
+    campo del modal) en `runOdometer()`.
+- **Cierre de parada** (`App\Livewire\Forms\StopActionForm`): resultado = `completed` / `failed` /
+  `skipped`. `completed` pide litros entregados + renderiza los campos del `field_schema` del tipo de
+  reparto (mismo patrón que el editor del Kanban) y los valida con `DeliveryTypeSchemaValidator`.
+  `failed`/`skipped` piden motivo (va a `failure_reason`). Se puede "Reabrir" una parada cerrada.
+  **NO toca `delivery_notes`** — el albarán (registro, firma, PDF, envío) es entero del Bloque 8.
+  `completed_at` solo se rellena en `completed` (coherente con el seeder y `FleetStatsService`).
+- Autorización: `RoutePolicy::operate` y `RouteStopPolicy::complete` (permiso + `owns()`), ya existían.
+- `<x-chofer.stop-card>` es la tarjeta táctil del chofer (grande, sin drag), distinta de
+  `<x-routes.stop-card>` (Kanban del admin).
+
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
 - Regla de negocio: **1 camión = 1 ruta por día** (índice único `routes.truck_id + route_date`).

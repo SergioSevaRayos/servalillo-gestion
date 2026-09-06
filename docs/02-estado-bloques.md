@@ -9,8 +9,8 @@
 | 4 | Tablero Kanban de rutas + drag & drop de paradas | ✅ Hecho |
 | 5 | Panel estadístico (KPIs + gráficos) | ✅ Hecho |
 | 6 | Panel de Mantenimiento (logs + auditoría) | ✅ Hecho |
-| 7 | Web operativa del Chofer | ⬜ Siguiente |
-| 8 | Albaranes (PDF + canales email/físico) + colas | ⬜ |
+| 7 | Web operativa del Chofer | ✅ Hecho |
+| 8 | Albaranes (PDF + canales email/físico) + colas | ⬜ Siguiente |
 | 9 | API Flutter (Sanctum) | ⬜ |
 | 10 | App Flutter de tracking | ⬜ |
 
@@ -410,20 +410,49 @@ transversal, aún sin hacer.
 
 ---
 
+## Bloque 7 — lo que se ha construido
+
+**Web operativa del Chofer** (`/chofer/ruta`, `App\Livewire\Chofer\Today`). Su ruta de hoy en una
+columna de paradas. Mobile-first, `.surface` siempre, nunca `.glass`.
+
+- **Ciclo de jornada, controlado por el chofer:**
+  - "Empezar jornada" → lectura de odómetro de inicio (`OdometerService::recordStart`) → ruta a
+    `InProgress`. Las paradas no se operan hasta empezar.
+  - "Terminar jornada" → odómetro de fin (`OdometerService::recordEnd`, **fija `trucks.odometer`**) →
+    ruta a `Completed`. Muestra resumen inicio / fin / km.
+  - `App\Services\OdometerService` valida no-negativo, inicio ≥ odómetro del camión, fin ≥ inicio.
+- **Cierre de parada** (`App\Livewire\Forms\StopActionForm`): Entregada (litros + campos del
+  `field_schema`, validados por `DeliveryTypeSchemaValidator`) / Fallida / Omitida (con motivo →
+  `failure_reason`). Se puede reabrir una parada cerrada. **No toca `delivery_notes`** (Bloque 8).
+- `<x-chofer.stop-card>` = tarjeta táctil grande (sin drag), distinta de la del Kanban.
+- 13 tests nuevos (`tests/Feature/ChoferTodayTest.php`). **Suite total: 99 passed.**
+
+### Cómo probar el Bloque 7
+
+1. Entra como `lucia@servalillo.test` → su ruta de hoy sale como "Publicada", sin empezar.
+2. "Empezar jornada" → introduce un contador ≥ el del camión → la ruta pasa a "En curso".
+3. Toca una parada → "Entregada" (ajusta litros y campos) / "Fallida" / "Omitida" con motivo.
+4. `pedro@servalillo.test` ya tiene la jornada empezada (1 parada hecha, 3 pendientes).
+5. "Terminar jornada" → contador de fin → comprueba que el odómetro del camión se actualiza.
+6. `carlos@servalillo.test` no tiene ruta hoy → estado vacío.
+
+---
+
 ## Punto de continuación (última sesión: 2026-09-06)
 
-**Estado (cierre de sesión):** Bloques 1–6 terminados y verificados (**86 tests en verde**). Esta
-sesión: Bloque 5 (panel estadístico, `/dashboard` Livewire + `FleetStatsService` + Chart.js) y
-Bloque 6 (panel de Mantenimiento: auditoría + errores + visor de log). Antes se renombró `backend/`
-→ `server/`, se pinó el volumen de Postgres (`servalillo-pgsql`), se arregló la replicación en
-máquina limpia (BD `testing` automática, `withoutVite()`) y se subió a GitHub
-(`SergioSevaRayos/servalillo-gestion`; se trabaja en `develop`).
+**Estado (cierre de sesión):** Bloques 1–7 terminados y verificados (**99 tests en verde**). Esta
+sesión: Bloque 5 (panel estadístico), Bloque 6 (panel de Mantenimiento) y Bloque 7 (web operativa del
+chofer). Antes se renombró `backend/` → `server/`, se pinó el volumen de Postgres, se arregló la
+replicación en máquina limpia y se subió a GitHub (`SergioSevaRayos/servalillo-gestion`; se trabaja
+en `develop`).
 
-- **Siguiente = Bloque 7** (Web operativa del Chofer). Ruta `chofer.today` (`/chofer/ruta`) es hoy un
-  placeholder. Puede reutilizar `<x-routes.stop-card>`, el patrón de modal y buena parte del tablero
-  Kanban del Bloque 4 (una sola columna = su ruta de hoy). Usar **`.surface`, nunca `.glass`** en la
-  web del chofer. Permisos del chofer: `routes.view.own`, `deliveries.complete`,
-  `deliveries.record_signature`, `odometer.record`, `delivery_notes.view`.
+- **Siguiente = Bloque 8** (Albaranes). Al completar una parada hay que: crear el `delivery_note`
+  (número `ALB-2026-000123`, `customer_snapshot` congelado, canal `email`/`physical`), capturar la
+  **firma** del cliente (`deliveries.record_signature`, PNG validado a disco `r2`, nombre
+  `ulid().png`), generar el **PDF** (Spatie) y **entregarlo** vía el canal (Job en la cola). Contrato
+  y canales ya existen: `App\Contracts\DeliveryChannel` + `EmailChannel`/`PhysicalChannel` +
+  `config/delivery.php` (envío real está comentado, placeholder). Enum `DeliveryNoteStatus` ya está.
+  El `StopActionForm` del Bloque 7 es el punto donde engancharlo.
 
 <details><summary>Historial Bloque 4 (sesión anterior)</summary>
 
