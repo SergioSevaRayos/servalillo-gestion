@@ -49,6 +49,12 @@
                     </x-ui.button>
                     <p class="mt-2 text-center text-xs text-slate-400">{{ __('Registra el contador de inicio para poder operar las paradas.') }}</p>
                 @elseif (! $this->finished)
+                    @php $startReading = $route->odometerReadings->firstWhere('kind', \App\Enums\OdometerKind::Start)?->value; @endphp
+                    @if ($startReading !== null)
+                        <p class="mb-3 text-center text-sm text-slate-500 dark:text-slate-400">
+                            {{ __('Contador de inicio: :km km', ['km' => number_format($startReading, 0, ',', '.')]) }}
+                        </p>
+                    @endif
                     <x-ui.button variant="secondary" class="w-full justify-center" size="lg" wire:click="openEndDay">
                         {{ __('Terminar jornada') }}
                     </x-ui.button>

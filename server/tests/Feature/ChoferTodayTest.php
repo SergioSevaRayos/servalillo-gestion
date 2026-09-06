@@ -173,6 +173,16 @@ it('terminar jornada registra el contador de fin, actualiza el camión y complet
         ->and(OdometerReading::where('route_id', $route->id)->where('kind', 'end')->value('value'))->toBe(100180);
 });
 
+it('el modal de terminar jornada se prellena con la lectura de inicio', function () {
+    [$user, $driver, $route, $truck] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
+    // El inicio (143323) es mayor que el odómetro guardado del camión (100000).
+    OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::Start->value, 'value' => 143323, 'recorded_at' => now()]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openEndDay')
+        ->assertSet('odometer', 143323);
+});
+
 it('rechaza un contador de fin menor que el de inicio', function () {
     [$user, $driver, $route, $truck] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
     OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::Start->value, 'value' => 100000, 'recorded_at' => now()]);

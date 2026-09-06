@@ -42,7 +42,7 @@ class Today extends Component
         }
 
         return Route::query()
-            ->with(['truck', 'stops.deliveryType'])
+            ->with(['truck', 'stops.deliveryType', 'odometerReadings'])
             ->where('driver_id', $driver->id)
             ->whereDate('route_date', today())
             ->orderByDesc('id')
@@ -128,9 +128,15 @@ class Today extends Component
     public function openEndDay(): void
     {
         $this->authorizeRoute();
-        $this->odometer = $this->route->odometerReadings()
-            ->where('kind', OdometerKind::End->value)->value('value')
+
+        $readings = $this->route->odometerReadings->pluck('value', 'kind.value');
+
+        // Prellenar con: lectura de fin ya guardada > lectura de inicio > odómetro del camión.
+        // Nunca por debajo del inicio (la lectura de fin siempre es >= la de inicio).
+        $this->odometer = $readings[OdometerKind::End->value]
+            ?? $readings[OdometerKind::Start->value]
             ?? $this->route->truck?->odometer;
+
         $this->resetErrorBag();
         $this->dispatch('open-modal', 'end-day');
     }
