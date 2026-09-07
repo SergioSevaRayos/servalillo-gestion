@@ -67,6 +67,18 @@ it('busca y filtra', function () {
         ->set('status', 'inactive')->assertSee('Bar Central')->assertDontSee('Finca Los Almendros');
 });
 
+it('busca por teléfono ignorando espacios y guiones', function () {
+    $this->actingAs(makeUser('administrador'));
+    Client::factory()->create(['name' => 'Con Fijo', 'phone' => '632 307 329', 'secondary_phone' => null]);
+    Client::factory()->create(['name' => 'Con Móvil Secundario', 'phone' => '922 111 222', 'secondary_phone' => '600-45-67-89']);
+    Client::factory()->create(['name' => 'Otro Cliente', 'phone' => '928 999 888']);
+
+    Livewire::test(Index::class)
+        ->set('search', '632307329')->assertSee('Con Fijo')->assertDontSee('Otro Cliente')
+        ->set('search', '307 329')->assertSee('Con Fijo')
+        ->set('search', '60045')->assertSee('Con Móvil Secundario')->assertDontSee('Con Fijo');
+});
+
 it('filtra los que les toca reparto', function () {
     $this->actingAs(makeUser('administrador'));
     Client::factory()->create(['name' => 'Toca ya', 'last_served_on' => now()->subDays(40), 'frequency_days' => 30]);

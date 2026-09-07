@@ -60,19 +60,30 @@ class Client extends Model implements Auditable
 
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
-        if (! $term) {
+        $term = trim((string) $term);
+
+        if ($term === '') {
             return $query;
         }
 
         $like = '%'.$term.'%';
+        $digits = preg_replace('/\D+/', '', $term);
 
-        return $query->where(fn (Builder $q) => $q
-            ->where('name', 'ilike', $like)
-            ->orWhere('tax_id', 'ilike', $like)
-            ->orWhere('external_ref', 'ilike', $like)
-            ->orWhere('city', 'ilike', $like)
-            ->orWhere('phone', 'ilike', $like)
-            ->orWhere('contact_name', 'ilike', $like));
+        return $query->where(function (Builder $q) use ($like, $digits) {
+            $q->where('name', 'ilike', $like)
+                ->orWhere('tax_id', 'ilike', $like)
+                ->orWhere('external_ref', 'ilike', $like)
+                ->orWhere('city', 'ilike', $like)
+                ->orWhere('contact_name', 'ilike', $like)
+                ->orWhere('phone', 'ilike', $like)
+                ->orWhere('secondary_phone', 'ilike', $like);
+
+            // Búsqueda por teléfono ignorando espacios, guiones y prefijos (632 307 329 == 632307329).
+            if (strlen($digits) >= 3) {
+                $q->orWhereRaw("regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') like ?", ['%'.$digits.'%'])
+                    ->orWhereRaw("regexp_replace(coalesce(secondary_phone, ''), '[^0-9]', '', 'g') like ?", ['%'.$digits.'%']);
+            }
+        });
     }
 
     /** Repartos anteriores emparejados por CIF (si lo hay) o por nombre exacto — no hay FK todavía. */
