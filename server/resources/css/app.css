@@ -173,25 +173,35 @@
     | Selector de día del chofer (Bloque 7): fila de "teclas". La seleccionada se ve "pulsada"
     | (baja 2px y pierde la sombra inferior). Solo transiciona transform/box-shadow.
     */
-    /* Carrusel de días del chofer (Bloque 7): coverflow. El item en foco al frente, los vecinos
-       girados y difuminados. La distancia/rotación/opacidad las calcula app.js (dayCarousel). */
+    /* Carrusel de días del chofer (Bloque 7): coverflow sobre scroll nativo con scroll-snap
+       horizontal (mismo "imán" que el dial de litros). El navegador encaja en el día más
+       centrado; la rotación/escala/opacidad las calcula app.js (dayCarousel → paint()). */
     .day-carousel {
-        @apply relative flex h-[66px] select-none items-center justify-center overflow-hidden;
-        perspective: 620px;
+        @apply relative flex h-[72px] select-none items-center overflow-x-auto overflow-y-hidden;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+    }
+    .day-carousel::-webkit-scrollbar {
+        display: none;
     }
     .day-carousel__track {
-        @apply relative h-full w-full;
-        transform-style: preserve-3d;
+        @apply flex h-full w-max items-center;
+    }
+    .day-carousel__spacer {
+        @apply shrink-0;
+        width: 107px;
     }
     .day-carousel__item {
-        @apply absolute left-1/2 top-1/2 flex h-[54px] w-[50px] flex-col items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500;
+        @apply flex h-[54px] w-[46px] shrink-0 flex-col items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500;
         @apply dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400;
-        margin: -27px 0 0 -25px;
-        transform-style: preserve-3d;
-        transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
-    }
-    .day-carousel.is-dragging .day-carousel__item {
-        transition: none;
+        scroll-snap-align: center;
+        transform-origin: center center;
+        transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease,
+            background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        will-change: transform;
     }
     .day-carousel__item .day-carousel__dow {
         @apply text-[10px] font-semibold uppercase tracking-wide opacity-70;

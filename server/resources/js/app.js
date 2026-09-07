@@ -242,14 +242,14 @@ document.addEventListener('alpine:init', () => {
     }));
 
     /*
-    | Selector de día del chofer (Bloque 7): carrusel tipo "coverflow". El día en foco va en
-    | el centro, a tamaño real; los vecinos se ven cada vez más pequeños, girados y difuminados
-    | (planos de fondo). Se mueve arrastrando la tira, girando la rueda del ratón encima, con las
-    | flechas o tocando un día. El desplazamiento durante el gesto es puramente cliente (`offset`
-    | fraccional, animación CSS); al soltar se redondea al día más cercano y se avisa al servidor
-    | una sola vez con `selectDay(fecha)` (que recarga la ruta y actualiza la URL). El servidor
-    | sigue siendo la fuente de verdad de `date`: si cambia por fuera ("Ir a hoy"), el carrusel
-    | se recoloca.
+    | Selector de día del chofer (Bloque 7): carrusel tipo "coverflow" sobre scroll nativo con
+    | scroll-snap horizontal (`scroll-snap-type: x mandatory` + `scroll-snap-align: center` en
+    | cada día — igual mecanismo que el dial de litros de digitWheel). El navegador aporta el
+    | "imán": al dejar de arrastrar/rodar, encaja solo en el día más centrado. El efecto coverflow
+    | (giro/escala/opacidad según distancia al centro) lo pinta `paint()` en cada evento `scroll`.
+    | Cuando el scroll se asienta, `settle()` mira qué día quedó centrado y avisa al servidor una
+    | sola vez con `selectDay(fecha)`. El servidor sigue siendo la fuente de verdad de `date`: si
+    | cambia por fuera ("Hoy"), el carrusel se recoloca.
     */
     const isoOf = (d) =>
         `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -260,25 +260,23 @@ document.addEventListener('alpine:init', () => {
     };
 
     Alpine.data('dayCarousel', ({ initial, today }) => ({
-        RANGE: 4,          // días renderizados a cada lado del foco
-        STEP_DRAG: 60,     // px de arrastre por día
+        RANGE: 14,         // días renderizados a cada lado del ancla
         LETTERS: ['D', 'L', 'M', 'X', 'J', 'V', 'S'],
         todayIso: today,
-        center: initial,   // fecha en foco (fuente de verdad visual)
-        offset: 0,         // desplazamiento fraccional durante el gesto
-        dragging: false,
-        _lastX: 0,
-        _moved: false,
-        _gestureEndAt: 0,
-        _commitTimer: null,
+        center: initial,   // ancla de la lista renderizada (solo se mueve al re-anclar/recolocar)
+        focusIso: initial, // día actualmente centrado
+        _raf: null,
+        _settleTimer: null,
 
         init() {
             this.$wire.$watch('date', (v) => {
-                if (v && v !== this.center) {
+                if (v && v !== this.focusIso) {
                     this.center = v;
-                    this.offset = 0;
+                    this.focusIso = v;
+                    this.$nextTick(() => this.recenter(false));
                 }
             });
+            this.$nextTick(() => requestAnimationFrame(() => this.recenter(false)));
         },
 
         days() {
@@ -290,82 +288,92 @@ document.addEventListener('alpine:init', () => {
             return out;
         },
 
-        focusIndex() {
-            return Math.round(this.offset);
+        itemEls() {
+            return Array.from(this.$refs.track.querySelectorAll('[data-day]'));
         },
 
-        style(i) {
-            const p = i - this.offset;
-            const a = Math.abs(p);
-            const x = p * 58 - Math.sign(p) * Math.min(a, 3) * 6;
-            const scale = Math.max(0.5, 1 - a * 0.17);
-            const rot = Math.max(-38, Math.min(38, -p * 18));
-            const opacity = a > this.RANGE - 0.5 ? 0 : Math.max(0.12, 1 - a * 0.3);
-            return `transform: translateX(${x}px) translateZ(${-a * 42}px) rotateY(${rot}deg) scale(${scale}); opacity:${opacity}; z-index:${100 - Math.round(a * 10)};`;
+        elFor(iso) {
+            return this.$refs.track.querySelector(`[data-day="${CSS.escape(iso)}"]`);
         },
 
-        scheduleCommit() {
-            clearTimeout(this._commitTimer);
-            this._commitTimer = setTimeout(() => this.commit(), 200);
+        nearestEl() {
+            const s = this.$refs.scroller;
+            const mid = s.scrollLeft + s.clientWidth / 2;
+            let best = null;
+            let bestD = Infinity;
+            this.itemEls().forEach((el) => {
+                const d = Math.abs(el.offsetLeft + el.clientWidth / 2 - mid);
+                if (d < bestD) { bestD = d; best = el; }
+            });
+            return best;
         },
 
-        commit() {
-            const step = Math.round(this.offset);
-            this.offset = 0;
-            if (step !== 0) {
-                this.center = isoOf(addDays(this.center, step));
-                this.$wire.selectDay(this.center);
+        // Coloca el día en foco en el centro sin avisar al servidor (carga inicial, "Hoy", re-anclado).
+        // No hace falta silenciar settle(): al quedar centrado el propio focusIso, settle() no reenvía.
+        recenter(smooth) {
+            const el = this.elFor(this.focusIso);
+            const s = this.$refs.scroller;
+            if (! el || ! s) return;
+            s.scrollTo({
+                left: el.offsetLeft - (s.clientWidth - el.clientWidth) / 2,
+                behavior: smooth ? 'smooth' : 'auto',
+            });
+            this.paint();
+        },
+
+        onScroll() {
+            if (! this._raf) {
+                this._raf = requestAnimationFrame(() => { this._raf = null; this.paint(); });
+            }
+            clearTimeout(this._settleTimer);
+            this._settleTimer = setTimeout(() => this.settle(), 140);
+        },
+
+        paint() {
+            const s = this.$refs.scroller;
+            if (! s) return;
+            const mid = s.scrollLeft + s.clientWidth / 2;
+            this.itemEls().forEach((el) => {
+                const p = (el.offsetLeft + el.clientWidth / 2 - mid) / el.clientWidth;
+                const a = Math.min(Math.abs(p), this.RANGE);
+                const scale = Math.max(0.55, 1 - a * 0.16);
+                const rot = Math.max(-42, Math.min(42, -p * 20));
+                el.style.transform = `perspective(600px) translateZ(${(-a * 40).toFixed(1)}px) rotateY(${rot.toFixed(1)}deg) scale(${scale.toFixed(3)})`;
+                el.style.opacity = Math.max(0.12, 1 - a * 0.32).toFixed(3);
+                el.style.zIndex = String(100 - Math.round(a * 10));
+                el.classList.toggle('is-focus', a < 0.5);
+            });
+        },
+
+        settle() {
+            const best = this.nearestEl();
+            if (! best) return;
+            const iso = best.dataset.day;
+            if (iso !== this.focusIso) {
+                this.focusIso = iso;
+                this.$wire.selectDay(iso);
+            }
+            const els = this.itemEls();
+            const idx = els.indexOf(best);
+            if (idx > -1 && (idx < 4 || idx > els.length - 5)) {
+                this.center = iso;
+                this.$nextTick(() => this.recenter(false));
             }
         },
 
         nudge(dir) {
-            this.offset += dir;
-            this.scheduleCommit();
+            const els = this.itemEls();
+            // Parte del día realmente centrado ahora (no de focusIso, que va un paso por detrás
+            // hasta que el servidor responde) para que dos flechazos seguidos sumen.
+            const base = this.nearestEl();
+            const i = base ? els.indexOf(base) : els.findIndex((el) => el.dataset.day === this.focusIso);
+            const target = els[i + dir];
+            if (target) target.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
         },
 
-        tap(d) {
-            // Ignora el click sintético que el navegador dispara justo al soltar un arrastre.
-            if (Date.now() - this._gestureEndAt < 350) return;
-            if (d.i === this.focusIndex()) return;
-            this.offset = d.i;
-            this.scheduleCommit();
-        },
-
-        onWheel(e) {
-            const raw = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-            if (! raw) return;
-            e.preventDefault();
-            this.offset += raw / 90;
-            this.offset = Math.max(-this.RANGE, Math.min(this.RANGE, this.offset));
-            this.scheduleCommit();
-        },
-
-        onPointerDown(e) {
-            if (e.pointerType === 'mouse' && e.button !== 0) return;
-            clearTimeout(this._commitTimer);
-            this.dragging = true;
-            this._moved = false;
-            this._lastX = e.clientX;
-            try { this.$el.setPointerCapture(e.pointerId); } catch { /* pointer sin id */ }
-        },
-
-        onPointerMove(e) {
-            if (! this.dragging) return;
-            const dx = e.clientX - this._lastX;
-            this._lastX = e.clientX;
-            if (Math.abs(dx) > 0) this._moved = true;
-            // arrastrar a la izquierda (dx < 0) trae los días siguientes al foco
-            this.offset -= dx / this.STEP_DRAG;
-            this.offset = Math.max(-this.RANGE, Math.min(this.RANGE, this.offset));
-        },
-
-        onPointerUp(e) {
-            if (! this.dragging) return;
-            this.dragging = false;
-            try { this.$el.releasePointerCapture(e.pointerId); } catch { /* noop */ }
-            if (this._moved) this._gestureEndAt = Date.now();
-            this._moved = false;
-            this.scheduleCommit();
+        tap(iso) {
+            const el = this.elFor(iso);
+            if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
         },
     }));
 });

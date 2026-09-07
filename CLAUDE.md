@@ -326,14 +326,27 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - **`/chofer/ruta` (`chofer.today`) es `App\Livewire\Chofer\Today`** (ya no un placeholder). Muestra
   **la ruta del chofer para un día** (`routes` donde `driver_id` = su `driver->id` y `route_date` =
   `#[Url] $date`, def. hoy) como una columna de paradas. Mobile-first, `.surface`, **nunca `.glass`**.
-- **Selector de día = carrusel "coverflow"** (`.day-carousel*` en `app.css`, `Alpine.data('dayCarousel')`
-  en `app.js`). El día en foco va grande y centrado; los vecinos, cada vez más pequeños, girados
-  (`rotateY`) y difuminados. **Todo el gesto es cliente**: `offset` fraccional + animación CSS al
-  arrastrar / girar la rueda del ratón encima / pulsar flechas / tocar un día; al soltar se redondea
-  al día más cercano y se llama a `$wire.selectDay(fecha)` **una sola vez** (recarga la ruta + URL).
+- **Selector de día = carrusel "coverflow" sobre scroll nativo** (`.day-carousel*` en `app.css`,
+  `Alpine.data('dayCarousel')` en `app.js`). El día en foco va grande y centrado; los vecinos, cada
+  vez más pequeños, girados (`rotateY`) y difuminados. El **"imán"** (encajar solo en el día más
+  centrado) lo pone el navegador: el contenedor es un `overflow-x-auto` con `scroll-snap-type: x
+  mandatory` y cada día `scroll-snap-align: center` (**mismo mecanismo que el dial de litros de
+  `digitWheel`**). Hay dos `.day-carousel__spacer` (107px) a los lados para que el primer/último día
+  puedan llegar al centro. Se mueve arrastrando (táctil), con la rueda del ratón encima, con las
+  flechas (`nudge(±1)` → `scrollIntoView({inline:'center'})`) o tocando un día (`tap(iso)`, idem).
+  - `paint()` (rAF en cada evento `scroll`) recalcula por día la distancia al centro del scroll y
+    fija `transform`/`opacity`/`z-index` inline + la clase `.is-focus`. **No** hay `translateX`: los
+    días fluyen con el scroll, solo se les gira/escala.
+  - `settle()` (debounce 140ms tras el último `scroll`) mira qué día quedó centrado (`nearestEl()`)
+    y, si cambió, llama a `$wire.selectDay(iso)` **una sola vez** (recarga la ruta + URL). No hace
+    falta silenciar el `settle` de un reposicionamiento programático: si el día centrado ya es
+    `focusIso`, `settle()` no reenvía nada.
+  - La lista renderiza ±14 días alrededor de `center` (ancla). `center` solo se mueve al recolocar
+    ("Hoy", carga inicial) o al **re-anclar** cuando el foco se acerca a menos de 4 días del borde
+    de la lista (`settle()` hace `center = iso` + `recenter(false)`, sin smooth, invisible).
   - El `<div x-data="dayCarousel(...)">` lleva **`wire:ignore`** — es imprescindible: sin él, `initial`
     (`@js($this->date)`) cambia en cada commit, Livewire re-morfea el atributo `x-data` y Alpine
-    reinstancia el componente perdiendo su estado y la animación.
+    reinstancia el componente perdiendo su estado y la posición de scroll.
   - El servidor sigue siendo la fuente de verdad de `date`: `$wire.$watch('date', …)` recoloca el
     carrusel si cambia por fuera (botón "Hoy" del header, que hace `wire:click="goToday"`).
   - `shiftDay(±n)` sigue existiendo en el componente (API), pero el carrusel usa `selectDay`.

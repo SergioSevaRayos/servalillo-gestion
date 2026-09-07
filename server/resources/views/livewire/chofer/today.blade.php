@@ -20,34 +20,32 @@
     </div>
     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $selected->isoFormat('dddd, D [de] MMMM') }}</p>
 
-    {{-- Selector de día tipo carrusel "coverflow": el día en foco al centro, los vecinos girados
-         y difuminados. Se mueve arrastrando, con la rueda del ratón encima, con las flechas o
-         tocando un día. La lógica del gesto está en resources/js/app.js (dayCarousel). --}}
+    {{-- Selector de día tipo carrusel "coverflow" sobre scroll nativo con scroll-snap: el día
+         más centrado se ajusta solo (mismo "imán" que el dial de litros). Se mueve arrastrando,
+         con la rueda del ratón encima, con las flechas o tocando un día. La lógica está en
+         resources/js/app.js (dayCarousel). --}}
     <div class="mt-3 flex items-center justify-center gap-1.5" wire:ignore
         x-data="dayCarousel({ initial: @js($this->date), today: @js(today()->toDateString()) })">
         <button type="button" x-on:click="nudge(-1)" aria-label="{{ __('Día anterior') }}"
             class="day-carousel__arrow">‹</button>
 
-        <div class="day-carousel w-[260px] max-w-full touch-pan-y"
-            :class="{ 'is-dragging': dragging }"
-            x-on:wheel="onWheel($event)"
-            x-on:pointerdown="onPointerDown($event)"
-            x-on:pointermove="onPointerMove($event)"
-            x-on:pointerup="onPointerUp($event)"
-            x-on:pointercancel="onPointerUp($event)"
+        <div class="day-carousel w-[260px] max-w-full"
+            x-ref="scroller"
+            x-on:scroll.passive="onScroll()"
             role="group" aria-label="{{ __('Selector de día') }}">
-            <div class="day-carousel__track">
+            <div class="day-carousel__track" x-ref="track">
+                <div class="day-carousel__spacer" aria-hidden="true"></div>
                 <template x-for="d in days()" :key="d.iso">
                     <button type="button"
                         class="day-carousel__item"
-                        :class="{ 'is-focus': d.i === focusIndex(), 'is-today': d.iso === todayIso && d.i !== focusIndex() }"
-                        :style="style(d.i)"
-                        :aria-current="d.i === focusIndex() ? 'date' : null"
-                        x-on:click="tap(d)">
+                        :data-day="d.iso"
+                        :class="{ 'is-today': d.iso === todayIso }"
+                        x-on:click="tap(d.iso)">
                         <span class="day-carousel__dow" x-text="LETTERS[d.dow]"></span>
                         <span class="day-carousel__num" x-text="d.day"></span>
                     </button>
                 </template>
+                <div class="day-carousel__spacer" aria-hidden="true"></div>
             </div>
         </div>
 
