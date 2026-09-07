@@ -1,17 +1,14 @@
 <?php
 
-use App\Enums\OdometerKind;
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Jobs\ProcessDeliveryNote;
 use App\Livewire\Chofer\Today;
 use App\Models\DeliveryType;
 use App\Models\Driver;
-use App\Models\OdometerReading;
 use App\Models\Route;
 use App\Models\RouteStop;
 use App\Models\Truck;
-use App\Services\OdometerService;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -26,7 +23,7 @@ function chofer(array $routeOverrides = [], int $stops = 3): array
 {
     $user = makeUser('chofer');
     $driver = Driver::factory()->create(['user_id' => $user->id]);
-    $truck = Truck::factory()->create(['odometer' => 100000, 'liter_meter' => 500000]);
+    $truck = Truck::factory()->create(['liter_meter' => 500000]);
 
     $started = ($routeOverrides['status'] ?? null) === RouteStatus::InProgress;
 
@@ -102,13 +99,12 @@ it('no deja empezar una jornada de un día que no es hoy', function () {
     $c->call('startDay')->assertForbidden();
 });
 
-it('empezar jornada registra cuentakilómetros y contador de litros, y pone la ruta En curso', function () {
+it('empezar jornada registra la lectura del contador de litros y pone la ruta En curso', function () {
     [$user, $driver, $route, $truck] = chofer();
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('openStartDay')
         ->assertSet('meterStart', 500000) // prellenado con la última lectura del camión
-        ->set('odometer', 100050)
         ->set('meterStart', 500120)
         ->call('startDay')
         ->assertHasNoErrors();
@@ -116,8 +112,7 @@ it('empezar jornada registra cuentakilómetros y contador de litros, y pone la r
     $route->refresh();
     expect($route->status)->toBe(RouteStatus::InProgress)
         ->and($route->started_at)->not->toBeNull()
-        ->and($route->liter_meter_start)->toBe(500120)
-        ->and(OdometerReading::where('route_id', $route->id)->where('kind', 'start')->value('value'))->toBe(100050);
+        ->and($route->liter_meter_start)->toBe(500120);
 });
 
 it('empezar jornada exige la lectura del contador de litros', function () {
@@ -125,7 +120,6 @@ it('empezar jornada exige la lectura del contador de litros', function () {
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('openStartDay')
-        ->set('odometer', 100050)
         ->set('meterStart', null)
         ->call('startDay')
         ->assertHasErrors('meterStart');
@@ -133,14 +127,14 @@ it('empezar jornada exige la lectura del contador de litros', function () {
     expect($route->fresh()->status)->toBe(RouteStatus::Published);
 });
 
-it('rechaza un contador de inicio menor que el odómetro del camión', function () {
-    [$user, $driver, $route] = chofer();
+it('rechaza una lectura de inicio menor que la última registrada del camión', function () {
+    [$user, $driver, $route] = chofer(); // truck->liter_meter = 500000
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('openStartDay')
-        ->set('odometer', 90000)
+        ->set('meterStart', 499000)
         ->call('startDay')
-        ->assertHasErrors('odometer');
+        ->assertHasErrors('meterStart');
 
     expect($route->fresh()->status)->toBe(RouteStatus::Published);
 });
@@ -271,42 +265,37 @@ it('permite reabrir una parada cerrada', function () {
         ->and($stop->fresh()->delivered_quantity)->toBeNull();
 });
 
-it('terminar jornada registra el contador de fin, actualiza el camión y completa la ruta', function () {
+it('terminar jornada guarda la lectura de fin, actualiza el camión y completa la ruta', function () {
     [$user, $driver, $route, $truck] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
-    OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::Start->value, 'value' => 100000, 'recorded_at' => now()]);
+    // liter_meter_start = 500000 (helper), sin repartos → debería marcar 500000.
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('openEndDay')
-        ->set('odometer', 100180)
+        ->assertSet('meterEnd', 500000)
         ->call('endDay')
         ->assertHasNoErrors();
 
     $route->refresh();
     expect($route->status)->toBe(RouteStatus::Completed)
-        ->and($truck->fresh()->odometer)->toBe(100180)
-        ->and(OdometerReading::where('route_id', $route->id)->where('kind', 'end')->value('value'))->toBe(100180)
-        ->and($route->liter_meter_end)->toBe(500000)          // inicio 500000 + 0 repartido
+        ->and($route->liter_meter_end)->toBe(500000)
         ->and($route->liter_discrepancy_note)->toBeNull()
         ->and($truck->fresh()->liter_meter)->toBe(500000);
 });
 
 it('si el contador de litros no cuadra con lo repartido, exige un motivo del ajuste', function () {
     [$user, $driver, $route, $truck] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
-    OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::Start->value, 'value' => 100000, 'recorded_at' => now()]);
     // Inicio del contador 500000, una entrega de 1000 L → debería marcar 501000.
     $route->stops()->first()->update(['status' => RouteStopStatus::Completed, 'delivered_quantity' => 1000, 'completed_at' => now()]);
 
     $c = Livewire::actingAs($user)->test(Today::class)
         ->call('openEndDay')
         ->assertSet('meterEnd', 501000)
-        ->set('odometer', 100100)
         ->set('meterEnd', 501004)   // marca 4 L de más
         ->call('endDay')
         ->assertHasErrors('meterNote');
 
     expect($route->fresh()->status)->toBe(RouteStatus::InProgress);
 
-    // Con el motivo, cierra y lo guarda.
     $c->set('meterNote', 'Se soltó la manguera y se derramaron 4 L')
         ->call('endDay')
         ->assertHasNoErrors();
@@ -318,38 +307,18 @@ it('si el contador de litros no cuadra con lo repartido, exige un motivo del aju
         ->and($truck->fresh()->liter_meter)->toBe(501004);
 });
 
-it('el modal de terminar jornada se prellena con la lectura de inicio', function () {
-    [$user, $driver, $route, $truck] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
-    // El inicio (143323) es mayor que el odómetro guardado del camión (100000).
-    OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::Start->value, 'value' => 143323, 'recorded_at' => now()]);
+it('rechaza una lectura de fin menor que la de inicio', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now(), 'liter_meter_start' => 500000]);
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('openEndDay')
-        ->assertSet('odometer', 143323);
-});
-
-it('rechaza un contador de fin menor que el de inicio', function () {
-    [$user, $driver, $route, $truck] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
-    OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::Start->value, 'value' => 100000, 'recorded_at' => now()]);
-
-    Livewire::actingAs($user)->test(Today::class)
-        ->call('openEndDay')
-        ->set('odometer', 99000)
+        ->set('meterEnd', 499000)
         ->call('endDay')
-        ->assertHasErrors('odometer');
+        ->assertHasErrors('meterEnd');
 
     expect($route->fresh()->status)->toBe(RouteStatus::InProgress);
 });
 
 it('un gestor no accede a la web del chofer', function () {
     $this->actingAs(makeUser('administrador'))->get('/chofer/ruta')->assertForbidden();
-});
-
-it('OdometerService::recordEnd fija el odómetro del camión', function () {
-    $truck = Truck::factory()->create(['odometer' => 5000]);
-    $route = Route::factory()->create(['truck_id' => $truck->id]);
-
-    app(OdometerService::class)->recordEnd($route, 5300);
-
-    expect($truck->fresh()->odometer)->toBe(5300);
 });

@@ -108,7 +108,7 @@
                         <x-ui.button class="w-full justify-center" size="lg" wire:click="openStartDay">
                             {{ __('Empezar jornada') }}
                         </x-ui.button>
-                        <p class="mt-2 text-center text-xs text-slate-400">{{ __('Anota las lecturas del camión para poder operar las paradas.') }}</p>
+                        <p class="mt-2 text-center text-xs text-slate-400">{{ __('Anota la lectura del contador para poder operar las paradas.') }}</p>
                     @else
                         <p class="text-center text-sm text-slate-500 dark:text-slate-400">
                             {{ $selected->isFuture() ? __('Ruta planificada. Podrás empezarla ese día.') : __('Esta jornada no llegó a iniciarse.') }}
@@ -119,20 +119,11 @@
                         {{ __('Terminar jornada') }}
                     </x-ui.button>
                 @else
-                    @php
-                        $start = $route->odometerReadings->firstWhere('kind', \App\Enums\OdometerKind::Start)?->value;
-                        $end = $route->odometerReadings->firstWhere('kind', \App\Enums\OdometerKind::End)?->value;
-                    @endphp
-                    <div class="grid grid-cols-3 gap-3 text-center">
-                        <div><p class="text-xs text-slate-400">{{ __('Km inicio') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ $start !== null ? number_format($start, 0, ',', '.') : '—' }}</p></div>
-                        <div><p class="text-xs text-slate-400">{{ __('Km fin') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ $end !== null ? number_format($end, 0, ',', '.') : '—' }}</p></div>
-                        <div><p class="text-xs text-slate-400">{{ __('Km jornada') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ ($start !== null && $end !== null) ? number_format($end - $start, 0, ',', '.') : '—' }}</p></div>
-                    </div>
                     @if ($route->liter_meter_start !== null)
-                        <div class="mt-3 grid grid-cols-3 gap-3 text-center">
-                            <div><p class="text-xs text-slate-400">{{ __('Contador inicio') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ number_format($route->liter_meter_start, 0, ',', '.') }}</p></div>
-                            <div><p class="text-xs text-slate-400">{{ __('Contador fin') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ $route->liter_meter_end !== null ? number_format($route->liter_meter_end, 0, ',', '.') : '—' }}</p></div>
-                            <div><p class="text-xs text-slate-400">{{ __('Repartido') }}</p><p class="font-semibold text-slate-800 dark:text-slate-100">{{ number_format($route->deliveredLiters(), 0, ',', '.') }} L</p></div>
+                        <div class="grid grid-cols-3 gap-3 text-center">
+                            <div><p class="text-xs text-slate-400">{{ __('Contador inicio') }}</p><p class="font-semibold tabular-nums text-slate-800 dark:text-slate-100">{{ number_format($route->liter_meter_start, 0, ',', '.') }}</p></div>
+                            <div><p class="text-xs text-slate-400">{{ __('Contador fin') }}</p><p class="font-semibold tabular-nums text-slate-800 dark:text-slate-100">{{ $route->liter_meter_end !== null ? number_format($route->liter_meter_end, 0, ',', '.') : '—' }}</p></div>
+                            <div><p class="text-xs text-slate-400">{{ __('Repartido') }}</p><p class="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{{ number_format($route->deliveredLiters(), 0, ',', '.') }} L</p></div>
                         </div>
                     @endif
                     <p class="mt-3 text-center text-sm font-medium text-emerald-700 dark:text-emerald-400">{{ __('Jornada finalizada') }}</p>
@@ -158,15 +149,10 @@
     <x-modal name="start-day" max-width="sm">
         <form wire:submit="startDay" class="p-6">
             <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ __('Empezar jornada') }}</h3>
-            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ __('Anota las lecturas del camión antes de salir.') }}</p>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ __('Ajusta la lectura que marca el contador de litros del camión ahora mismo.') }}</p>
             <div class="mt-4">
-                <p class="mb-2 text-center text-sm font-medium text-slate-500 dark:text-slate-400">{{ __('Cuentakilómetros') }}</p>
-                <x-ui.digit-wheel wire:model="odometer" :value="$route?->truck?->odometer ?? 0" sync-on="start-day" />
-            </div>
-            <div class="mt-4">
-                <x-ui.input name="meterStart" type="number" inputmode="numeric"
-                    label="{{ __('Contador de litros') }}" wire:model="meterStart"
-                    help="{{ $route?->truck?->liter_meter ? __('Última lectura registrada: :n', ['n' => number_format($route->truck->liter_meter, 0, ',', '.')]) : null }}" />
+                <p class="mb-2 text-center text-sm font-medium text-slate-500 dark:text-slate-400">{{ __('Contador de litros') }}</p>
+                <x-ui.digit-wheel wire:model="meterStart" :value="$route?->truck?->liter_meter ?? 0" unit="L" sync-on="start-day" />
             </div>
             <div class="mt-6 flex justify-end gap-3">
                 <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cancelar') }}</x-ui.button>
@@ -182,25 +168,21 @@
             @if ($this->pendingCount > 0)
                 <p class="mt-1 text-sm text-amber-600 dark:text-amber-400">{{ __('Quedan :n paradas sin cerrar. Aun así puedes terminar la jornada.', ['n' => $this->pendingCount]) }}</p>
             @endif
-            <div class="mt-4">
-                <p class="mb-2 text-center text-sm font-medium text-slate-500 dark:text-slate-400">{{ __('Cuentakilómetros') }}</p>
-                <x-ui.digit-wheel wire:model="odometer" :value="$route?->truck?->odometer ?? 0" sync-on="end-day" />
-            </div>
-
             {{-- Contador de litros: (fin − inicio) debe cuadrar con lo repartido --}}
             <div class="mt-4">
                 @php $disc = $this->endMeterDiscrepancy(); @endphp
+                <p class="mb-2 text-center text-sm font-medium text-slate-500 dark:text-slate-400">{{ __('Contador de litros ahora') }}</p>
+                <x-ui.digit-wheel wire:model="meterEnd" :value="(int) round($route?->literMeterExpected() ?? 0)" unit="L" sync-on="end-day" />
+
                 @if ($route?->liter_meter_start !== null)
-                    <p class="mb-1 text-xs text-slate-500 dark:text-slate-400">
-                        {{ __('Al empezar :s · repartido hoy :r L · debería marcar :e', [
+                    <p class="mt-1 text-center text-xs text-slate-400">
+                        {{ __('Al empezar :s · repartido :r L → debería marcar :e', [
                             's' => number_format($route->liter_meter_start, 0, ',', '.'),
                             'r' => number_format($this->meter['delivered'], 0, ',', '.'),
                             'e' => number_format($route->literMeterExpected(), 0, ',', '.'),
                         ]) }}
                     </p>
                 @endif
-                <x-ui.input name="meterEnd" type="number" inputmode="numeric"
-                    label="{{ __('Contador de litros ahora') }}" wire:model.live.debounce.500ms="meterEnd" />
 
                 @if ($disc !== null && abs($disc) > (int) config('servalillo.liter_meter_tolerance', 0))
                     <div class="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">

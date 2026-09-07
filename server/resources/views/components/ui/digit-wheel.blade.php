@@ -1,6 +1,8 @@
 @props([
     'digits' => 7,
     'value' => 0,
+    // Unidad que se muestra bajo la ruleta (ej. 'km', 'L'). Cadena vacía = sin unidad.
+    'unit' => '',
     // Nombre del modal (evento open-modal) tras el cual hay que re-leer el valor del servidor.
     'syncOn' => null,
 ])
@@ -33,7 +35,7 @@
     </div>
 
     <p class="mt-2 text-center text-sm tabular-nums text-slate-500 dark:text-slate-400">
-        <span x-text="Number(value).toLocaleString('es-ES')"></span> km
+        <span x-text="Number(value).toLocaleString('es-ES')"></span>@if ($unit) {{ $unit }}@endif
     </p>
 
     @if ($wireModel)

@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Chofer;
 
-use App\Enums\OdometerKind;
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Livewire\Forms\StopActionForm;
@@ -10,7 +9,6 @@ use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
-use App\Services\OdometerService;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
@@ -33,9 +31,6 @@ class Today extends Component
     /** Día que se está viendo (YYYY-MM-DD). */
     #[Url]
     public string $date = '';
-
-    /** Lectura de odómetro que se está introduciendo (inicio/fin de jornada). */
-    public ?int $odometer = null;
 
     /** Lectura del contador de litros al empezar la jornada. */
     public ?int $meterStart = null;
@@ -197,21 +192,18 @@ class Today extends Component
     public function openStartDay(): void
     {
         $this->authorizeRoute();
-        $this->odometer = $this->route->truck?->odometer;
         $this->meterStart = $this->route->truck?->liter_meter;
         $this->resetErrorBag();
         $this->dispatch('open-modal', 'start-day');
     }
 
-    public function startDay(OdometerService $odometers): void
+    public function startDay(): void
     {
         $this->authorizeRoute();
         $this->resetValidation();
 
-        $value = $this->validateOdometer();
-        $meter = $this->validateInt('meterStart', 'Introduce la lectura del contador de litros.');
+        $meter = $this->validateMeter('meterStart', min: $this->route->truck?->liter_meter, minMessage: 'La lectura no puede ser menor que la última registrada del camión (:min).');
 
-        $this->runOdometer(fn () => $odometers->recordStart($this->route, $value));
         $this->route->update([
             'status' => RouteStatus::InProgress,
             'started_at' => now(),
@@ -219,7 +211,7 @@ class Today extends Component
         ]);
 
         unset($this->route);
-        $this->odometer = $this->meterStart = null;
+        $this->meterStart = null;
         $this->dispatch('close-modal', 'start-day');
         $this->dispatch('toast', message: 'Jornada iniciada.', variant: 'success');
     }
@@ -227,14 +219,6 @@ class Today extends Component
     public function openEndDay(): void
     {
         $this->authorizeRoute();
-
-        $readings = $this->route->odometerReadings->pluck('value', 'kind.value');
-
-        // Prellenar con: lectura de fin ya guardada > lectura de inicio > odómetro del camión.
-        // Nunca por debajo del inicio (la lectura de fin siempre es >= la de inicio).
-        $this->odometer = $readings[OdometerKind::End->value]
-            ?? $readings[OdometerKind::Start->value]
-            ?? $this->route->truck?->odometer;
 
         // Prellenar con "por dónde debería ir" (inicio + repartido): si todo cuadra el chofer
         // solo confirma; si el contador marca otra cosa, lo cambia y salta el aviso.
@@ -257,13 +241,12 @@ class Today extends Component
             : ($this->meterEnd - $route->liter_meter_start) - $route->deliveredLiters();
     }
 
-    public function endDay(OdometerService $odometers): void
+    public function endDay(): void
     {
         $this->authorizeRoute();
         $this->resetValidation();
 
-        $value = $this->validateOdometer();
-        $meter = $this->validateInt('meterEnd', 'Introduce la lectura del contador de litros.');
+        $meter = $this->validateMeter('meterEnd', min: $this->route->liter_meter_start, minMessage: 'La lectura de fin no puede ser menor que la de inicio (:min).');
 
         $discrepancy = ($meter - ($this->route->liter_meter_start ?? $meter)) - $this->route->deliveredLiters();
         $tolerance = (int) config('servalillo.liter_meter_tolerance', 0);
@@ -276,7 +259,6 @@ class Today extends Component
             ]);
         }
 
-        $this->runOdometer(fn () => $odometers->recordEnd($this->route, $value));
         $this->route->update([
             'status' => RouteStatus::Completed,
             'completed_at' => now(),
@@ -286,7 +268,7 @@ class Today extends Component
         $this->route->truck?->update(['liter_meter' => $meter]);
 
         unset($this->route);
-        $this->odometer = $this->meterEnd = null;
+        $this->meterEnd = null;
         $this->meterNote = null;
         $this->dispatch('close-modal', 'end-day');
         $this->dispatch('toast',
@@ -313,32 +295,29 @@ class Today extends Component
         }
     }
 
-    private function validateOdometer(): int
+    /**
+     * Valida una lectura del contador de litros: entero >= 0 y, si se pasa `$min`,
+     * que no sea menor (el contador nunca retrocede).
+     */
+    private function validateMeter(string $field, ?int $min, string $minMessage): int
     {
-        return $this->validateInt('odometer', 'Introduce la lectura del cuentakilómetros.');
-    }
+        $value = $this->{$field};
 
-    private function validateInt(string $field, string $requiredMessage): int
-    {
-        $data = validator(
-            [$field => $this->{$field}],
-            [$field => ['required', 'integer', 'min:0', 'max:9999999']],
-            ["{$field}.required" => $requiredMessage],
+        validator(
+            [$field => $value],
+            [$field => ['required', 'integer', 'min:0', 'max:99999999']],
+            ["{$field}.required" => 'Introduce la lectura del contador de litros.'],
         )->validate();
 
-        return (int) $data[$field];
-    }
+        $value = (int) $value;
 
-    /** Ejecuta una acción del OdometerService reetiquetando sus errores al campo `odometer` del modal. */
-    private function runOdometer(callable $action): void
-    {
-        try {
-            $action();
-        } catch (ValidationException $e) {
+        if ($min !== null && $value < $min) {
             throw ValidationException::withMessages([
-                'odometer' => collect($e->errors())->flatten()->all(),
+                $field => str_replace(':min', number_format($min, 0, ',', '.'), $minMessage),
             ]);
         }
+
+        return $value;
     }
 
     public function render()

@@ -315,15 +315,15 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - **Solo se puede operar** (empezar/terminar jornada, cerrar paradas) la ruta de **hoy** o una que
   quedó `InProgress` (cerrar la de anoche). `#[Computed] operable()` lo decide; `authorizeRoute()` y
   las tarjetas `disabled` lo aplican. Otros días = solo lectura.
-- **Ciclo de jornada** (lo controla el chofer, no el admin):
-  - "Empezar jornada" → modal con lectura de odómetro de inicio → `OdometerService::recordStart()` +
-    ruta pasa a `InProgress` (`started_at`). Las paradas no se pueden operar hasta empezar
-    (`guardStarted()` en el componente + tarjetas `disabled` en la vista).
-  - "Terminar jornada" → odómetro de fin → `OdometerService::recordEnd()` (que además **fija
-    `trucks.odometer`** al valor de fin, dentro de una transacción) + ruta pasa a `Completed`.
-  - `App\Services\OdometerService` valida: no negativo, inicio ≥ odómetro del camión, fin ≥ inicio.
-    Lanza `ValidationException` con clave `value`; el componente la reetiqueta a `odometer` (el
-    campo del modal) en `runOdometer()`.
+- **Ciclo de jornada** (lo controla el chofer, no el admin) — se anota **solo el contador de litros**,
+  los km NO se piden en este flujo (`OdometerService` eliminado; `odometer_readings` sigue existiendo,
+  solo lo llena el seeder para el histórico de km por camión del panel):
+  - "Empezar jornada" → modal con la lectura del **contador de litros** (ruleta `<x-ui.digit-wheel
+    unit="L">`, prefill `trucks.liter_meter`) → ruta pasa a `InProgress`. Las paradas no se operan
+    hasta empezar (`guardStarted()` + tarjetas `disabled`).
+  - "Terminar jornada" → lectura del contador ahora → ruta pasa a `Completed` y `trucks.liter_meter`
+    = esa lectura.
+  - `validateMeter()` valida: entero ≥ 0, inicio ≥ `trucks.liter_meter`, fin ≥ inicio.
 - **Cierre de parada** (`App\Livewire\Forms\StopActionForm`): resultado = `completed` / `failed` /
   `skipped`. `completed` pide litros entregados + renderiza los campos del `field_schema` del tipo de
   reparto (mismo patrón que el editor del Kanban) y los valida con `DeliveryTypeSchemaValidator`.
@@ -344,8 +344,10 @@ Backed enums con `->label()` en español; casteados en los modelos.
   de cerrar; toast `warning` al finalizar con ajuste. Al terminar, `trucks.liter_meter` = lectura de
   fin. Helpers en `Route`: `deliveredLiters()`, `literMeterExpected()`, `literDiscrepancy()`. El
   tablero Kanban del admin marca la columna con aviso ámbar si hay `liter_discrepancy_note`.
-- **`<x-ui.digit-wheel>`** = selector de km tipo "ruleta" (una columna scroll-snap por dígito) para
-  las lecturas de odómetro. Se integra con Livewire vía `x-modelable="value"` + `wire:model`; la
+- **`<x-ui.digit-wheel unit="…">`** = selector numérico tipo "ruleta" (una columna scroll-snap por
+  dígito) para las lecturas del contador de litros. `wire:model` **diferido** (no `.live`): el valor
+  sincroniza al enviar el form, así que el aviso de descuadre del modal de terminar jornada aparece
+  tras el primer "Terminar". Se integra con Livewire vía `x-modelable="value"` + `wire:model`; la
   lógica de scroll está en `Alpine.data('digitWheel')` (`app.js`). Gotchas:
   - El alto de item (`44px`) está **duplicado** en `app.css` (`.digit-wheel__item` → `h-11`) y en
     `app.js` (`WHEEL_ITEM_H`). Si cambias uno, cambia el otro.
