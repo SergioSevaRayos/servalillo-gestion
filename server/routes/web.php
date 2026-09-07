@@ -3,6 +3,8 @@
 use App\Http\Controllers\DeliveryNoteController;
 use App\Http\Controllers\ThemeController;
 use App\Livewire\Chofer\Today;
+use App\Livewire\Clients\Index as ClientsIndex;
+use App\Livewire\Clients\Show as ClientsShow;
 use App\Livewire\Dashboard\Index as DashboardIndex;
 use App\Livewire\DeliveryNotes\Index as DeliveryNotesIndex;
 use App\Livewire\Drivers\Index as DriversIndex;
@@ -46,6 +48,9 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
     // mantenimiento pasa por el Gate::before de superusuario técnico.
     Route::get('dashboard', DashboardIndex::class)->middleware('permission:stats.view')->name('dashboard');
     Route::view('style-guide', 'style-guide')->name('style-guide');
+
+    Route::get('clientes', ClientsIndex::class)->middleware('permission:clients.view')->name('clients.index');
+    Route::get('clientes/{client}', ClientsShow::class)->middleware('permission:clients.view')->name('clients.show');
 
     Route::get('chofers', DriversIndex::class)->name('drivers.index');
     Route::get('camiones', TrucksIndex::class)->name('trucks.index');

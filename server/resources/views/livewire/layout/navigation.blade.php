@@ -35,6 +35,11 @@ new class extends Component
                                 {{ __('Rutas') }}
                             </x-nav-link>
                         @endcan
+                        @can('viewAny', \App\Models\Client::class)
+                            <x-nav-link :href="route('clients.index')" :active="request()->routeIs('clients.*')" wire:navigate>
+                                {{ __('Clientes') }}
+                            </x-nav-link>
+                        @endcan
                         @can('viewAny', \App\Models\Driver::class)
                             <x-nav-link :href="route('drivers.index')" :active="request()->routeIs('drivers.index')" wire:navigate>
                                 {{ __('Chofers') }}
@@ -109,6 +114,11 @@ new class extends Component
                 @can('viewAny', \App\Models\Route::class)
                     <x-responsive-nav-link :href="route('routes.board')" :active="request()->routeIs('routes.*')" wire:navigate>
                         {{ __('Rutas') }}
+                    </x-responsive-nav-link>
+                @endcan
+                @can('viewAny', \App\Models\Client::class)
+                    <x-responsive-nav-link :href="route('clients.index')" :active="request()->routeIs('clients.*')" wire:navigate>
+                        {{ __('Clientes') }}
                     </x-responsive-nav-link>
                 @endcan
                 @can('viewAny', \App\Models\Driver::class)

@@ -387,6 +387,35 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `DeliveryNotePolicy` deja al manager o al chofer dueño de la parada; genera el PDF al vuelo si aún
   no existe).
 
+### Gestión de clientes (Bloque 9)
+- **Módulo independiente** (decisión del usuario): NO hay `route_stops.client_id`, el editor de
+  paradas del Kanban no se tocó. El histórico por cliente se empareja en `Client::pastStops()` por
+  `route_stops.customer_tax_id` (si el cliente tiene CIF) o por `route_stops.customer_name` exacto.
+  Si algún día se quiere un enlace fuerte, es una migración + un `belongsTo` nuevos, no un refactor.
+- `/clientes` (`App\Livewire\Clients\Index`) y `/clientes/{client}` (`App\Livewire\Clients\Show`,
+  **página propia**, no modal) — grupo `role:administrador|mantenimiento`, `permission:clients.view`.
+  Permisos `clients.{view,create,update,delete}` en `RolePermissionSeeder::PERMISSIONS`.
+- Validación = `App\Livewire\Forms\ClientForm` (Form object, mismo patrón que el resto del panel, NO
+  FormRequest). CRUD simple → sin Service intermedio, la lógica vive en el Form.
+- `Client` implementa `Auditable` + `SoftDeletes`. `frequency_days` null = "bajo demanda";
+  `nextDeliveryOn()` = `last_served_on` + `frequency_days` días; `isDeliveryDue()` alimenta el badge
+  ámbar "le toca reparto" del listado y el filtro `schedule=due` (que usa `whereRaw` con intervalo
+  de Postgres: `last_served_on + (frequency_days || ' days')::interval <= now()`).
+- **"Planificar reparto"** en la ficha crea un `RouteStop` con `route_id = null` (backlog "Sin
+  asignar" del Kanban) copiando nombre/CIF/dirección/coordenadas/tipo/litros del cliente. Requiere
+  `clients.update` **y** `routes.update`.
+- **Import Access = comando, una sola vez** (decisión del usuario, NO subida por UI):
+  `php artisan clientes:importar <archivo.csv> [--dry-run]`, archivo en la raíz del proyecto o ruta
+  absoluta. `App\Services\ClientImporter` + `league/csv` (^9.0). Upsert por `external_ref` (con
+  `withTrashed()` + `restore()`). Autodetecta delimitador `;`/`,`, mapea ~60 alias de cabecera
+  ES/EN (`HEADER_MAP`), parsea números en formato español (`1.234,56`) y periodicidades textuales
+  (`semanal`/`quincenal`/`mensual`). Filas inválidas se saltan y se reportan, no abortan. Plantilla
+  en `docs/plantilla-clientes.csv`. El formato completo de columnas está en `docs/02` (Bloque 9).
+- El seeder (`DatabaseSeeder::seedClients()`) crea ~57 clientes y **reasigna ~75% de las paradas
+  del historial** a esos clientes (por `customer_name`/`customer_tax_id`) para que las fichas tengan
+  histórico. Idempotente (`if (Client::query()->exists()) return`).
+- `Audits::MODELS` incluye `'Cliente' => Client::class`.
+
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
 - Regla de negocio: **1 camión = 1 ruta por día** (índice único `routes.truck_id + route_date`).

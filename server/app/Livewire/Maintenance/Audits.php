@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Maintenance;
 
+use App\Models\Client;
 use App\Models\DeliveryNote;
 use App\Models\DeliveryType;
 use App\Models\Device;
@@ -27,6 +28,7 @@ class Audits extends Component
 
     /** Modelos de negocio auditados: etiqueta => clase. */
     public const MODELS = [
+        'Cliente' => Client::class,
         'Ruta' => Route::class,
         'Parada' => RouteStop::class,
         'Chofer' => Driver::class,

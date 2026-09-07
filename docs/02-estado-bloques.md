@@ -11,8 +11,12 @@
 | 6 | Panel de Mantenimiento (logs + auditoría) | ✅ Hecho |
 | 7 | Web operativa del Chofer | ✅ Hecho |
 | 8 | Albaranes (PDF + canales email/físico) + colas | ✅ Hecho |
-| 9 | API Flutter (Sanctum) | ⬜ Siguiente |
-| 10 | App Flutter de tracking | ⬜ |
+| 9 | Gestión de clientes (CRUD + ficha + histórico + import Access) | ✅ Hecho |
+| 10 | API Flutter (Sanctum) | ⬜ Siguiente |
+| 11 | App Flutter de tracking | ⬜ |
+
+> El Bloque 9 original era "API Flutter (Sanctum)"; el usuario intercaló la gestión de clientes
+> por delante, así que la API pasa a ser el Bloque 10 y el tracking el 11.
 
 ---
 
@@ -469,14 +473,107 @@ columna de paradas. Mobile-first, `.surface` siempre, nunca `.glass`.
 
 ---
 
-## Punto de continuación (última sesión: 2026-09-06)
+## Bloque 9 — lo que se ha construido
+
+**Gestión de clientes** (`clients`), módulo **independiente** (decisión del usuario): no se enlaza
+con `route_stops` por FK; el histórico por cliente se empareja por `customer_tax_id` (CIF) o, si no
+hay CIF, por `customer_name` exacto.
+
+- **Tabla `clients`** (`2026_09_07_100000_create_clients_table`): `external_ref` (código Access,
+  único, para el upsert del import), identificación (`name`, `tax_id`, `client_type`), contacto
+  (`contact_name`, `phone`, `secondary_phone`, `email`), ubicación (`address`, `postal_code`,
+  `city`, `province`, `latitude`/`longitude`), reparto habitual (`default_delivery_type_id`,
+  `typical_quantity`, `frequency_days` — null = bajo demanda, `tank_capacity_liters`,
+  `requires_own_pump`, `preferred_channel`, `price_per_liter`, `payment_terms`, `last_served_on`),
+  observaciones (`access_notes`, `notes`), `is_active`, soft-deletes.
+- **`App\Enums\ClientType`**: Particular, Empresa, Comunidad, Agrícola, Industrial, Obra, Otro.
+- **`App\Models\Client`**: `Auditable` + `SoftDeletes`. `scopeSearch`, `pastStops()` (histórico
+  emparejado por CIF/nombre), `nextDeliveryOn()` = `last_served_on` + `frequency_days`,
+  `isDeliveryDue()`, `frequencyLabel()` (Semanal / Quincenal / Mensual / Cada N días).
+- **Permisos** `clients.{view,create,update,delete}` en `RolePermissionSeeder::PERMISSIONS`
+  (administrador y mantenimiento). `ClientPolicy` auto-descubierta. Un chofer recibe 403.
+- **`/clientes`** (`App\Livewire\Clients\Index`, `clients.index`): listado con búsqueda + filtros
+  (estado, tipo, "le toca reparto") + orden + paginación; badge ámbar "toca reparto"; crear/editar
+  en modal, borrar con `wire:confirm`. Validación con `App\Livewire\Forms\ClientForm` (Form object,
+  no FormRequest — coherente con el resto del panel).
+- **`/clientes/{id}`** (`App\Livewire\Clients\Show`, `clients.show`): ficha propia con KPIs (repartos,
+  litros servidos, último, próximo estimado), tarjetas de contacto/ubicación (enlace a Google Maps)
+  y reparto habitual, "Cambios recientes" (auditoría del propio cliente), histórico de repartos a
+  ancho completo (fecha / tipo / previsto / entregado / estado / chofer / albarán con enlace al PDF),
+  y **"Planificar reparto"**: crea una parada en el backlog ("Sin asignar") del Kanban con los datos
+  del cliente (requiere permiso `routes.update`).
+- **Import desde Access** (una sola vez, por comando — decisión del usuario):
+  `php artisan clientes:importar <archivo.csv> [--dry-run]`. El archivo se coloca en la raíz del
+  proyecto (o ruta absoluta). `App\Services\ClientImporter` + `league/csv`:
+  - Detecta el delimitador (`;` o `,`), normaliza las cabeceras y las mapea con ~60 alias en
+    español/inglés (`codigo`→`external_ref`, `cif`/`nif`→`tax_id`, `poblacion`/`localidad`→`city`,
+    `periodicidad`→`frequency_days` con `semanal`/`quincenal`/`mensual`, `litros`→`typical_quantity`,
+    `observaciones acceso`→`access_notes`, etc.).
+  - Números en formato español (`1.234,56`), tipo de reparto resuelto por slug/nombre.
+  - **Upsert por `external_ref`** (usa `withTrashed()` y restaura si estaba borrado). Filas sin
+    nombre o inválidas (email, coordenadas…) se saltan y se listan como error, sin abortar.
+  - Plantilla de ejemplo: `docs/plantilla-clientes.csv`.
+- **`Audits::MODELS`** incluye "Cliente"; enlace "Clientes" en el nav (`@can('viewAny', Client)`).
+- **Seeder**: `DatabaseSeeder::seedClients()` crea ~57 clientes y reasigna ~75% de las paradas del
+  historial a esos clientes (por `customer_name`/`customer_tax_id`) para que las fichas tengan
+  histórico real. Guarda de idempotencia (`if (Client::query()->exists()) return`).
+- Tests: `ClientsCrudTest` (5), `ClientShowTest` (3), `ClientImporterTest` (4). **Suite: 129 passed.**
+
+### Cómo probar el Bloque 9
+
+```bash
+cd server && docker compose up -d && npm run build
+docker compose exec laravel.test php artisan migrate:fresh --seed
+```
+
+1. Entra como `admin@servalillo.test` / `password` → "Clientes" en el nav (entre Rutas y Chofers).
+2. Listado: busca por nombre/CIF/población, filtra por tipo y por "Le toca reparto", ordena columnas.
+3. Crea un cliente (modal), edítalo, bórralo. Repite un código externo → error inline.
+4. Abre una ficha (`/clientes/{id}`): KPIs, histórico de repartos con enlaces a los albaranes PDF,
+   "Cambios recientes". Pulsa "Planificar reparto" → aparece una parada nueva en "Sin asignar" del
+   tablero de Rutas.
+5. Import: copia `docs/plantilla-clientes.csv` a la raíz del proyecto y ejecuta
+   `docker compose exec laravel.test php artisan clientes:importar plantilla-clientes.csv --dry-run`
+   (simulación) y luego sin `--dry-run`.
+6. `soporte@servalillo.test` (mantenimiento) también entra; un chofer recibe 403.
+7. `docker compose exec laravel.test php artisan test` → 129 passed.
+
+### Formato del CSV de import
+
+- Cabecera en la primera fila; delimitador `;` o `,` (autodetectado).
+- Columna que identifica al cliente para el upsert: `Codigo` / `Code` / `Id` → `external_ref`.
+- Alias reconocidos (no distingue mayúsculas/acentos): `Nombre`/`Razon social`, `CIF`/`NIF`,
+  `Tipo`, `Persona de contacto`, `Telefono`/`Movil`, `Telefono 2`, `Email`, `Direccion`, `CP`,
+  `Poblacion`/`Localidad`/`Municipio`, `Provincia`, `Latitud`/`Lat`, `Longitud`/`Lng`,
+  `Tipo de reparto`/`Producto` (por nombre o slug), `Litros`/`Consumo`, `Periodicidad`/`Frecuencia`
+  (`semanal`=7, `quincenal`=15, `mensual`=30, o un número de días), `Capacidad`/`Deposito`, `Bomba`,
+  `Canal` (`email`/`fisico`), `Precio`, `Forma de pago`, `Ultimo reparto` (fecha), `Acceso`,
+  `Observaciones`, `Activo` (`si`/`no`).
+
+---
+
+## Punto de continuación (última sesión: 2026-09-07)
+
+**Estado:** Bloques 1–9 terminados (**129 tests en verde**). Esta sesión: Bloque 9 (gestión de
+clientes). **Siguiente = Bloque 10** (API Flutter con Sanctum) — ver la nota que sigue, sección
+"API para Flutter" de `docs/01`, y `routes/api.php` (casi vacío). Reutilizar el array `rules()` de
+los `Form` objects (incl. el nuevo `ClientForm`) donde tenga sentido; la lógica de negocio ya vive
+en servicios.
+
+**Ojo con el entorno:** el `composer require league/csv` de esta sesión se ejecutó por error en la
+raíz del monorepo además de en `server/`, dejando `composer.json` / `composer.lock` / `vendor/`
+sueltos en la raíz (no versionados, sin entrada en `.gitignore`). El paquete real está bien
+instalado en `server/`. Conviene borrar esos tres artefactos de la raíz.
+
+## Punto de continuación (sesión: 2026-09-06)
 
 **Estado (cierre de sesión):** Bloques 1–8 terminados y verificados (**113 tests en verde**). Esta
 sesión: Bloques 5 (estadísticas), 6 (mantenimiento), 7 (web del chofer + ruleta de odómetro) y 8
 (albaranes). Antes se renombró `backend/` → `server/`, se pinó el volumen de Postgres, se arregló la
 replicación en máquina limpia y se subió a GitHub (`SergioSevaRayos/servalillo-gestion`; `develop`).
 
-- **Siguiente = Bloque 9** (API Flutter con Sanctum). Contrato en `docs/01` sección "API para Flutter"
+- **Siguiente = Bloque 10** (API Flutter con Sanctum; era el Bloque 9 antes de intercalar clientes).
+  Contrato en `docs/01` sección "API para Flutter"
   (`/api/auth/login`, `/api/routes/today`, `/api/stops/{stop}/complete|fail|signature`,
   `/api/routes/{route}/odometer`, etc.). "Todo con Form Requests + API Resources". Reutilizar el array
   `rules()` de los `Form` objects donde tenga sentido. La lógica de negocio ya está en servicios

@@ -2,10 +2,12 @@
 
 namespace Database\Seeders;
 
+use App\Enums\ClientType;
 use App\Enums\DeliveryNoteStatus;
 use App\Enums\OdometerKind;
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
+use App\Models\Client;
 use App\Models\DeliveryNote;
 use App\Models\DeliveryType;
 use App\Models\Device;
@@ -142,6 +144,9 @@ class DatabaseSeeder extends Seeder
 
         // --- Albaranes (Bloque 8) ------------------------------------------
         $this->seedDeliveryNotes($admin);
+
+        // --- Clientes (Bloque 9) ------------------------------------------
+        $this->seedClients([$gasoleo, $agua]);
 
         $this->command->info('Seed completo. Usuarios: admin@ / soporte@ / pedro@ ... contraseña "password".');
     }
@@ -447,5 +452,62 @@ class DatabaseSeeder extends Seeder
                 'created_by' => $creator->id,
             ]);
         }
+    }
+
+    /**
+     * Clientes (Bloque 9). Se crean ~45 clientes y luego se reasigna la mayor parte de las
+     * paradas del historial a un cliente al azar (copiando nombre + CIF), para que el
+     * "histórico por cliente" — emparejado por CIF — tenga varios repartos por cliente.
+     *
+     * @param  array<int, DeliveryType>  $types
+     */
+    private function seedClients(array $types): void
+    {
+        if (Client::query()->exists()) {
+            return;
+        }
+
+        $cities = ['Santa Cruz de Tenerife', 'La Laguna', 'La Orotava', 'Adeje', 'Granadilla', 'Arona', 'Güímar', 'Tegueste'];
+
+        $clients = collect(range(1, 45))->map(fn (int $seq) => Client::create([
+            'external_ref' => 'AX-'.str_pad((string) $seq, 5, '0', STR_PAD_LEFT),
+            'name' => fake()->randomElement([fake()->company(), fake()->lastName().' e Hijos', 'Comunidad '.fake()->lastName()]),
+            'tax_id' => strtoupper(fake()->unique()->bothify('?########')),
+            'client_type' => fake()->randomElement(ClientType::cases())->value,
+            'contact_name' => fake()->name(),
+            'phone' => fake()->numerify('6## ### ###'),
+            'email' => fake()->optional(0.6)->safeEmail(),
+            'address' => fake()->streetAddress(),
+            'postal_code' => fake()->numerify('380##'),
+            'city' => fake()->randomElement($cities),
+            'province' => 'Santa Cruz de Tenerife',
+            'latitude' => fake()->latitude(28.0, 28.6),
+            'longitude' => fake()->longitude(-16.9, -16.1),
+            'default_delivery_type_id' => fake()->randomElement($types)->id,
+            'typical_quantity' => fake()->randomElement([300, 500, 800, 1000, 1500, 2000]),
+            'frequency_days' => fake()->optional(0.75)->randomElement([7, 14, 15, 21, 30, 45]),
+            'tank_capacity_liters' => fake()->optional(0.7)->randomElement([1000, 2000, 3000, 5000]),
+            'requires_own_pump' => fake()->boolean(20),
+            'preferred_channel' => fake()->randomElement(['email', 'physical']),
+            'payment_terms' => fake()->randomElement(['Contado', 'Transferencia 30 días', 'Domiciliado']),
+            'last_served_on' => fake()->dateTimeBetween('-50 days', '-1 day'),
+            'access_notes' => fake()->optional(0.4)->randomElement([
+                'Portón azul al fondo del camino, llamar antes de llegar.',
+                'El depósito está tras el garaje; acceso por la parte trasera.',
+                'Carretera estrecha, no entra el camión grande.',
+            ]),
+            'is_active' => fake()->boolean(93),
+        ]));
+
+        // Reasigna ~75% de las paradas del historial a un cliente (nombre + CIF).
+        RouteStop::query()->whereNotNull('route_id')->inRandomOrder()->get()->each(function (RouteStop $stop) use ($clients) {
+            if (fake()->boolean(75)) {
+                $client = $clients->random();
+                $stop->update(['customer_name' => $client->name, 'customer_tax_id' => $client->tax_id]);
+            }
+        });
+
+        // Clientes sin historial todavía.
+        Client::factory()->count(12)->create();
     }
 }

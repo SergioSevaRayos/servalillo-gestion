@@ -12,6 +12,7 @@
         "laravel/reverb": "^1.11",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
+        "league/csv": "^9.0",
         "livewire/livewire": "^3.6.4",
         "livewire/volt": "^1.7.0",
         "owen-it/laravel-auditing": "^14.0",

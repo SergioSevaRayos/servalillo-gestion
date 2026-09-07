@@ -12,6 +12,7 @@ class RolePermissionSeeder extends Seeder
 {
     /** Catálogo único de permisos del sistema. */
     public const PERMISSIONS = [
+        'clients.view', 'clients.create', 'clients.update', 'clients.delete',
         'drivers.view', 'drivers.create', 'drivers.update', 'drivers.delete',
         'trucks.view', 'trucks.create', 'trucks.update', 'trucks.delete',
         'delivery_types.view', 'delivery_types.create', 'delivery_types.update', 'delivery_types.delete',

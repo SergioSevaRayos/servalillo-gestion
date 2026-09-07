@@ -1,0 +1,76 @@
+@props(['deliveryTypes', 'types', 'editing' => false])
+
+<div class="space-y-5">
+    <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Identificación') }}</p>
+        <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <x-ui.input name="name" label="{{ __('Nombre / razón social') }}" wire:model="form.name" />
+            <x-ui.input name="tax_id" label="{{ __('CIF / NIF') }}" wire:model="form.tax_id" />
+            <x-ui.input name="external_ref" label="{{ __('Código (Access)') }}" wire:model="form.external_ref" :help="__('Se usa para emparejar en la importación.')" />
+            <x-ui.select name="client_type" label="{{ __('Tipo de cliente') }}" wire:model="form.client_type" placeholder="{{ __('Sin especificar') }}">
+                @foreach ($types as $value => $label)
+                    <option value="{{ $value }}">{{ $label }}</option>
+                @endforeach
+            </x-ui.select>
+        </div>
+    </div>
+
+    <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Contacto') }}</p>
+        <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <x-ui.input name="contact_name" label="{{ __('Persona de contacto') }}" wire:model="form.contact_name" />
+            <x-ui.input name="email" type="email" label="{{ __('Email') }}" wire:model="form.email" />
+            <x-ui.input name="phone" label="{{ __('Teléfono') }}" wire:model="form.phone" />
+            <x-ui.input name="secondary_phone" label="{{ __('Teléfono secundario') }}" wire:model="form.secondary_phone" />
+        </div>
+    </div>
+
+    <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Ubicación') }}</p>
+        <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div class="sm:col-span-2"><x-ui.input name="address" label="{{ __('Dirección') }}" wire:model="form.address" /></div>
+            <x-ui.input name="postal_code" label="{{ __('Código postal') }}" wire:model="form.postal_code" />
+            <x-ui.input name="city" label="{{ __('Población') }}" wire:model="form.city" />
+            <x-ui.input name="province" label="{{ __('Provincia') }}" wire:model="form.province" />
+            <div class="grid grid-cols-2 gap-3">
+                <x-ui.input name="latitude" label="{{ __('Latitud') }}" wire:model="form.latitude" inputmode="decimal" />
+                <x-ui.input name="longitude" label="{{ __('Longitud') }}" wire:model="form.longitude" inputmode="decimal" />
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Reparto habitual') }}</p>
+        <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <x-ui.select name="default_delivery_type_id" label="{{ __('Tipo de reparto') }}" wire:model="form.default_delivery_type_id" placeholder="{{ __('Sin definir') }}">
+                @foreach ($deliveryTypes as $dt)
+                    <option value="{{ $dt->id }}">{{ $dt->name }}</option>
+                @endforeach
+            </x-ui.select>
+            <x-ui.input name="typical_quantity" type="number" step="any" label="{{ __('Litros habituales') }}" wire:model="form.typical_quantity" />
+            <x-ui.input name="frequency_days" type="number" label="{{ __('Periodicidad (días)') }}" wire:model="form.frequency_days" :help="__('En blanco = bajo demanda. 7 = semanal, 15 = quincenal, 30 = mensual.')" />
+            <x-ui.input name="tank_capacity_liters" type="number" label="{{ __('Capacidad del depósito (L)') }}" wire:model="form.tank_capacity_liters" />
+            <x-ui.select name="preferred_channel" label="{{ __('Canal de albarán') }}" wire:model="form.preferred_channel" placeholder="{{ __('Sin preferencia') }}">
+                <option value="email">{{ __('Email') }}</option>
+                <option value="physical">{{ __('Entrega en mano') }}</option>
+            </x-ui.select>
+            <x-ui.input name="price_per_liter" type="number" step="any" label="{{ __('Precio / litro (€)') }}" wire:model="form.price_per_liter" />
+            <x-ui.input name="payment_terms" label="{{ __('Forma de pago') }}" wire:model="form.payment_terms" />
+            <x-ui.input name="last_served_on" type="date" label="{{ __('Último reparto') }}" wire:model="form.last_served_on" />
+            <div class="flex items-end pb-2">
+                <x-ui.checkbox name="requires_own_pump" label="{{ __('Requiere bomba propia') }}" wire:model="form.requires_own_pump" />
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Observaciones') }}</p>
+        <div class="mt-2 space-y-4">
+            <x-ui.textarea name="access_notes" label="{{ __('Acceso / instrucciones para el chofer') }}" wire:model="form.access_notes" rows="2"
+                placeholder="{{ __('Ej: portón azul al fondo, llamar antes de llegar.') }}" />
+            <x-ui.textarea name="notes" label="{{ __('Notas generales') }}" wire:model="form.notes" rows="2" />
+        </div>
+    </div>
+
+    <x-ui.checkbox name="is_active" label="{{ __('Cliente activo') }}" wire:model="form.is_active" />
+</div>
