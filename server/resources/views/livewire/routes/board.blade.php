@@ -108,13 +108,12 @@
                 {{ $this->form->editing ? __('Editar parada') : __('Nueva parada') }}
             </h3>
 
-            <div class="mt-6 grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto px-1 -mx-1 themed-scrollbar sm:grid-cols-2 lg:grid-cols-3">
-                <div class="sm:col-span-2 lg:col-span-3">
-                    <x-ui.input name="customer_name" label="{{ __('Cliente') }}" wire:model="form.customer_name" />
-                </div>
-                <div class="sm:col-span-2 lg:col-span-3">
+            <div class="mt-5 grid max-h-[65vh] grid-cols-1 gap-x-4 gap-y-3 overflow-y-auto px-1 -mx-1 themed-scrollbar sm:grid-cols-2 lg:grid-cols-3">
+                <x-ui.input name="customer_name" label="{{ __('Cliente') }}" wire:model="form.customer_name" />
+                <div class="sm:col-span-1 lg:col-span-2">
                     <x-ui.input name="address" label="{{ __('Dirección') }}" wire:model="form.address" />
                 </div>
+
                 <x-ui.input name="contact_name" label="{{ __('Contacto') }}" wire:model="form.contact_name" />
                 <x-ui.input name="contact_phone" label="{{ __('Teléfono') }}" wire:model="form.contact_phone" />
 
@@ -126,7 +125,7 @@
 
                 <x-ui.input name="planned_quantity" label="{{ __('Cantidad prevista') }}" type="number" step="0.01" wire:model="form.planned_quantity" />
 
-                <div class="sm:col-span-2 lg:col-span-3">
+                <div class="sm:col-span-1 lg:col-span-2">
                     <x-ui.select name="delivery_type_id" label="{{ __('Tipo de reparto') }}" wire:model.live="form.delivery_type_id" placeholder="{{ __('Sin tipo específico') }}">
                         @foreach ($this->deliveryTypes as $type)
                             <option value="{{ $type->id }}">{{ $type->name }}</option>
@@ -151,7 +150,7 @@
                                     </x-ui.select>
                                     @break
                                 @case('textarea')
-                                    <x-ui.textarea :name="'data_'.$field['key']" :label="$field['label']" wire:model="form.data.{{ $field['key'] }}" />
+                                    <x-ui.textarea :name="'data_'.$field['key']" :label="$field['label']" :rows="2" wire:model="form.data.{{ $field['key'] }}" />
                                     @break
                                 @case('date')
                                     <x-ui.input :name="'data_'.$field['key']" :label="$field['label']" type="date" wire:model="form.data.{{ $field['key'] }}" />
@@ -167,7 +166,7 @@
                 @endif
             </div>
 
-            <div class="mt-6 flex items-center justify-between gap-3">
+            <div class="mt-5 flex items-center justify-between gap-3">
                 @if ($this->form->editing)
                     <x-ui.button
                         type="button" variant="ghost" size="sm"
