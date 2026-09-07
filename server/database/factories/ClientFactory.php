@@ -74,6 +74,7 @@ class ClientFactory extends Factory
         return $this->state(fn () => [
             'delivery_weekdays' => $weekdays,
             'frequency_days' => null,
+            'is_active' => true,
         ]);
     }
 
