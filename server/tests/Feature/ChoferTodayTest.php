@@ -307,6 +307,51 @@ it('marca una parada como fallida y como omitida con motivo', function () {
         ->and($b->fresh()->status)->toBe(RouteStopStatus::Skipped);
 });
 
+it('el chofer reprograma una parada fallida para otro día', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 1);
+    $stop = $route->stops->first();
+    $stop->update(['customer_name' => 'Bar Central', 'planned_quantity' => 700]);
+
+    $manana = today()->addDay()->toDateString();
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->set('form.outcome', 'failed')
+        ->set('form.reason', 'Nadie en el local')
+        ->set('form.reschedule_on', $manana)
+        ->call('saveStop')
+        ->assertHasNoErrors()
+        ->assertDispatched('toast');
+
+    // la original queda como fallida y anota la reprogramación
+    expect($stop->fresh()->status)->toBe(RouteStopStatus::Failed)
+        ->and($stop->fresh()->failure_reason)->toContain('Reprogramada para');
+
+    // nace una parada pendiente para el día siguiente (sin ruta ese día → "Sin asignar")
+    $nueva = RouteStop::where('customer_name', 'Bar Central')
+        ->where('status', RouteStopStatus::Pending)
+        ->first();
+
+    expect($nueva)->not->toBeNull()
+        ->and($nueva->id)->not->toBe($stop->id)
+        ->and($nueva->route_id)->toBeNull()
+        ->and($nueva->scheduled_for->toDateString())->toBe($manana)
+        ->and((float) $nueva->planned_quantity)->toBe(700.0);
+});
+
+it('reprogramar exige una fecha futura', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 1);
+    $stop = $route->stops->first();
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->set('form.outcome', 'skipped')
+        ->set('form.reason', 'x')
+        ->set('form.reschedule_on', today()->toDateString())
+        ->call('saveStop')
+        ->assertHasErrors('form.reschedule_on');
+});
+
 it('permite reabrir una parada cerrada', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
     $stop = $route->stops()->first();

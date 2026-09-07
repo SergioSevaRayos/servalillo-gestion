@@ -357,6 +357,10 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `failed`/`skipped` piden motivo (va a `failure_reason`). Se puede "Reabrir" una parada cerrada.
   **NO toca `delivery_notes`** — el albarán (registro, firma, PDF, envío) es entero del Bloque 8.
   `completed_at` solo se rellena en `completed` (coherente con el seeder y `FleetStatsService`).
+  - **Reprogramar** (`failed`/`skipped` + campo `reschedule_on`, fecha futura): la parada actual
+    queda cerrada (con "· Reprogramada para dd/mm/yyyy" en el motivo) y `StopActionForm::rescheduleStop()`
+    **crea una parada nueva Pendiente** para esa fecha — en la ruta del mismo chofer ese día si existe,
+    si no en "Sin asignar" con `scheduled_for`.
 - Autorización: `RoutePolicy::operate` y `RouteStopPolicy::complete` (permiso + `owns()`), ya existían.
 - `<x-chofer.stop-card>` es la tarjeta táctil del chofer (grande, sin drag), distinta de
   `<x-routes.stop-card>` (Kanban del admin).

@@ -164,11 +164,16 @@ class Today extends Component
         $this->guardStarted();
         $this->authorize('complete', $this->form->stop);
 
+        $rescheduled = $this->form->outcome !== 'completed' && filled($this->form->reschedule_on);
+
         $this->form->apply(app(DeliveryTypeSchemaValidator::class), app(DeliveryNoteService::class));
 
         unset($this->route);
         $this->dispatch('close-modal', 'stop-action');
-        $this->dispatch('toast', message: 'Parada actualizada.', variant: 'success');
+        $this->dispatch('toast',
+            message: $rescheduled ? 'Parada reprogramada para otro día.' : 'Parada actualizada.',
+            variant: 'success',
+        );
     }
 
     public function reopenStop(): void

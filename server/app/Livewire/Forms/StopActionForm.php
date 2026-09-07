@@ -3,9 +3,11 @@
 namespace App\Livewire\Forms;
 
 use App\Enums\RouteStopStatus;
+use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
+use Illuminate\Support\Carbon;
 use Livewire\Form;
 
 /**
@@ -23,6 +25,9 @@ class StopActionForm extends Form
 
     /** Motivo obligatorio para failed / skipped. */
     public ?string $reason = null;
+
+    /** Fecha a la que reprogramar la parada (opcional, solo con failed / skipped). */
+    public ?string $reschedule_on = null;
 
     /** Valores de los campos flexibles del tipo de reparto. */
     public array $data = [];
@@ -61,6 +66,7 @@ class StopActionForm extends Form
             'outcome' => ['required', 'in:completed,failed,skipped'],
             'delivered_quantity' => ['nullable', 'numeric', 'min:0', 'required_if:outcome,completed'],
             'reason' => ['nullable', 'string', 'max:500', 'required_if:outcome,failed', 'required_if:outcome,skipped'],
+            'reschedule_on' => ['nullable', 'date', 'after:today'],
         ];
 
         if ($this->outcome === 'completed' && ! $this->stop?->deliveryNote) {
@@ -124,15 +130,57 @@ class StopActionForm extends Form
                 ], fn ($v) => $v !== null), auth()->id());
             }
         } else {
+            $reason = $validated['reason'];
+
+            if (! empty($validated['reschedule_on'])) {
+                $this->rescheduleStop($stop, $validated['reschedule_on']);
+                $reason = trim($reason.' · Reprogramada para '.Carbon::parse($validated['reschedule_on'])->format('d/m/Y'));
+            }
+
             $stop->update([
                 'status' => $validated['outcome'] === 'failed' ? RouteStopStatus::Failed : RouteStopStatus::Skipped,
                 'delivered_quantity' => null,
-                'failure_reason' => $validated['reason'],
+                'failure_reason' => $reason,
                 'completed_at' => null,
             ]);
         }
 
         $this->reset();
+    }
+
+    /**
+     * Crea una parada nueva (pendiente) para otro día con los datos de esta.
+     * Va a la ruta del mismo chofer para esa fecha si existe; si no, a "Sin asignar".
+     */
+    private function rescheduleStop(RouteStop $stop, string $date): void
+    {
+        $driverId = $stop->route?->driver_id;
+
+        $targetRoute = $driverId
+            ? Route::where('driver_id', $driverId)->whereDate('route_date', $date)->orderByDesc('id')->first()
+            : null;
+
+        $position = RouteStop::query()
+            ->when($targetRoute, fn ($q) => $q->where('route_id', $targetRoute->id), fn ($q) => $q->whereNull('route_id'))
+            ->max('position');
+
+        RouteStop::create([
+            'route_id' => $targetRoute?->id,
+            'position' => ($position ?? 0) + 1,
+            'scheduled_for' => $targetRoute ? null : $date,
+            'service_kind' => $stop->service_kind->value,
+            'customer_name' => $stop->customer_name,
+            'customer_tax_id' => $stop->customer_tax_id,
+            'address' => $stop->address,
+            'latitude' => $stop->latitude,
+            'longitude' => $stop->longitude,
+            'contact_name' => $stop->contact_name,
+            'contact_phone' => $stop->contact_phone,
+            'delivery_type_id' => $stop->delivery_type_id,
+            'status' => RouteStopStatus::Pending,
+            'planned_quantity' => $stop->planned_quantity,
+            'data' => [],
+        ]);
     }
 
     public function reopen(): void
