@@ -159,6 +159,18 @@ it('un chofer sin ruta hoy no puede añadir clientes', function () {
         ->assertStatus(404);
 });
 
+it('la búsqueda para añadir cliente no incluye pre-clientes', function () {
+    [$user] = chofer(['status' => RouteStatus::InProgress]);
+    Client::factory()->create(['name' => 'Aguas Reales SL']);
+    Client::factory()->prospect()->create(['name' => 'Aguas Fantasma SL']);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openAddStop')
+        ->set('clientSearch', 'Aguas')
+        ->assertSee('Aguas Reales SL')
+        ->assertDontSee('Aguas Fantasma SL');
+});
+
 it('empezar jornada exige la lectura del contador de litros', function () {
     [$user, $driver, $route] = chofer();
 

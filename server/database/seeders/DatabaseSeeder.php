@@ -515,6 +515,14 @@ class DatabaseSeeder extends Seeder
 
         // Clientes sin historial todavía.
         Client::factory()->count(12)->create();
+
+        // Pre-clientes pendientes de valoración (llamadas recientes).
+        Client::factory()->prospect()->count(4)->sequence(
+            ['quantity_unit' => 'L', 'typical_quantity' => 1500],
+            ['quantity_unit' => 'm3', 'typical_quantity' => 3000],
+            ['quantity_unit' => 'L', 'typical_quantity' => 800],
+            ['quantity_unit' => 'm3', 'typical_quantity' => 5000],
+        )->create();
     }
 
     /**

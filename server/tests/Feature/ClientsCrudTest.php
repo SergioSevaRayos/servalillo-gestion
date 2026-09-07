@@ -24,7 +24,7 @@ it('crea, edita y elimina un cliente', function () {
         ->set('form.name', 'Panadería La Espiga')
         ->set('form.tax_id', 'B12345678')
         ->set('form.city', 'La Laguna')
-        ->set('form.typical_quantity', 800)
+        ->set('form.quantity_input', 800)
         ->set('form.frequency_days', 15)
         ->call('save')
         ->assertHasNoErrors();

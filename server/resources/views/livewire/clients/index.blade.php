@@ -20,6 +20,7 @@
             <option value="all">{{ __('Activos e inactivos') }}</option>
             <option value="active">{{ __('Solo activos') }}</option>
             <option value="inactive">{{ __('Solo inactivos') }}</option>
+            <option value="prospect">{{ __('Pendiente valoración') }}</option>
         </select>
         <select wire:model.live="kind" class="rounded-lg border-slate-300 shadow-soft-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:text-sm">
             <option value="all">{{ __('Reparto y viajes') }}</option>
@@ -80,20 +81,36 @@
                     <td data-label="{{ __('Litros') }}" class="text-right">{{ $client->typical_quantity !== null ? number_format($client->typical_quantity, 0, ',', '.').' L' : '—' }}</td>
                     <td data-label="{{ __('Periodicidad') }}">{{ $client->frequencyLabel() }}</td>
                     <td data-label="{{ __('Estado') }}">
-                        <x-ui.badge :variant="$client->is_active ? 'success' : 'neutral'">{{ $client->is_active ? __('Activo') : __('Inactivo') }}</x-ui.badge>
+                        @if ($client->isProspect())
+                            <x-ui.badge variant="warning">{{ __('Pendiente valoración') }}</x-ui.badge>
+                        @else
+                            <x-ui.badge :variant="$client->is_active ? 'success' : 'neutral'">{{ $client->is_active ? __('Activo') : __('Inactivo') }}</x-ui.badge>
+                        @endif
                     </td>
                     <td data-label="{{ __('Acciones') }}" class="text-right">
                         <div class="flex justify-end gap-2">
                             <x-ui.button href="{{ route('clients.show', $client) }}" variant="ghost" size="sm">{{ __('Ver') }}</x-ui.button>
-                            @can('update', $client)
-                                <x-ui.button variant="ghost" size="sm" wire:click="edit({{ $client->id }})">{{ __('Editar') }}</x-ui.button>
-                            @endcan
-                            @can('delete', $client)
-                                <x-ui.button variant="ghost" size="sm"
-                                    wire:click="delete({{ $client->id }})"
-                                    wire:confirm="{{ __('¿Eliminar a :name?', ['name' => $client->name]) }}"
-                                    class="!text-rose-600 hover:!bg-rose-50 dark:!text-rose-400 dark:hover:!bg-rose-500/10">{{ __('Eliminar') }}</x-ui.button>
-                            @endcan
+                            @if ($client->isProspect())
+                                @can('approve', $client)
+                                    <x-ui.button variant="ghost" size="sm" wire:click="approve({{ $client->id }})">{{ __('Aprobar') }}</x-ui.button>
+                                @endcan
+                                @can('delete', $client)
+                                    <x-ui.button variant="ghost" size="sm"
+                                        wire:click="discard({{ $client->id }})"
+                                        wire:confirm="{{ __('¿Descartar a :name? Se borrará definitivamente.', ['name' => $client->name]) }}"
+                                        class="!text-rose-600 hover:!bg-rose-50 dark:!text-rose-400 dark:hover:!bg-rose-500/10">{{ __('Descartar') }}</x-ui.button>
+                                @endcan
+                            @else
+                                @can('update', $client)
+                                    <x-ui.button variant="ghost" size="sm" wire:click="edit({{ $client->id }})">{{ __('Editar') }}</x-ui.button>
+                                @endcan
+                                @can('delete', $client)
+                                    <x-ui.button variant="ghost" size="sm"
+                                        wire:click="delete({{ $client->id }})"
+                                        wire:confirm="{{ __('¿Eliminar a :name?', ['name' => $client->name]) }}"
+                                        class="!text-rose-600 hover:!bg-rose-50 dark:!text-rose-400 dark:hover:!bg-rose-500/10">{{ __('Eliminar') }}</x-ui.button>
+                                @endcan
+                            @endif
                         </div>
                     </td>
                 </tr>
@@ -110,11 +127,21 @@
     <x-modal name="client-form" max-width="4xl">
         <form wire:submit="save" class="p-5">
             <h3 class="text-lg font-medium text-slate-900 dark:text-white">
-                {{ $this->form->editing ? __('Editar cliente') : __('Nuevo cliente') }}
+                @if ($this->form->editing)
+                    {{ __('Editar cliente') }}
+                @elseif ($this->form->status === 'prospect')
+                    {{ __('Nuevo pre-cliente (pendiente valoración)') }}
+                @else
+                    {{ __('Nuevo cliente') }}
+                @endif
             </h3>
 
             <div class="mt-4 max-h-[72vh] overflow-y-auto px-1 -mx-1 themed-scrollbar">
-                <x-clients.form-fields :delivery-types="$this->deliveryTypes" :types="$types" />
+                <x-clients.form-fields
+                    :delivery-types="$this->deliveryTypes"
+                    :types="$types"
+                    :status="$this->form->status"
+                    :editing="(bool) $this->form->editing" />
             </div>
 
             <div class="mt-4 flex justify-end gap-3">

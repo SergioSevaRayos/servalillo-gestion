@@ -562,11 +562,27 @@ Hoy solo se opera **Reparto**; **Viajes** se gestionará más adelante, pero la 
 - **Ficha de ruta** (`/rutas/listado`): selector "Tipo de servicio" en el formulario + badge.
 - Detalle en `CLAUDE.md` (sección "Tipo de servicio: Reparto / Viajes").
 
+### Añadido: Pre-clientes ("Pendiente valoración", `App\Enums\ClientStatus`)
+
+Administración apunta por teléfono un posible cliente (nombre, teléfono, dirección + coordenadas,
+tipo de agua, litros/m³, distancia depósito↔camión, observaciones) → queda como **"Pendiente
+valoración"** → tras consultar con los responsables: **Aprobar** (pasa a cliente real y abre el
+modal de edición para completar) o **Descartar** (borrado permanente, `forceDelete`).
+- Migración `2026_09_07_130000_...` añade `clients.status` (default `'customer'`), `water_type`,
+  `quantity_unit`, `tank_distance_m`.
+- Alta en el **mismo modal "Nuevo cliente"** con un toggle "Cliente | Pendiente valoración" que
+  colapsa el formulario a los campos de la llamada.
+- `/clientes` oculta los prospectos salvo el filtro Estado → "Pendiente valoración". Botones
+  Aprobar/Descartar por fila y en la ficha. Sin permiso nuevo (reusa `clients.update`/`clients.delete`).
+- La **cantidad habitual** pasa a guardarse siempre en litros para todos los clientes; `quantity_unit`
+  recuerda la unidad citada (la ficha muestra "3 m³ (3.000 L)").
+- Detalle en `CLAUDE.md` (sección "Pre-clientes / valoración").
+
 ---
 
 ## Punto de continuación (última sesión: 2026-09-07)
 
-**Estado:** Bloques 1–9 terminados (**132 tests en verde**). Esta sesión: Bloque 9 (gestión de
+**Estado:** Bloques 1–9 terminados (**145 tests en verde**). Esta sesión: Bloque 9 (gestión de
 clientes) + tipo de servicio Reparto/Viajes (enum `ServiceKind` en clientes, rutas y paradas; filtro
 en el tablero) + selector de día del chofer como carrusel coverflow. **Siguiente = Bloque 10** (API
 Flutter con Sanctum) — sección "API para Flutter" de `docs/01`, y `routes/api.php` (casi vacío).

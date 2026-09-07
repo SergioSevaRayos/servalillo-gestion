@@ -27,6 +27,12 @@ class ClientPolicy
         return $user->can('clients.update');
     }
 
+    /** Aprobar un pre-cliente ("Pendiente valoración") y convertirlo en cliente real. */
+    public function approve(User $user, Client $client): bool
+    {
+        return $user->can('clients.update');
+    }
+
     public function delete(User $user, Client $client): bool
     {
         return $user->can('clients.delete');

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Clients;
 
+use App\Enums\ClientStatus;
 use App\Enums\RouteStopStatus;
 use App\Livewire\Forms\ClientForm;
 use App\Models\Client;
@@ -42,9 +43,38 @@ class Show extends Component
         $this->dispatch('toast', message: 'Cliente actualizado.', variant: 'success');
     }
 
+    /** Aprueba el pre-cliente y abre el modal para completar la ficha. */
+    public function approve(): void
+    {
+        $this->authorize('approve', $this->client);
+        abort_unless($this->client->isProspect(), 404);
+
+        $this->client->update(['status' => ClientStatus::Customer]);
+        $this->client->refresh();
+
+        $this->form->setClient($this->client);
+        $this->dispatch('open-modal', 'client-form');
+        $this->dispatch('toast', message: 'Pre-cliente aprobado. Completa la ficha.', variant: 'success');
+    }
+
+    /** Descarta el pre-cliente no viable: borrado permanente. */
+    public function discard(): void
+    {
+        $this->authorize('delete', $this->client);
+        abort_unless($this->client->isProspect(), 404);
+
+        $this->client->forceDelete();
+
+        $this->dispatch('toast', message: 'Pre-cliente descartado.', variant: 'success');
+
+        $this->redirect(route('clients.index'), navigate: true);
+    }
+
     /** Crea una parada en el backlog ("Sin asignar") con los datos del cliente. */
     public function planDelivery(): void
     {
+        abort_if($this->client->isProspect(), 403, 'Convierte el pre-cliente en cliente antes de planificar.');
+
         $this->authorize('update', $this->client);
         abort_unless(auth()->user()->can('routes.update'), 403);
 

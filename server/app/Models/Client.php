@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\ClientStatus;
 use App\Enums\ClientType;
 use App\Enums\ServiceKind;
+use App\Enums\WaterType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,10 +20,11 @@ class Client extends Model implements Auditable
     use AuditableTrait, HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'external_ref', 'name', 'tax_id', 'client_type', 'service_kind',
+        'external_ref', 'name', 'tax_id', 'client_type', 'service_kind', 'status',
         'contact_name', 'phone', 'secondary_phone', 'email',
         'address', 'postal_code', 'city', 'province', 'latitude', 'longitude',
-        'default_delivery_type_id', 'typical_quantity', 'frequency_days', 'tank_capacity_liters',
+        'water_type', 'default_delivery_type_id', 'typical_quantity', 'quantity_unit',
+        'frequency_days', 'tank_capacity_liters', 'tank_distance_m',
         'requires_own_pump', 'preferred_channel', 'price_per_liter', 'payment_terms', 'last_served_on',
         'access_notes', 'notes', 'is_active',
     ];
@@ -31,11 +34,14 @@ class Client extends Model implements Auditable
         return [
             'client_type' => ClientType::class,
             'service_kind' => ServiceKind::class,
+            'status' => ClientStatus::class,
+            'water_type' => WaterType::class,
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'typical_quantity' => 'decimal:2',
             'frequency_days' => 'integer',
             'tank_capacity_liters' => 'integer',
+            'tank_distance_m' => 'integer',
             'requires_own_pump' => 'boolean',
             'price_per_liter' => 'decimal:4',
             'last_served_on' => 'date',
@@ -53,9 +59,43 @@ class Client extends Model implements Auditable
         return $query->where('is_active', true);
     }
 
+    /** Solo clientes reales — excluye los "Pendiente valoración". */
+    public function scopeCustomers(Builder $query): Builder
+    {
+        return $query->where('status', ClientStatus::Customer->value);
+    }
+
     public function scopeKind(Builder $query, ?string $kind): Builder
     {
         return $kind ? $query->where('service_kind', $kind) : $query;
+    }
+
+    public function isProspect(): bool
+    {
+        return $this->status === ClientStatus::Prospect;
+    }
+
+    /**
+     * Cantidad habitual para mostrar. En BD siempre en litros (`typical_quantity`);
+     * `quantity_unit` recuerda cómo lo dijo el cliente → "3 m³ (3.000 L)" / "3.000 L" / null.
+     */
+    public function quantityLabel(): ?string
+    {
+        if ($this->typical_quantity === null) {
+            return null;
+        }
+
+        $liters = (float) $this->typical_quantity;
+        $litersFmt = number_format($liters, 0, ',', '.').' L';
+
+        if ($this->quantity_unit === 'm3') {
+            $m3 = $liters / 1000;
+            $m3Fmt = rtrim(rtrim(number_format($m3, 2, ',', '.'), '0'), ',');
+
+            return "{$m3Fmt} m³ ({$litersFmt})";
+        }
+
+        return $litersFmt;
     }
 
     public function scopeSearch(Builder $query, ?string $term): Builder

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Clients;
 
+use App\Enums\ClientStatus;
 use App\Enums\ClientType;
 use App\Enums\ServiceKind;
 use App\Livewire\Forms\ClientForm;
@@ -23,6 +24,7 @@ class Index extends Component
     #[Url(as: 'q', history: true)]
     public string $search = '';
 
+    /** all | active | inactive (todos = clientes) | prospect (pendiente valoración) */
     #[Url(history: true)]
     public string $status = 'all';
 
@@ -88,10 +90,15 @@ class Index extends Component
             ? $this->authorize('update', $this->form->editing)
             : $this->authorize('create', Client::class);
 
+        $wasNewProspect = ! $this->form->editing && $this->form->status === 'prospect';
+
         $this->form->save();
 
         $this->dispatch('close-modal', 'client-form');
-        $this->dispatch('toast', message: 'Cliente guardado correctamente.', variant: 'success');
+        $this->dispatch('toast',
+            message: $wasNewProspect ? 'Pre-cliente registrado. Queda pendiente de valoración.' : 'Cliente guardado correctamente.',
+            variant: 'success',
+        );
     }
 
     public function delete(Client $client): void
@@ -99,6 +106,29 @@ class Index extends Component
         $this->authorize('delete', $client);
         $client->delete();
         $this->dispatch('toast', message: 'Cliente eliminado.', variant: 'success');
+    }
+
+    /** Aprueba un pre-cliente: pasa a cliente real y abre el modal para completar la ficha. */
+    public function approve(Client $client): void
+    {
+        $this->authorize('approve', $client);
+        abort_unless($client->isProspect(), 404);
+
+        $client->update(['status' => ClientStatus::Customer]);
+
+        $this->form->setClient($client->refresh());
+        $this->dispatch('open-modal', 'client-form');
+        $this->dispatch('toast', message: 'Pre-cliente aprobado. Completa la ficha.', variant: 'success');
+    }
+
+    /** Descarta un pre-cliente no viable: borrado permanente. */
+    public function discard(Client $client): void
+    {
+        $this->authorize('delete', $client);
+        abort_unless($client->isProspect(), 404);
+
+        $client->forceDelete();
+        $this->dispatch('toast', message: 'Pre-cliente descartado.', variant: 'success');
     }
 
     #[Computed]
@@ -113,7 +143,11 @@ class Index extends Component
 
         $clients = Client::query()
             ->search($this->search)
-            ->when($this->status !== 'all', fn ($q) => $q->where('is_active', $this->status === 'active'))
+            ->when($this->status === 'prospect',
+                fn ($q) => $q->where('status', ClientStatus::Prospect->value),
+                fn ($q) => $q->customers()->when(
+                    in_array($this->status, ['active', 'inactive'], true),
+                    fn ($q) => $q->where('is_active', $this->status === 'active')))
             ->when($this->type !== 'all', fn ($q) => $q->where('client_type', $this->type))
             ->when($this->kind !== 'all', fn ($q) => $q->where('service_kind', $this->kind))
             ->when($this->schedule === 'due', fn ($q) => $q

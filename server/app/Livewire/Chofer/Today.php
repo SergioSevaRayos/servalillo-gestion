@@ -200,7 +200,7 @@ class Today extends Component
             return collect();
         }
 
-        return Client::query()->active()->search($term)->orderBy('name')->limit(8)->get();
+        return Client::query()->customers()->active()->search($term)->orderBy('name')->limit(8)->get();
     }
 
     /** Añade el cliente elegido al final de la ruta como parada pendiente. */
@@ -208,6 +208,7 @@ class Today extends Component
     {
         $this->authorizeRoute();
         abort_if($this->finished, 403, 'La jornada ya está cerrada.');
+        abort_if($client->isProspect(), 422, 'Ese registro es un pre-cliente sin valorar.');
 
         $route = $this->route;
 

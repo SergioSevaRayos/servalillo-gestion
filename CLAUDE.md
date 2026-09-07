@@ -449,6 +449,36 @@ Backed enums con `->label()` en español; casteados en los modelos.
   histórico. Idempotente (`if (Client::query()->exists()) return`).
 - `Audits::MODELS` incluye `'Cliente' => Client::class`.
 
+### Pre-clientes / valoración (`App\Enums\ClientStatus`)
+- Administración apunta por teléfono un posible cliente → queda como **"Pendiente valoración"**
+  (`clients.status = 'prospect'`); tras consultar offline con los responsables: **Aprobar**
+  (`status = 'customer'` + abre el modal de edición para completar) o **Descartar** (`forceDelete()`
+  **permanente**, con `wire:confirm` — decisión del usuario, sin estado "descartado").
+- Columna `clients.status` (string, **default `'customer'`**, indexada; migración
+  `2026_09_07_130000_...`). Todo lo que trata a un cliente como "real" debe scopear con
+  **`Client::scopeCustomers()`** (`status = customer`), NO con `->active()` (`is_active`, ortogonal).
+  Ya aplicado en `Clients\Index::render()` (los prospectos no se ven salvo el filtro
+  `status=prospect`) y en `Chofer\Today::clientMatches()` (`->customers()->active()`).
+  `Client::isProspect()`; `Show::planDelivery()` y `Today::addClientStop()` abortan si es prospecto.
+- **Alta = el mismo modal "Nuevo cliente"** con un `<x-ui.select wire:model.live="form.status">`
+  "Cliente | Pendiente valoración" arriba (`x-clients.form-fields` recibe `:status` y `:editing` del
+  padre; con `wire:model.live` el commit re-renderiza y el `@if ($status !== 'prospect')` colapsa el
+  form a los campos de la llamada). El toggle solo aparece `@unless ($editing)`.
+- Autorización: `ClientPolicy::approve` = `clients.update`; descartar = `clients.delete`. **No hay
+  permiso nuevo.** `Index::approve/discard` y `Show::approve/discard`.
+- **Cantidad en litros + unidad citada**: `clients.typical_quantity` **siempre en litros**;
+  `clients.quantity_unit` ('L'|'m3') recuerda cómo lo dijo el cliente. En `ClientForm` NO hay prop
+  `typical_quantity`: hay `$quantity_input` (número en la unidad) + `$quantity_unit`. `save()`
+  multiplica ×1000 si `m3` y setea `typical_quantity` a mano (`unset($validated['quantity_input'])`);
+  `setClient()` lo revierte (`/1000` si la unidad guardada es `m3`). La ficha usa
+  `Client::quantityLabel()` → "3 m³ (3.000 L)". Campos de suministro nuevos: `water_type` (enum
+  `WaterType` corriente/potable), `tank_distance_m` (metros), en la sección "Datos del suministro"
+  del form y de la ficha, visible para prospectos y clientes.
+- **Gotcha del componente `x-ui.select` con `placeholder`**: la `<option value="" disabled selected>`
+  no se honra visualmente — el `<select>` MUESTRA la primera opción real aunque el modelo Livewire
+  siga en `null` (se guarda `null`, solo el display engaña). Es pre-existente (afecta a
+  `client_type`, `preferred_channel`…); `water_type` lo hereda.
+
 ### Tipo de servicio: Reparto / Viajes (`App\Enums\ServiceKind`)
 - Hoy solo se opera **Reparto**; **Viajes** se gestionará más adelante. La clasificación ya existe en
   `clients.service_kind`, `routes.service_kind` y `route_stops.service_kind` (columna string, default

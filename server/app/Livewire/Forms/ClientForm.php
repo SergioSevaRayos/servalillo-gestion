@@ -2,8 +2,10 @@
 
 namespace App\Livewire\Forms;
 
+use App\Enums\ClientStatus;
 use App\Enums\ClientType;
 use App\Enums\ServiceKind;
+use App\Enums\WaterType;
 use App\Models\Client;
 use Illuminate\Validation\Rule;
 use Livewire\Form;
@@ -22,6 +24,9 @@ class ClientForm extends Form
     public ?string $client_type = null;
 
     public string $service_kind = 'reparto';
+
+    /** 'customer' (cliente real) | 'prospect' (pendiente valoración). */
+    public string $status = 'customer';
 
     // Contacto
     public ?string $contact_name = null;
@@ -45,10 +50,19 @@ class ClientForm extends Form
 
     public ?string $longitude = null;
 
+    // Datos del suministro
+    public ?string $water_type = null;
+
+    /** Número que teclea el operario, en la unidad elegida. NO es columna: se convierte a litros al guardar. */
+    public ?float $quantity_input = null;
+
+    /** 'L' | 'm3' — unidad en que el cliente citó la cantidad. */
+    public string $quantity_unit = 'L';
+
+    public ?int $tank_distance_m = null;
+
     // Reparto habitual
     public ?int $default_delivery_type_id = null;
-
-    public ?float $typical_quantity = null;
 
     public ?int $frequency_days = null;
 
@@ -81,6 +95,7 @@ class ClientForm extends Form
             'tax_id' => ['nullable', 'string', 'max:30'],
             'client_type' => ['nullable', Rule::enum(ClientType::class)],
             'service_kind' => ['required', Rule::enum(ServiceKind::class)],
+            'status' => ['required', Rule::enum(ClientStatus::class)],
             'contact_name' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'secondary_phone' => ['nullable', 'string', 'max:30'],
@@ -91,8 +106,11 @@ class ClientForm extends Form
             'province' => ['nullable', 'string', 'max:120'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'water_type' => ['nullable', Rule::enum(WaterType::class)],
+            'quantity_input' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+            'quantity_unit' => ['required', 'in:L,m3'],
+            'tank_distance_m' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'default_delivery_type_id' => ['nullable', 'exists:delivery_types,id'],
-            'typical_quantity' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'frequency_days' => ['nullable', 'integer', 'min:1', 'max:365'],
             'tank_capacity_liters' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'requires_own_pump' => ['boolean'],
@@ -121,8 +139,16 @@ class ClientForm extends Form
             $this->{$field} = match ($field) {
                 'client_type' => $client->client_type?->value,
                 'service_kind' => $client->service_kind->value,
+                'status' => $client->status?->value ?? 'customer',
+                'water_type' => $client->water_type?->value,
+                'quantity_unit' => $client->quantity_unit ?? 'L',
+                'quantity_input' => $client->typical_quantity === null
+                    ? null
+                    : ($client->quantity_unit === 'm3'
+                        ? (float) $client->typical_quantity / 1000
+                        : (float) $client->typical_quantity),
                 'last_served_on' => $client->last_served_on?->toDateString(),
-                'typical_quantity', 'price_per_liter' => $client->{$field} !== null ? (float) $client->{$field} : null,
+                'price_per_liter' => $client->price_per_liter !== null ? (float) $client->price_per_liter : null,
                 'latitude', 'longitude' => $client->{$field} !== null ? (string) $client->{$field} : null,
                 default => $client->{$field},
             };
@@ -132,6 +158,16 @@ class ClientForm extends Form
     public function save(): Client
     {
         $validated = $this->validate();
+
+        // La cantidad se captura como número + unidad, pero en BD va siempre en litros.
+        $liters = $validated['quantity_input'] === null
+            ? null
+            : ($validated['quantity_unit'] === 'm3'
+                ? $validated['quantity_input'] * 1000
+                : $validated['quantity_input']);
+
+        unset($validated['quantity_input']); // no es columna
+        $validated['typical_quantity'] = $liters; // sí lo es
 
         $client = $this->editing
             ? tap($this->editing)->update($validated)
