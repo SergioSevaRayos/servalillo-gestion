@@ -21,6 +21,12 @@
             <option value="active">{{ __('Solo activos') }}</option>
             <option value="inactive">{{ __('Solo inactivos') }}</option>
         </select>
+        <select wire:model.live="kind" class="rounded-lg border-slate-300 shadow-soft-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:text-sm">
+            <option value="all">{{ __('Reparto y viajes') }}</option>
+            @foreach ($serviceKinds as $value => $label)
+                <option value="{{ $value }}">{{ $label }}</option>
+            @endforeach
+        </select>
         <select wire:model.live="type" class="rounded-lg border-slate-300 shadow-soft-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:text-sm">
             <option value="all">{{ __('Todos los tipos') }}</option>
             @foreach ($types as $value => $label)
@@ -52,6 +58,9 @@
                 <tr wire:key="client-{{ $client->id }}">
                     <td data-label="{{ __('Nombre') }}" class="font-medium text-slate-800 dark:text-slate-100">
                         <a href="{{ route('clients.show', $client) }}" wire:navigate class="hover:text-primary-600 dark:hover:text-primary-400">{{ $client->name }}</a>
+                        @if ($client->service_kind === \App\Enums\ServiceKind::Viaje)
+                            <x-ui.badge variant="primary" class="ml-1">{{ __('Viaje') }}</x-ui.badge>
+                        @endif
                         @if ($client->isDeliveryDue())
                             <x-ui.badge variant="warning" class="ml-1">{{ __('toca reparto') }}</x-ui.badge>
                         @endif
@@ -89,17 +98,17 @@
 
     <div class="mt-4">{{ $clients->links() }}</div>
 
-    <x-modal name="client-form" max-width="3xl">
-        <form wire:submit="save" class="p-6">
+    <x-modal name="client-form" max-width="4xl">
+        <form wire:submit="save" class="p-5">
             <h3 class="text-lg font-medium text-slate-900 dark:text-white">
                 {{ $this->form->editing ? __('Editar cliente') : __('Nuevo cliente') }}
             </h3>
 
-            <div class="mt-5 max-h-[62vh] overflow-y-auto px-1 -mx-1 themed-scrollbar">
+            <div class="mt-4 max-h-[72vh] overflow-y-auto px-1 -mx-1 themed-scrollbar">
                 <x-clients.form-fields :delivery-types="$this->deliveryTypes" :types="$types" />
             </div>
 
-            <div class="mt-5 flex justify-end gap-3">
+            <div class="mt-4 flex justify-end gap-3">
                 <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cancelar') }}</x-ui.button>
                 <x-ui.button type="submit">{{ __('Guardar') }}</x-ui.button>
             </div>

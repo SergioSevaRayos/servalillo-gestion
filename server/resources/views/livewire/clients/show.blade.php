@@ -7,6 +7,7 @@
         <div>
             <div class="flex items-center gap-2">
                 <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ $client->name }}</h1>
+                <x-ui.badge variant="primary">{{ $client->service_kind->label() }}</x-ui.badge>
                 <x-ui.badge :variant="$client->is_active ? 'success' : 'neutral'">{{ $client->is_active ? __('Activo') : __('Inactivo') }}</x-ui.badge>
                 @if ($client->isDeliveryDue())
                     <x-ui.badge variant="warning">{{ __('Le toca reparto') }}</x-ui.badge>
@@ -20,7 +21,7 @@
         </div>
         <div class="flex gap-2">
             @can('update', $client)
-                <x-ui.button variant="secondary" size="sm" wire:click="planDelivery">{{ __('Planificar reparto') }}</x-ui.button>
+                <x-ui.button variant="secondary" size="sm" wire:click="planDelivery">{{ __('Planificar :kind', ['kind' => \Illuminate\Support\Str::lower($client->service_kind->label())]) }}</x-ui.button>
                 <x-ui.button size="sm" wire:click="edit">{{ __('Editar') }}</x-ui.button>
             @endcan
         </div>
@@ -165,13 +166,13 @@
         </x-ui.table>
     </x-ui.card>
 
-    <x-modal name="client-form" max-width="3xl">
-        <form wire:submit="save" class="p-6">
+    <x-modal name="client-form" max-width="4xl">
+        <form wire:submit="save" class="p-5">
             <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ __('Editar cliente') }}</h3>
-            <div class="mt-5 max-h-[62vh] overflow-y-auto px-1 -mx-1 themed-scrollbar">
+            <div class="mt-4 max-h-[72vh] overflow-y-auto px-1 -mx-1 themed-scrollbar">
                 <x-clients.form-fields :delivery-types="$deliveryTypes" :types="\App\Enums\ClientType::options()" editing />
             </div>
-            <div class="mt-5 flex justify-end gap-3">
+            <div class="mt-4 flex justify-end gap-3">
                 <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cancelar') }}</x-ui.button>
                 <x-ui.button type="submit">{{ __('Guardar') }}</x-ui.button>
             </div>

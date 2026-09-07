@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ClientType;
+use App\Enums\ServiceKind;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +18,7 @@ class Client extends Model implements Auditable
     use AuditableTrait, HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'external_ref', 'name', 'tax_id', 'client_type',
+        'external_ref', 'name', 'tax_id', 'client_type', 'service_kind',
         'contact_name', 'phone', 'secondary_phone', 'email',
         'address', 'postal_code', 'city', 'province', 'latitude', 'longitude',
         'default_delivery_type_id', 'typical_quantity', 'frequency_days', 'tank_capacity_liters',
@@ -29,6 +30,7 @@ class Client extends Model implements Auditable
     {
         return [
             'client_type' => ClientType::class,
+            'service_kind' => ServiceKind::class,
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'typical_quantity' => 'decimal:2',
@@ -49,6 +51,11 @@ class Client extends Model implements Auditable
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeKind(Builder $query, ?string $kind): Builder
+    {
+        return $kind ? $query->where('service_kind', $kind) : $query;
     }
 
     public function scopeSearch(Builder $query, ?string $term): Builder

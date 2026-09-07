@@ -47,6 +47,9 @@
                     <td data-label="{{ __('Paradas') }}">{{ $route->stops_count }}</td>
                     <td data-label="{{ __('Estado') }}">
                         <x-ui.badge :variant="$route->status->badgeVariant()">{{ $route->status->label() }}</x-ui.badge>
+                        @if ($route->service_kind === \App\Enums\ServiceKind::Viaje)
+                            <x-ui.badge variant="primary" class="ml-1">{{ __('Viaje') }}</x-ui.badge>
+                        @endif
                     </td>
                     <td data-label="{{ __('Acciones') }}" class="text-right">
                         <div class="flex justify-end gap-2">
@@ -94,6 +97,14 @@
                         <option value="{{ $s->value }}">{{ $s->label() }}</option>
                     @endforeach
                 </x-ui.select>
+
+                <div class="sm:col-span-2">
+                    <x-ui.select name="service_kind" label="{{ __('Tipo de servicio') }}" wire:model="form.service_kind">
+                        @foreach (\App\Enums\ServiceKind::options() as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </x-ui.select>
+                </div>
 
                 <x-ui.select name="truck_id" label="{{ __('Camión') }}" wire:model="form.truck_id" placeholder="{{ __('Selecciona un camión') }}">
                     @foreach ($this->trucks as $truck)

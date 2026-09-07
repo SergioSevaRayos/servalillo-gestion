@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ClientType;
+use App\Enums\ServiceKind;
 use App\Livewire\Clients\Index;
 use App\Models\Client;
 use App\Models\Driver;
@@ -75,4 +76,28 @@ it('filtra los que les toca reparto', function () {
         ->set('schedule', 'due')
         ->assertSee('Toca ya')
         ->assertDontSee('Reciente');
+});
+
+it('guarda el tipo de servicio y filtra por él', function () {
+    $this->actingAs(makeUser('administrador'));
+    Client::factory()->create(['name' => 'Cliente Reparto']);
+    Client::factory()->trip()->create(['name' => 'Cliente Viaje']);
+
+    Livewire::test(Index::class)
+        ->call('create')
+        ->set('form.name', 'Nuevo de Viaje')
+        ->set('form.service_kind', 'viaje')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Client::firstWhere('name', 'Nuevo de Viaje')->service_kind)
+        ->toBe(ServiceKind::Viaje);
+
+    Livewire::test(Index::class)
+        ->set('kind', 'viaje')
+        ->assertSee('Cliente Viaje')
+        ->assertDontSee('Cliente Reparto')
+        ->set('kind', 'reparto')
+        ->assertSee('Cliente Reparto')
+        ->assertDontSee('Cliente Viaje');
 });

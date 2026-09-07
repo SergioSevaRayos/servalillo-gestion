@@ -51,6 +51,7 @@ class Show extends Component
         $stop = RouteStop::create([
             'route_id' => null,
             'position' => (RouteStop::whereNull('route_id')->max('position') ?? 0) + 1,
+            'service_kind' => $this->client->service_kind->value,
             'customer_name' => $this->client->name,
             'customer_tax_id' => $this->client->tax_id,
             'address' => $this->client->address,
@@ -65,7 +66,7 @@ class Show extends Component
         ]);
 
         $this->dispatch('toast',
-            message: "Reparto añadido a \"Sin asignar\" (parada #{$stop->id}).",
+            message: "{$this->client->service_kind->label()} añadido a \"Sin asignar\" (parada #{$stop->id}).",
             variant: 'success',
         );
     }

@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\ClientType;
+use App\Enums\ServiceKind;
 use App\Models\Client;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,6 +21,7 @@ class ClientFactory extends Factory
             'name' => fake()->randomElement([fake()->company(), fake()->lastName().' '.fake()->lastName()]),
             'tax_id' => strtoupper(fake()->bothify(fake()->randomElement(['?########', '########?']))),
             'client_type' => fake()->randomElement(ClientType::cases())->value,
+            'service_kind' => ServiceKind::Reparto->value,
             'contact_name' => fake()->name(),
             'phone' => fake()->numerify('6## ### ###'),
             'email' => fake()->optional(0.6)->safeEmail(),
@@ -50,5 +52,10 @@ class ClientFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn () => ['is_active' => false]);
+    }
+
+    public function trip(): static
+    {
+        return $this->state(fn () => ['service_kind' => ServiceKind::Viaje->value]);
     }
 }

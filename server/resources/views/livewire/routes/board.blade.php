@@ -1,5 +1,17 @@
 <div x-on:stops-reordered.window="$wire.call('reorderStops', $event.detail.fromRouteId, $event.detail.fromIds, $event.detail.toRouteId, $event.detail.toIds)">
-    <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div class="inline-flex shrink-0 rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-800">
+            @foreach ($kinds as $k)
+                <button type="button" wire:click="setKind('{{ $k->value }}')" @class([
+                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                    'bg-white text-primary-700 shadow-soft-sm dark:bg-slate-700 dark:text-primary-200' => $kind === $k->value,
+                    'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200' => $kind !== $k->value,
+                ])>{{ $k->pluralLabel() }}</button>
+            @endforeach
+        </div>
+
+        <div class="mx-1 hidden h-6 w-px bg-slate-200 dark:bg-slate-700 sm:block"></div>
+
         <div class="flex items-center gap-2">
             <x-ui.button variant="secondary" size="sm" wire:click="previousDay">
                 <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
@@ -15,7 +27,7 @@
         </div>
 
         @can('viewAny', \App\Models\Route::class)
-            <a href="{{ route('routes.index') }}" wire:navigate class="text-sm text-primary-600 hover:text-primary-800 dark:text-primary-400">
+            <a href="{{ route('routes.index') }}" wire:navigate class="text-sm text-primary-600 hover:text-primary-800 dark:text-primary-400 sm:ml-auto">
                 {{ __('Gestionar fichas de ruta →') }}
             </a>
         @endcan
@@ -109,8 +121,15 @@
             </h3>
 
             <div class="mt-5 grid max-h-[65vh] grid-cols-1 gap-x-4 gap-y-3 overflow-y-auto px-1 -mx-1 themed-scrollbar sm:grid-cols-2 lg:grid-cols-3">
-                <x-ui.input name="customer_name" label="{{ __('Cliente') }}" wire:model="form.customer_name" />
+                <x-ui.select name="service_kind" label="{{ __('Tipo de servicio') }}" wire:model="form.service_kind">
+                    @foreach (\App\Enums\ServiceKind::options() as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </x-ui.select>
                 <div class="sm:col-span-1 lg:col-span-2">
+                    <x-ui.input name="customer_name" label="{{ __('Cliente') }}" wire:model="form.customer_name" />
+                </div>
+                <div class="sm:col-span-2 lg:col-span-3">
                     <x-ui.input name="address" label="{{ __('Dirección') }}" wire:model="form.address" />
                 </div>
 

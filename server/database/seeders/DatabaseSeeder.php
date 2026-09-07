@@ -7,6 +7,7 @@ use App\Enums\DeliveryNoteStatus;
 use App\Enums\OdometerKind;
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
+use App\Enums\ServiceKind;
 use App\Models\Client;
 use App\Models\DeliveryNote;
 use App\Models\DeliveryType;
@@ -147,6 +148,9 @@ class DatabaseSeeder extends Seeder
 
         // --- Clientes (Bloque 9) ------------------------------------------
         $this->seedClients([$gasoleo, $agua]);
+
+        // --- Viajes de ejemplo (para el filtro del tablero) ---------------
+        $this->seedTrips($today, $admin);
 
         $this->command->info('Seed completo. Usuarios: admin@ / soporte@ / pedro@ ... contraseña "password".');
     }
@@ -474,6 +478,8 @@ class DatabaseSeeder extends Seeder
             'name' => fake()->randomElement([fake()->company(), fake()->lastName().' e Hijos', 'Comunidad '.fake()->lastName()]),
             'tax_id' => strtoupper(fake()->unique()->bothify('?########')),
             'client_type' => fake()->randomElement(ClientType::cases())->value,
+            // Casi todos son de reparto; unos pocos de "viaje" para que el filtro tenga contenido.
+            'service_kind' => fake()->boolean(22) ? ServiceKind::Viaje->value : ServiceKind::Reparto->value,
             'contact_name' => fake()->name(),
             'phone' => fake()->numerify('6## ### ###'),
             'email' => fake()->optional(0.6)->safeEmail(),
@@ -509,5 +515,51 @@ class DatabaseSeeder extends Seeder
 
         // Clientes sin historial todavía.
         Client::factory()->count(12)->create();
+    }
+
+    /** Una ruta de "viaje" para hoy + backlog, para que el filtro Reparto/Viajes del tablero tenga contenido. */
+    private function seedTrips(Carbon $today, User $creator): void
+    {
+        if (Route::where('service_kind', ServiceKind::Viaje->value)->exists()) {
+            return;
+        }
+
+        $truck = Truck::where('code', 'C-04')->first();
+        $driver = Driver::query()->inRandomOrder()->first();
+        $clients = Client::where('service_kind', ServiceKind::Viaje->value)->take(6)->get();
+
+        if (! $truck || ! $driver || $clients->isEmpty()) {
+            return;
+        }
+
+        $route = Route::updateOrCreate(
+            ['truck_id' => $truck->id, 'route_date' => $today->toDateString()],
+            [
+                'code' => 'V-'.$today->format('Ymd').'-'.$truck->code,
+                'driver_id' => $driver->id,
+                'status' => RouteStatus::Published,
+                'service_kind' => ServiceKind::Viaje->value,
+                'name' => 'Viajes '.$today->isoFormat('D MMM'),
+                'created_by' => $creator->id,
+            ]
+        );
+
+        foreach ($clients as $i => $client) {
+            RouteStop::updateOrCreate(
+                ['customer_name' => $client->name, 'service_kind' => ServiceKind::Viaje->value],
+                [
+                    'route_id' => $i < 3 ? $route->id : null, // el resto queda en "Sin asignar"
+                    'position' => $i + 1,
+                    'customer_tax_id' => $client->tax_id,
+                    'address' => $client->address,
+                    'latitude' => $client->latitude,
+                    'longitude' => $client->longitude,
+                    'contact_name' => $client->contact_name,
+                    'contact_phone' => $client->phone,
+                    'status' => RouteStopStatus::Pending,
+                    'data' => [],
+                ]
+            );
+        }
     }
 }

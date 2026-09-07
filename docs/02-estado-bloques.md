@@ -550,14 +550,27 @@ docker compose exec laravel.test php artisan migrate:fresh --seed
   `Canal` (`email`/`fisico`), `Precio`, `Forma de pago`, `Ultimo reparto` (fecha), `Acceso`,
   `Observaciones`, `Activo` (`si`/`no`).
 
+### Añadido: tipo de servicio Reparto / Viajes (`App\Enums\ServiceKind`)
+
+Hoy solo se opera **Reparto**; **Viajes** se gestionará más adelante, pero la clasificación ya existe:
+- Columna `service_kind` (string, default `'reparto'`) en `clients`, `routes` y `route_stops`
+  (migración `2026_09_07_110000_...`), casteada al enum en los tres modelos.
+- **Clientes**: selector en el alta/edición + filtro en `/clientes` + badge "Viaje".
+- **Tablero de rutas** (`/rutas`): segmentado **"Repartos | Viajes"** (`#[Url] $kind`, Reparto por
+  defecto) que filtra columnas y backlog "Sin asignar". Una parada creada desde el tablero hereda el
+  tipo del filtro activo; una "planificada" desde la ficha del cliente hereda el del cliente.
+- **Ficha de ruta** (`/rutas/listado`): selector "Tipo de servicio" en el formulario + badge.
+- Detalle en `CLAUDE.md` (sección "Tipo de servicio: Reparto / Viajes").
+
 ---
 
 ## Punto de continuación (última sesión: 2026-09-07)
 
-**Estado:** Bloques 1–9 terminados (**129 tests en verde**). Esta sesión: Bloque 9 (gestión de
-clientes). **Siguiente = Bloque 10** (API Flutter con Sanctum) — ver la nota que sigue, sección
-"API para Flutter" de `docs/01`, y `routes/api.php` (casi vacío). Reutilizar el array `rules()` de
-los `Form` objects (incl. el nuevo `ClientForm`) donde tenga sentido; la lógica de negocio ya vive
+**Estado:** Bloques 1–9 terminados (**132 tests en verde**). Esta sesión: Bloque 9 (gestión de
+clientes) + tipo de servicio Reparto/Viajes (enum `ServiceKind` en clientes, rutas y paradas; filtro
+en el tablero) + selector de día del chofer como carrusel coverflow. **Siguiente = Bloque 10** (API
+Flutter con Sanctum) — sección "API para Flutter" de `docs/01`, y `routes/api.php` (casi vacío).
+Reutilizar el array `rules()` de los `Form` objects donde tenga sentido; la lógica de negocio ya vive
 en servicios.
 
 **Ojo con el entorno:** el `composer require league/csv` de esta sesión se ejecutó por error en la

@@ -3,6 +3,7 @@
 namespace App\Livewire\Forms;
 
 use App\Enums\ClientType;
+use App\Enums\ServiceKind;
 use App\Models\Client;
 use Illuminate\Validation\Rule;
 use Livewire\Form;
@@ -19,6 +20,8 @@ class ClientForm extends Form
     public ?string $tax_id = null;
 
     public ?string $client_type = null;
+
+    public string $service_kind = 'reparto';
 
     // Contacto
     public ?string $contact_name = null;
@@ -77,6 +80,7 @@ class ClientForm extends Form
             'name' => ['required', 'string', 'max:255'],
             'tax_id' => ['nullable', 'string', 'max:30'],
             'client_type' => ['nullable', Rule::enum(ClientType::class)],
+            'service_kind' => ['required', Rule::enum(ServiceKind::class)],
             'contact_name' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'secondary_phone' => ['nullable', 'string', 'max:30'],
@@ -116,6 +120,7 @@ class ClientForm extends Form
         foreach (array_keys($this->rules()) as $field) {
             $this->{$field} = match ($field) {
                 'client_type' => $client->client_type?->value,
+                'service_kind' => $client->service_kind->value,
                 'last_served_on' => $client->last_served_on?->toDateString(),
                 'typical_quantity', 'price_per_liter' => $client->{$field} !== null ? (float) $client->{$field} : null,
                 'latitude', 'longitude' => $client->{$field} !== null ? (string) $client->{$field} : null,

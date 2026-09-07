@@ -3,6 +3,7 @@
 namespace App\Livewire\Clients;
 
 use App\Enums\ClientType;
+use App\Enums\ServiceKind;
 use App\Livewire\Forms\ClientForm;
 use App\Models\Client;
 use App\Models\DeliveryType;
@@ -28,6 +29,10 @@ class Index extends Component
     #[Url(history: true)]
     public string $type = 'all';
 
+    /** all | reparto | viaje */
+    #[Url(history: true)]
+    public string $kind = 'all';
+
     /** all | due (le toca reparto) */
     #[Url(history: true)]
     public string $schedule = 'all';
@@ -45,14 +50,14 @@ class Index extends Component
 
     public function updating($name): void
     {
-        if (in_array($name, ['search', 'status', 'type', 'schedule'], true)) {
+        if (in_array($name, ['search', 'status', 'type', 'kind', 'schedule'], true)) {
             $this->resetPage();
         }
     }
 
     public function resetFilters(): void
     {
-        $this->reset('search', 'status', 'type', 'schedule');
+        $this->reset('search', 'status', 'type', 'kind', 'schedule');
         $this->resetPage();
     }
 
@@ -110,6 +115,7 @@ class Index extends Component
             ->search($this->search)
             ->when($this->status !== 'all', fn ($q) => $q->where('is_active', $this->status === 'active'))
             ->when($this->type !== 'all', fn ($q) => $q->where('client_type', $this->type))
+            ->when($this->kind !== 'all', fn ($q) => $q->where('service_kind', $this->kind))
             ->when($this->schedule === 'due', fn ($q) => $q
                 ->whereNotNull('last_served_on')
                 ->whereNotNull('frequency_days')
@@ -122,6 +128,7 @@ class Index extends Component
         return view('livewire.clients.index', [
             'clients' => $clients,
             'types' => ClientType::options(),
+            'serviceKinds' => ServiceKind::options(),
         ]);
     }
 }

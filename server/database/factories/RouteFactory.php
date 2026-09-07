@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\RouteStatus;
+use App\Enums\ServiceKind;
 use App\Models\Driver;
 use App\Models\Route;
 use App\Models\Truck;
@@ -23,6 +24,7 @@ class RouteFactory extends Factory
             'truck_id' => Truck::factory(),
             'driver_id' => Driver::factory(),
             'status' => RouteStatus::Published,
+            'service_kind' => ServiceKind::Reparto->value,
             'name' => 'Ruta de prueba',
         ];
     }
@@ -30,5 +32,10 @@ class RouteFactory extends Factory
     public function status(RouteStatus $status): static
     {
         return $this->state(fn () => ['status' => $status]);
+    }
+
+    public function trip(): static
+    {
+        return $this->state(fn () => ['service_kind' => ServiceKind::Viaje->value]);
     }
 }

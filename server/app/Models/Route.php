@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
+use App\Enums\ServiceKind;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,7 +19,7 @@ class Route extends Model implements Auditable
     use AuditableTrait, HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'code', 'route_date', 'truck_id', 'driver_id', 'status',
+        'code', 'route_date', 'truck_id', 'driver_id', 'status', 'service_kind',
         'name', 'notes', 'started_at', 'completed_at', 'created_by',
         'liter_meter_start', 'liter_meter_end', 'liter_discrepancy_note',
     ];
@@ -28,6 +29,7 @@ class Route extends Model implements Auditable
         return [
             'route_date' => 'date',
             'status' => RouteStatus::class,
+            'service_kind' => ServiceKind::class,
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
             'liter_meter_start' => 'integer',

@@ -1,6 +1,9 @@
 <?php
 
+use App\Enums\RouteStopStatus;
+use App\Enums\ServiceKind;
 use App\Livewire\Routes\Board;
+use App\Models\Route;
 use App\Models\RouteStop;
 use Livewire\Livewire;
 
@@ -87,7 +90,7 @@ test('no se puede mover una parada completada', function () {
     $stop = RouteStop::factory()->create([
         'route_id' => null,
         'position' => 1,
-        'status' => \App\Enums\RouteStopStatus::Completed,
+        'status' => RouteStopStatus::Completed,
     ]);
 
     Livewire::actingAs(makeUser('administrador'))
@@ -100,7 +103,7 @@ test('no se puede mover una parada completada', function () {
 
 test('reordenar una columna no toca las paradas completadas que ya estaban ahí', function () {
     $route = makeRoute('2026-09-10');
-    $done = RouteStop::factory()->create(['route_id' => $route->id, 'position' => 1, 'status' => \App\Enums\RouteStopStatus::Completed]);
+    $done = RouteStop::factory()->create(['route_id' => $route->id, 'position' => 1, 'status' => RouteStopStatus::Completed]);
     $a = RouteStop::factory()->create(['route_id' => $route->id, 'position' => 2]);
     $b = RouteStop::factory()->create(['route_id' => $route->id, 'position' => 3]);
 
@@ -123,4 +126,38 @@ test('eliminar una parada desde el tablero', function () {
         ->call('deleteStop', $stop);
 
     expect(RouteStop::find($stop->id))->toBeNull();
+});
+
+test('el filtro Reparto/Viajes separa rutas y backlog por tipo', function () {
+    $reparto = makeRoute('2026-09-10');
+    RouteStop::factory()->create(['route_id' => $reparto->id, 'customer_name' => 'Parada Reparto']);
+    RouteStop::factory()->create(['route_id' => null, 'customer_name' => 'Backlog Reparto']);
+
+    $viaje = Route::factory()->trip()->create(['route_date' => '2026-09-10', 'name' => 'Ruta Viaje']);
+    RouteStop::factory()->trip()->create(['route_id' => $viaje->id, 'customer_name' => 'Parada Viaje']);
+    RouteStop::factory()->trip()->create(['route_id' => null, 'customer_name' => 'Backlog Viaje']);
+
+    $c = Livewire::actingAs(makeUser('administrador'))->test(Board::class)->set('date', '2026-09-10');
+
+    // Por defecto: Reparto.
+    $c->assertSet('kind', 'reparto')
+        ->assertSee('Parada Reparto')->assertSee('Backlog Reparto')
+        ->assertDontSee('Parada Viaje')->assertDontSee('Backlog Viaje');
+
+    $c->call('setKind', 'viaje')
+        ->assertSee('Parada Viaje')->assertSee('Backlog Viaje')
+        ->assertDontSee('Parada Reparto')->assertDontSee('Backlog Reparto');
+});
+
+test('una parada nueva hereda el tipo del filtro activo', function () {
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('setKind', 'viaje')
+        ->call('openCreateStop', null)
+        ->set('form.customer_name', 'Viaje Suelto')
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    expect(RouteStop::firstWhere('customer_name', 'Viaje Suelto')->service_kind)
+        ->toBe(ServiceKind::Viaje);
 });

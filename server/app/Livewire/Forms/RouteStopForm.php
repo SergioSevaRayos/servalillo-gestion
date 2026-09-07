@@ -3,6 +3,7 @@
 namespace App\Livewire\Forms;
 
 use App\Enums\RouteStopStatus;
+use App\Enums\ServiceKind;
 use App\Models\DeliveryType;
 use App\Models\RouteStop;
 use App\Services\DeliveryTypeSchemaValidator;
@@ -16,12 +17,20 @@ class RouteStopForm extends Form
     /** route_id de la columna en la que se está creando/editando (null = "Sin asignar"). */
     public ?int $route_id = null;
 
+    public string $service_kind = 'reparto';
+
     public string $customer_name = '';
+
     public ?string $address = null;
+
     public ?string $contact_name = null;
+
     public ?string $contact_phone = null;
+
     public ?int $delivery_type_id = null;
+
     public string $status = 'pending';
+
     public ?float $planned_quantity = null;
 
     /** Valores de los campos flexibles del tipo de reparto elegido. */
@@ -30,6 +39,7 @@ class RouteStopForm extends Form
     public function rules(): array
     {
         return [
+            'service_kind' => ['required', Rule::enum(ServiceKind::class)],
             'customer_name' => ['required', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
             'contact_name' => ['nullable', 'string', 'max:255'],
@@ -44,6 +54,7 @@ class RouteStopForm extends Form
     {
         $this->editing = $stop;
         $this->route_id = $stop->route_id;
+        $this->service_kind = $stop->service_kind->value;
         $this->customer_name = $stop->customer_name;
         $this->address = $stop->address;
         $this->contact_name = $stop->contact_name;
@@ -54,10 +65,11 @@ class RouteStopForm extends Form
         $this->data = $stop->data ?? [];
     }
 
-    public function forColumn(?int $routeId): void
+    public function forColumn(?int $routeId, string $serviceKind = 'reparto'): void
     {
         $this->reset();
         $this->route_id = $routeId;
+        $this->service_kind = $serviceKind;
     }
 
     public function save(DeliveryTypeSchemaValidator $schemaValidator): RouteStop

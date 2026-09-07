@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\RouteStopStatus;
+use App\Enums\ServiceKind;
 use App\Models\Route;
 use App\Models\RouteStop;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -17,6 +18,7 @@ class RouteStopFactory extends Factory
         return [
             'route_id' => Route::factory(),
             'position' => fake()->numberBetween(1, 20),
+            'service_kind' => ServiceKind::Reparto->value,
             'customer_name' => fake()->company(),
             'address' => fake()->address(),
             'latitude' => fake()->latitude(28.0, 28.6),
@@ -25,5 +27,10 @@ class RouteStopFactory extends Factory
             'planned_quantity' => fake()->numberBetween(100, 2000),
             'data' => [],
         ];
+    }
+
+    public function trip(): static
+    {
+        return $this->state(fn () => ['service_kind' => ServiceKind::Viaje->value]);
     }
 }

@@ -3,10 +3,12 @@
 namespace App\Livewire\Routes;
 
 use App\Enums\RouteStopStatus;
+use App\Enums\ServiceKind;
 use App\Livewire\Forms\RouteStopForm;
 use App\Models\DeliveryType;
 use App\Models\Route;
 use App\Models\RouteStop;
+use App\Services\DeliveryTypeSchemaValidator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
@@ -22,11 +24,24 @@ class Board extends Component
     #[Url(history: true)]
     public string $date = '';
 
+    /** Filtro de la vista: 'reparto' (por defecto) o 'viaje'. */
+    #[Url(history: true)]
+    public string $kind = 'reparto';
+
     public function mount(): void
     {
         $this->authorize('viewAny', Route::class);
 
         $this->date = $this->date ?: now()->toDateString();
+
+        if (! in_array($this->kind, array_column(ServiceKind::cases(), 'value'), true)) {
+            $this->kind = ServiceKind::Reparto->value;
+        }
+    }
+
+    public function setKind(string $kind): void
+    {
+        $this->kind = ServiceKind::tryFrom($kind)?->value ?? ServiceKind::Reparto->value;
     }
 
     public function previousDay(): void
@@ -48,7 +63,7 @@ class Board extends Component
     {
         $this->authorize('create', RouteStop::class);
 
-        $this->form->forColumn($routeId);
+        $this->form->forColumn($routeId, $this->kind);
         $this->dispatch('open-modal', 'stop-form');
     }
 
@@ -66,7 +81,7 @@ class Board extends Component
             ? $this->authorize('update', $this->form->editing)
             : $this->authorize('create', RouteStop::class);
 
-        $this->form->save(app(\App\Services\DeliveryTypeSchemaValidator::class));
+        $this->form->save(app(DeliveryTypeSchemaValidator::class));
 
         $this->dispatch('close-modal', 'stop-form');
         $this->dispatch('toast', message: 'Parada guardada correctamente.', variant: 'success');
@@ -145,11 +160,13 @@ class Board extends Component
         $routes = Route::query()
             ->with(['truck', 'driver.user', 'stops.deliveryType'])
             ->whereDate('route_date', $this->date)
+            ->where('service_kind', $this->kind)
             ->get()
             ->sortBy(fn (Route $route) => $route->truck->code);
 
         $unassigned = RouteStop::query()
             ->unassigned()
+            ->where('service_kind', $this->kind)
             ->with('deliveryType')
             ->orderBy('position')
             ->get();
@@ -157,6 +174,7 @@ class Board extends Component
         return view('livewire.routes.board', [
             'routes' => $routes,
             'unassigned' => $unassigned,
+            'kinds' => ServiceKind::cases(),
         ]);
     }
 }

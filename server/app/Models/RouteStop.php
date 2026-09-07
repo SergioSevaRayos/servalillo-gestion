@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\RouteStopStatus;
+use App\Enums\ServiceKind;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +18,7 @@ class RouteStop extends Model implements Auditable
     use AuditableTrait, HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'route_id', 'position', 'customer_name', 'customer_tax_id', 'address',
+        'route_id', 'position', 'service_kind', 'customer_name', 'customer_tax_id', 'address',
         'latitude', 'longitude', 'contact_name', 'contact_phone', 'delivery_type_id',
         'status', 'scheduled_window_start', 'scheduled_window_end',
         'planned_quantity', 'delivered_quantity', 'completed_at', 'failure_reason', 'data',
@@ -27,6 +28,7 @@ class RouteStop extends Model implements Auditable
     {
         return [
             'position' => 'integer',
+            'service_kind' => ServiceKind::class,
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'status' => RouteStopStatus::class,

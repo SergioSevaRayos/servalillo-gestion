@@ -3,7 +3,9 @@
 namespace App\Livewire\Forms;
 
 use App\Enums\RouteStatus;
+use App\Enums\ServiceKind;
 use App\Models\Route;
+use App\Models\Truck;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Form;
@@ -13,10 +15,17 @@ class RouteForm extends Form
     public ?Route $editing = null;
 
     public string $route_date = '';
+
     public ?int $truck_id = null;
+
     public ?int $driver_id = null;
+
     public string $status = 'draft';
+
+    public string $service_kind = 'reparto';
+
     public ?string $name = null;
+
     public ?string $notes = null;
 
     public function rules(): array
@@ -34,6 +43,7 @@ class RouteForm extends Form
             ],
             'driver_id' => ['required', 'exists:drivers,id'],
             'status' => ['required', Rule::enum(RouteStatus::class)],
+            'service_kind' => ['required', Rule::enum(ServiceKind::class)],
             'name' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ];
@@ -53,6 +63,7 @@ class RouteForm extends Form
         $this->truck_id = $route->truck_id;
         $this->driver_id = $route->driver_id;
         $this->status = $route->status->value;
+        $this->service_kind = $route->service_kind->value;
         $this->name = $route->name;
         $this->notes = $route->notes;
     }
@@ -65,7 +76,7 @@ class RouteForm extends Form
             $this->editing->update($validated);
             $route = $this->editing;
         } else {
-            $truckCode = \App\Models\Truck::find($validated['truck_id'])->code;
+            $truckCode = Truck::find($validated['truck_id'])->code;
             $route = Route::create([
                 ...$validated,
                 'code' => 'R-'.str_replace('-', '', $validated['route_date']).'-'.$truckCode,

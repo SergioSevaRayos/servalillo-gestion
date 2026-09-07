@@ -443,6 +443,22 @@ Backed enums con `->label()` en español; casteados en los modelos.
   histórico. Idempotente (`if (Client::query()->exists()) return`).
 - `Audits::MODELS` incluye `'Cliente' => Client::class`.
 
+### Tipo de servicio: Reparto / Viajes (`App\Enums\ServiceKind`)
+- Hoy solo se opera **Reparto**; **Viajes** se gestionará más adelante. La clasificación ya existe en
+  `clients.service_kind`, `routes.service_kind` y `route_stops.service_kind` (columna string, default
+  `'reparto'`, migración `2026_09_07_110000_...`), casteadas al enum en los tres modelos.
+- **Cliente**: selector "Tipo de servicio" en el alta/edición + filtro en `/clientes` (`#[Url] $kind`)
+  + badge "Viaje" en el listado y en la ficha. `Client::scopeKind()`.
+- **Tablero** (`Routes\Board`): `#[Url] $kind` (**`reparto` por defecto**, no `all` — es un filtro que
+  muestra un tipo cada vez) + segmentado "Repartos | Viajes" (`setKind()`). Filtra tanto las columnas
+  de ruta como el backlog "Sin asignar" por `service_kind`. Una parada nueva creada desde el tablero
+  hereda el `kind` del filtro activo (`RouteStopForm::forColumn($routeId, $kind)`).
+- **Ficha de ruta** (`/rutas/listado`) y **"Planificar" desde la ficha del cliente** también fijan
+  `service_kind` (la parada planificada hereda el del cliente).
+- Al arrastrar en el tablero no se cambia el `kind` (ambas caras del filtro son del mismo tipo, así que
+  origen y destino ya coinciden). Si algún día "Viajes" necesita su propio flujo/campos, este enum es
+  el punto por el que ramificar.
+
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
 - Regla de negocio: **1 camión = 1 ruta por día** (índice único `routes.truck_id + route_date`).
