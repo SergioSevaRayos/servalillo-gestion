@@ -165,13 +165,13 @@
         </x-ui.table>
     </x-ui.card>
 
-    <x-modal name="client-form" max-width="2xl">
+    <x-modal name="client-form" max-width="3xl">
         <form wire:submit="save" class="p-6">
             <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ __('Editar cliente') }}</h3>
-            <div class="mt-6 max-h-[70vh] overflow-y-auto pr-1 themed-scrollbar">
+            <div class="mt-5 max-h-[62vh] overflow-y-auto px-1 -mx-1 themed-scrollbar">
                 <x-clients.form-fields :delivery-types="$deliveryTypes" :types="\App\Enums\ClientType::options()" editing />
             </div>
-            <div class="mt-6 flex justify-end gap-3">
+            <div class="mt-5 flex justify-end gap-3">
                 <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cancelar') }}</x-ui.button>
                 <x-ui.button type="submit">{{ __('Guardar') }}</x-ui.button>
             </div>

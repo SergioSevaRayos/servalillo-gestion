@@ -3,7 +3,7 @@
 <div class="space-y-5">
     <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Identificación') }}</p>
-        <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="mt-2 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
             <x-ui.input name="name" label="{{ __('Nombre / razón social') }}" wire:model="form.name" />
             <x-ui.input name="tax_id" label="{{ __('CIF / NIF') }}" wire:model="form.tax_id" />
             <x-ui.input name="external_ref" label="{{ __('Código (Access)') }}" wire:model="form.external_ref" :help="__('Se usa para emparejar en la importación.')" />
@@ -17,7 +17,7 @@
 
     <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Contacto') }}</p>
-        <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="mt-2 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
             <x-ui.input name="contact_name" label="{{ __('Persona de contacto') }}" wire:model="form.contact_name" />
             <x-ui.input name="email" type="email" label="{{ __('Email') }}" wire:model="form.email" />
             <x-ui.input name="phone" label="{{ __('Teléfono') }}" wire:model="form.phone" />
@@ -27,8 +27,8 @@
 
     <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Ubicación') }}</p>
-        <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div class="sm:col-span-2"><x-ui.input name="address" label="{{ __('Dirección') }}" wire:model="form.address" /></div>
+        <div class="mt-2 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div class="sm:col-span-2 lg:col-span-3"><x-ui.input name="address" label="{{ __('Dirección') }}" wire:model="form.address" /></div>
             <x-ui.input name="postal_code" label="{{ __('Código postal') }}" wire:model="form.postal_code" />
             <x-ui.input name="city" label="{{ __('Población') }}" wire:model="form.city" />
             <x-ui.input name="province" label="{{ __('Provincia') }}" wire:model="form.province" />
@@ -41,7 +41,7 @@
 
     <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Reparto habitual') }}</p>
-        <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="mt-2 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
             <x-ui.select name="default_delivery_type_id" label="{{ __('Tipo de reparto') }}" wire:model="form.default_delivery_type_id" placeholder="{{ __('Sin definir') }}">
                 @foreach ($deliveryTypes as $dt)
                     <option value="{{ $dt->id }}">{{ $dt->name }}</option>

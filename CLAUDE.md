@@ -143,6 +143,19 @@ Backed enums con `->label()` en español; casteados en los modelos.
   - **El botón y el panel son sólidos, NO `.glass`**, y la barra `<nav>` sticky pierde el blur por
     debajo de `md` (`max-md:backdrop-blur-none max-md:bg-white/95 …`): un `backdrop-filter` en un
     elemento `sticky`/`fixed` se repinta en cada frame de scroll en móvil y "vibra".
+- **Regla de modales: en escritorio el modal NO debe forzar scroll evitable.** Antes de dejar un
+  `<x-modal>` con formulario, primero **aprovecha el ancho, no el alto**:
+  - Modal ancho (`max-width="3xl"`/`4xl`) + rejilla `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`,
+    agrupando los campos cortos en la misma fila (Cliente/Dirección, Contacto/Teléfono/Estado…).
+  - `gap-x-4 gap-y-3` (no `gap-4`), `mt-5` entre bloques (no `mt-6`), `textarea` a `:rows="2"`.
+  - Objetivo: que un formulario normal quepa entero en una ventana de portátil (~620 px de alto
+    útil) sin barra de scroll. Verifícalo con una captura a **1366×620**.
+  - Si aun así no cabe (formularios de muchísimos campos, p. ej. la ficha de cliente), el scroll va
+    **solo en el contenedor de campos** (`max-h-[65vh] overflow-y-auto themed-scrollbar px-1 -mx-1`),
+    con la cabecera y los botones **siempre visibles** — nunca scroll del modal entero ni botones
+    que queden fuera de pantalla.
+  El modal `stop-form` del Kanban (`livewire/routes/board.blade.php`) es la referencia del caso que sí
+  cabe; el de la ficha de cliente, del caso con scroll contenido.
 - `/style-guide` (rol administrador/mantenimiento) muestra todos los componentes — punto de referencia
   visual antes de tocar nada del sistema de diseño.
 - `lang/es/{auth,passwords,validation,pagination}.php`: la app no traía ningún lang propio; sin esto los
@@ -181,9 +194,10 @@ Backed enums con `->label()` en español; casteados en los modelos.
   los campos de su `field_schema` y se validan con `DeliveryTypeSchemaValidator` antes de guardarlos en
   `route_stops.data`. Si tocas el editor de tipos de reparto en el futuro, prueba también este formulario.
   - El modal `stop-form` es **ancho** (`<x-modal max-width="3xl">`) con rejilla `grid-cols-1
-    sm:grid-cols-2 lg:grid-cols-3` para no desperdiciar el ancho en escritorio; los campos van en un
-    contenedor con `max-h-[70vh] overflow-y-auto themed-scrollbar` (scroll interno solo si el schema es
-    muy largo, cabecera/pie fijos). `<x-modal>` acepta `sm|md|lg|xl|2xl|3xl|4xl`.
+    sm:grid-cols-2 lg:grid-cols-3` y los campos cortos agrupados por fila (Cliente/Dirección,
+    Contacto/Teléfono/Estado, Cantidad/Tipo de reparto) para que quepa sin scroll en escritorio —
+    ver la "Regla de modales" en la sección del sistema de diseño. `<x-modal>` acepta
+    `sm|md|lg|xl|2xl|3xl|4xl`.
 - **Drag & drop = SortableJS** (`npm install sortablejs`, importado en `resources/js/app.js`,
   función `initKanbanColumns`), no el plugin `@alpinejs/sort` — se descartó por no poder verificar con
   certeza su API exacta de arrastre multi-columna sin acceso a la documentación en vivo; SortableJS es
