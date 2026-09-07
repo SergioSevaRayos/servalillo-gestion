@@ -9,6 +9,7 @@ use App\Models\DeliveryType;
 use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryTypeSchemaValidator;
+use App\Services\RecurringStopService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
@@ -37,6 +38,21 @@ class Board extends Component
         if (! in_array($this->kind, array_column(ServiceKind::cases(), 'value'), true)) {
             $this->kind = ServiceKind::Reparto->value;
         }
+
+        $this->generateRecurringStops();
+    }
+
+    public function updatedDate(): void
+    {
+        $this->generateRecurringStops();
+    }
+
+    /** Crea las paradas de los clientes con calendario fijo para el día que se está viendo. */
+    private function generateRecurringStops(): void
+    {
+        if (auth()->user()?->can('routes.update')) {
+            app(RecurringStopService::class)->generateForDate(Carbon::parse($this->date));
+        }
     }
 
     public function setKind(string $kind): void
@@ -47,16 +63,19 @@ class Board extends Component
     public function previousDay(): void
     {
         $this->date = Carbon::parse($this->date)->subDay()->toDateString();
+        $this->generateRecurringStops();
     }
 
     public function nextDay(): void
     {
         $this->date = Carbon::parse($this->date)->addDay()->toDateString();
+        $this->generateRecurringStops();
     }
 
     public function today(): void
     {
         $this->date = now()->toDateString();
+        $this->generateRecurringStops();
     }
 
     public function openCreateStop(?int $routeId): void
@@ -164,9 +183,11 @@ class Board extends Component
             ->get()
             ->sortBy(fn (Route $route) => $route->truck->code);
 
+        // "Sin asignar": backlog sin fecha + las recurrentes generadas para el día que se ve.
         $unassigned = RouteStop::query()
             ->unassigned()
             ->where('service_kind', $this->kind)
+            ->where(fn ($q) => $q->whereNull('scheduled_for')->orWhereDate('scheduled_for', $this->date))
             ->with('deliveryType')
             ->orderBy('position')
             ->get();

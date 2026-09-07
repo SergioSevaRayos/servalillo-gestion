@@ -6,6 +6,7 @@ use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Livewire\Forms\StopActionForm;
 use App\Models\Client;
+use App\Models\DeliveryType;
 use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
@@ -223,7 +224,7 @@ class Today extends Component
             'longitude' => $client->longitude,
             'contact_name' => $client->contact_name,
             'contact_phone' => $client->phone,
-            'delivery_type_id' => $client->default_delivery_type_id,
+            'delivery_type_id' => DeliveryType::waterId(),
             'status' => RouteStopStatus::Pending,
             'planned_quantity' => $client->typical_quantity,
             'data' => [],

@@ -578,13 +578,19 @@ modal de edición para completar) o **Descartar** (borrado permanente, `forceDel
   recuerda la unidad citada (la ficha muestra "3 m³ (3.000 L)").
 - El **precio** puede ser tarifa fija o por litro (`clients.price` + `price_type`, enum `PriceType`;
   migración `2026_09_07_140000_...` renombra `price_per_liter` → `price`).
-- Detalle en `CLAUDE.md` (sección "Pre-clientes / valoración").
+- **Calendario de reparto** (migración `2026_09_07_150000_...`): además de "cada N días", el cliente
+  puede tener **días fijos de la semana** (`delivery_weekdays`) con **rango de fechas opcional**
+  (`schedule_starts_on`/`schedule_ends_on`). Los clientes con días fijos **generan su parada
+  automáticamente** en el tablero para el día que toca (`App\Services\RecurringStopService`,
+  `route_stops.scheduled_for`; comando `rutas:generar-recurrentes`, scheduler diario). El producto
+  siempre es agua → se eliminó `clients.default_delivery_type_id`.
+- Detalle en `CLAUDE.md` (sección "Pre-clientes / valoración" y la de clientes).
 
 ---
 
 ## Punto de continuación (última sesión: 2026-09-07)
 
-**Estado:** Bloques 1–9 terminados (**145 tests en verde**). Esta sesión: Bloque 9 (gestión de
+**Estado:** Bloques 1–9 terminados (**152 tests en verde**). Esta sesión: Bloque 9 (gestión de
 clientes) + tipo de servicio Reparto/Viajes (enum `ServiceKind` en clientes, rutas y paradas; filtro
 en el tablero) + selector de día del chofer como carrusel coverflow. **Siguiente = Bloque 10** (API
 Flutter con Sanctum) — sección "API para Flutter" de `docs/01`, y `routes/api.php` (casi vacío).

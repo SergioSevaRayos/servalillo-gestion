@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Client;
-use App\Models\DeliveryType;
 use App\Services\ClientImporter;
 
 function writeCsv(string $content): string
@@ -19,12 +18,10 @@ afterEach(function () {
 });
 
 it('importa clientes nuevos y actualiza por código externo', function () {
-    DeliveryType::factory()->create(['name' => 'Reparto de gasóleo', 'slug' => 'gasoleo']);
-
     $path = writeCsv(implode("\n", [
-        'Codigo;Nombre;CIF;Poblacion;Litros;Periodicidad;Tipo de reparto;Latitud;Longitud',
-        'AX-100;Bar Central;B11111111;La Laguna;800;quincenal;gasoleo;28,4636;-16,2518',
-        'AX-101;Finca Sol;B22222222;Adeje;2000;30;Reparto de gasóleo;28,12;-16,72',
+        'Codigo;Nombre;CIF;Poblacion;Litros;Periodicidad;Latitud;Longitud',
+        'AX-100;Bar Central;B11111111;La Laguna;800;quincenal;28,4636;-16,2518',
+        'AX-101;Finca Sol;B22222222;Adeje;2000;30;28,12;-16,72',
     ]));
 
     $r = app(ClientImporter::class)->import($path);
@@ -37,7 +34,6 @@ it('importa clientes nuevos y actualiza por código externo', function () {
         ->and($bar->city)->toBe('La Laguna')
         ->and((int) $bar->typical_quantity)->toBe(800)
         ->and($bar->frequency_days)->toBe(15)
-        ->and($bar->default_delivery_type_id)->not->toBeNull()
         ->and((float) $bar->latitude)->toBe(28.4636);
 
     // Segunda pasada con un cambio → actualiza, no duplica.

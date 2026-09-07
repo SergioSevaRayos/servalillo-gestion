@@ -140,6 +140,7 @@
                 <x-clients.form-fields
                     :delivery-types="$this->deliveryTypes"
                     :types="$types"
+                    :form="$this->form"
                     :status="$this->form->status"
                     :editing="(bool) $this->form->editing" />
             </div>

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\ClientType;
 use App\Models\Client;
-use App\Models\DeliveryType;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -40,7 +39,6 @@ class ClientImporter
         'canal' => 'preferred_channel', 'canal albaran' => 'preferred_channel',
         'precio' => 'price', 'precio litro' => 'price', 'precio por litro' => 'price', 'tarifa' => 'price',
         'forma de pago' => 'payment_terms', 'pago' => 'payment_terms',
-        'tipo de reparto' => 'delivery_type', 'producto' => 'delivery_type',
         'ultimo reparto' => 'last_served_on', 'ultima fecha' => 'last_served_on', 'ultimo servicio' => 'last_served_on',
         'observaciones acceso' => 'access_notes', 'acceso' => 'access_notes', 'instrucciones' => 'access_notes',
         'observaciones' => 'notes', 'notas' => 'notes', 'notes' => 'notes',
@@ -56,15 +54,11 @@ class ClientImporter
         $csv->setHeaderOffset(0);
         $csv->setDelimiter($this->sniffDelimiter($path));
 
-        $deliveryTypes = DeliveryType::pluck('id', 'slug')
-            ->merge(DeliveryType::pluck('id', 'name'))
-            ->mapWithKeys(fn ($id, $key) => [$this->normalize($key) => $id]);
-
         $result = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
 
         foreach ($csv->getRecords() as $i => $row) {
             $line = $i + 1;
-            $attrs = $this->mapRow($row, $deliveryTypes);
+            $attrs = $this->mapRow($row);
 
             if (blank($attrs['name'] ?? null)) {
                 $result['errors'][] = "Fila {$line}: sin nombre de cliente, omitida.";
@@ -108,8 +102,7 @@ class ClientImporter
         return $result;
     }
 
-    /** @param  array<string, mixed>  $deliveryTypes */
-    private function mapRow(array $row, $deliveryTypes): array
+    private function mapRow(array $row): array
     {
         $attrs = [];
 
@@ -130,14 +123,8 @@ class ClientImporter
                 'last_served_on' => rescue(fn () => Carbon::parse($value)->toDateString(), null, false),
                 'latitude', 'longitude', 'typical_quantity', 'price' => $this->parseNumber($value),
                 'tank_capacity_liters' => (int) $this->parseNumber($value),
-                'delivery_type' => null, // se resuelve abajo
                 default => $value,
             };
-
-            if ($field === 'delivery_type') {
-                $attrs['default_delivery_type_id'] = $deliveryTypes[$this->normalize($value)] ?? null;
-                unset($attrs['delivery_type']);
-            }
         }
 
         return $attrs;

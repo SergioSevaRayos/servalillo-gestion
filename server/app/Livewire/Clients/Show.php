@@ -33,6 +33,12 @@ class Show extends Component
         $this->dispatch('open-modal', 'client-form');
     }
 
+    /** Marca/desmarca un día de reparto fijo en el formulario. */
+    public function toggleWeekday(int $day): void
+    {
+        $this->form->toggleWeekday($day);
+    }
+
     public function save(): void
     {
         $this->authorize('update', $this->client);
@@ -89,7 +95,7 @@ class Show extends Component
             'longitude' => $this->client->longitude,
             'contact_name' => $this->client->contact_name,
             'contact_phone' => $this->client->phone,
-            'delivery_type_id' => $this->client->default_delivery_type_id,
+            'delivery_type_id' => DeliveryType::waterId(),
             'status' => RouteStopStatus::Pending,
             'planned_quantity' => $this->client->typical_quantity,
             'data' => [],

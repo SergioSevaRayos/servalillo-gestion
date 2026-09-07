@@ -116,8 +116,8 @@
                     <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ __('Reparto habitual') }}</h2>
                     <dl class="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
                         @foreach ([
-                            __('Producto habitual') => $client->defaultDeliveryType?->name,
-                            __('Periodicidad') => $client->frequencyLabel(),
+                            __('Calendario') => $client->frequencyLabel(),
+                            __('Próximo estimado') => $client->nextDeliveryOn()?->format('d/m/Y'),
                             __('Capacidad del depósito') => $client->tank_capacity_liters ? number_format($client->tank_capacity_liters, 0, ',', '.').' L' : null,
                             __('Canal de albarán') => $client->preferred_channel ? ($client->preferred_channel === 'email' ? __('Email') : __('Entrega en mano')) : null,
                             __('Precio') => $client->priceLabel(),
@@ -216,7 +216,7 @@
         <form wire:submit="save" class="p-5">
             <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ __('Editar cliente') }}</h3>
             <div class="mt-4 max-h-[72vh] overflow-y-auto px-1 -mx-1 pb-2 themed-scrollbar">
-                <x-clients.form-fields :delivery-types="$deliveryTypes" :types="\App\Enums\ClientType::options()" :status="$form->status" editing />
+                <x-clients.form-fields :delivery-types="$deliveryTypes" :types="\App\Enums\ClientType::options()" :form="$form" :status="$form->status" editing />
             </div>
             <div class="mt-4 flex justify-end gap-3">
                 <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cancelar') }}</x-ui.button>

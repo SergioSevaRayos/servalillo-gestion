@@ -147,7 +147,7 @@ class DatabaseSeeder extends Seeder
         $this->seedDeliveryNotes($admin);
 
         // --- Clientes (Bloque 9) ------------------------------------------
-        $this->seedClients([$gasoleo, $agua]);
+        $this->seedClients();
 
         // --- Viajes de ejemplo (para el filtro del tablero) ---------------
         $this->seedTrips($drivers, $today, $admin);
@@ -465,7 +465,7 @@ class DatabaseSeeder extends Seeder
      *
      * @param  array<int, DeliveryType>  $types
      */
-    private function seedClients(array $types): void
+    private function seedClients(): void
     {
         if (Client::query()->exists()) {
             return;
@@ -489,9 +489,11 @@ class DatabaseSeeder extends Seeder
             'province' => 'Santa Cruz de Tenerife',
             'latitude' => fake()->latitude(28.0, 28.6),
             'longitude' => fake()->longitude(-16.9, -16.1),
-            'default_delivery_type_id' => fake()->randomElement($types)->id,
             'typical_quantity' => fake()->randomElement([300, 500, 800, 1000, 1500, 2000]),
-            'frequency_days' => fake()->optional(0.75)->randomElement([7, 14, 15, 21, 30, 45]),
+            // ~1 de cada 5 con calendario fijo por días; el resto "cada N días" o bajo demanda.
+            'delivery_weekdays' => $wd = fake()->boolean(20) ? fake()->randomElement([[1, 3, 5], [2, 4], [5, 6], [1, 4], [3]]) : null,
+            'frequency_days' => $wd ? null : fake()->optional(0.75)->randomElement([7, 14, 15, 21, 30, 45]),
+            'schedule_ends_on' => $wd && fake()->boolean(30) ? fake()->dateTimeBetween('+1 month', '+4 months')->format('Y-m-d') : null,
             'tank_capacity_liters' => fake()->optional(0.7)->randomElement([1000, 2000, 3000, 5000]),
             'requires_own_pump' => fake()->boolean(20),
             'preferred_channel' => fake()->randomElement(['email', 'physical']),
@@ -515,6 +517,11 @@ class DatabaseSeeder extends Seeder
 
         // Clientes sin historial todavía.
         Client::factory()->count(12)->create();
+
+        // Clientes con calendario fijo por días de la semana (algunos con temporada).
+        Client::factory()->weekly([1, 3, 5])->count(3)->create();
+        Client::factory()->weekly([2, 4])->count(2)->create();
+        Client::factory()->weekly([5, 6])->create(['schedule_starts_on' => now()->toDateString(), 'schedule_ends_on' => now()->addMonths(3)->toDateString()]);
 
         // Pre-clientes pendientes de valoración (llamadas recientes).
         Client::factory()->prospect()->count(4)->sequence(

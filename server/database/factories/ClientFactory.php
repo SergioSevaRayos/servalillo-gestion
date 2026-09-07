@@ -38,7 +38,8 @@ class ClientFactory extends Factory
             'latitude' => fake()->latitude(28.0, 28.6),
             'longitude' => fake()->longitude(-16.9, -16.1),
             'typical_quantity' => fake()->randomElement([300, 500, 800, 1000, 1500, 2000, 3000]),
-            'frequency_days' => fake()->optional(0.7)->randomElement([7, 14, 15, 21, 30, 45, 60]),
+            'frequency_days' => fake()->optional(0.6)->randomElement([7, 14, 15, 21, 30, 45, 60]),
+            'delivery_weekdays' => null,
             'tank_capacity_liters' => fake()->optional(0.7)->randomElement([1000, 2000, 3000, 5000, 10000]),
             'requires_own_pump' => fake()->boolean(20),
             'preferred_channel' => fake()->randomElement(['email', 'physical']),
@@ -67,6 +68,15 @@ class ClientFactory extends Factory
         return $this->state(fn () => ['service_kind' => ServiceKind::Viaje->value]);
     }
 
+    /** Cliente con calendario fijo por días de la semana. */
+    public function weekly(array $weekdays = [1, 3, 5]): static
+    {
+        return $this->state(fn () => [
+            'delivery_weekdays' => $weekdays,
+            'frequency_days' => null,
+        ]);
+    }
+
     /** Pre-cliente "Pendiente valoración": solo lo básico de la llamada. */
     public function prospect(): static
     {
@@ -75,8 +85,8 @@ class ClientFactory extends Factory
             'external_ref' => null,
             'tax_id' => null,
             'client_type' => null,
-            'default_delivery_type_id' => null,
             'frequency_days' => null,
+            'delivery_weekdays' => null,
             'last_served_on' => null,
             'is_active' => true,
         ]);

@@ -27,6 +27,15 @@ class DeliveryType extends Model implements Auditable
         return $this->hasMany(RouteStop::class);
     }
 
+    /** El tipo "agua" — todos los clientes reparten agua. */
+    public static function waterId(): ?int
+    {
+        return static::query()
+            ->where('slug', 'agua')
+            ->orWhere('name', 'ilike', '%agua%')
+            ->value('id');
+    }
+
     /** @return array<int, array<string, mixed>> */
     public function fields(): array
     {

@@ -84,6 +84,12 @@ class Index extends Component
         $this->dispatch('open-modal', 'client-form');
     }
 
+    /** Marca/desmarca un día de reparto fijo en el formulario. */
+    public function toggleWeekday(int $day): void
+    {
+        $this->form->toggleWeekday($day);
+    }
+
     public function save(): void
     {
         $this->form->editing

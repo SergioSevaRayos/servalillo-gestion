@@ -63,9 +63,14 @@ class ClientForm extends Form
     public ?int $tank_distance_m = null;
 
     // Reparto habitual
-    public ?int $default_delivery_type_id = null;
-
     public ?int $frequency_days = null;
+
+    /** @var array<int, int> días ISO (1..7) de reparto fijo */
+    public array $delivery_weekdays = [];
+
+    public ?string $schedule_starts_on = null;
+
+    public ?string $schedule_ends_on = null;
 
     public ?int $tank_capacity_liters = null;
 
@@ -113,8 +118,11 @@ class ClientForm extends Form
             'quantity_input' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'quantity_unit' => ['required', 'in:L,m3'],
             'tank_distance_m' => ['nullable', 'integer', 'min:0', 'max:100000'],
-            'default_delivery_type_id' => ['nullable', 'exists:delivery_types,id'],
             'frequency_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'delivery_weekdays' => ['array'],
+            'delivery_weekdays.*' => ['integer', 'between:1,7'],
+            'schedule_starts_on' => ['nullable', 'date'],
+            'schedule_ends_on' => ['nullable', 'date', 'after_or_equal:schedule_starts_on'],
             'tank_capacity_liters' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'requires_own_pump' => ['boolean'],
             'preferred_channel' => ['nullable', 'in:email,physical'],
@@ -140,6 +148,10 @@ class ClientForm extends Form
         $this->editing = $client;
 
         foreach (array_keys($this->rules()) as $field) {
+            if (str_contains($field, '.')) {
+                continue; // reglas de elementos de array (delivery_weekdays.*)
+            }
+
             $this->{$field} = match ($field) {
                 'client_type' => $client->client_type?->value,
                 'service_kind' => $client->service_kind->value,
@@ -151,6 +163,9 @@ class ClientForm extends Form
                     : ($client->quantity_unit === 'm3'
                         ? (float) $client->typical_quantity / 1000
                         : (float) $client->typical_quantity),
+                'delivery_weekdays' => $client->deliveryWeekdays(),
+                'schedule_starts_on' => $client->schedule_starts_on?->toDateString(),
+                'schedule_ends_on' => $client->schedule_ends_on?->toDateString(),
                 'last_served_on' => $client->last_served_on?->toDateString(),
                 'price' => $client->price !== null ? (float) $client->price : null,
                 'price_type' => $client->price_type?->value ?? 'per_liter',
@@ -179,6 +194,15 @@ class ClientForm extends Form
             $validated['price_type'] = null;
         }
 
+        // Calendario por días: normaliza (ordena, quita duplicados) o lo deja en null si no hay días.
+        $weekdays = collect($validated['delivery_weekdays'] ?? [])->map(fn ($d) => (int) $d)->unique()->sort()->values()->all();
+        $validated['delivery_weekdays'] = $weekdays === [] ? null : $weekdays;
+
+        if ($weekdays === []) {
+            $validated['schedule_starts_on'] = null;
+            $validated['schedule_ends_on'] = null;
+        }
+
         $client = $this->editing
             ? tap($this->editing)->update($validated)
             : Client::create($validated);
@@ -186,5 +210,21 @@ class ClientForm extends Form
         $this->reset();
 
         return $client;
+    }
+
+    /** Marca/desmarca un día de reparto (1 = lunes … 7 = domingo). */
+    public function toggleWeekday(int $day): void
+    {
+        if ($day < 1 || $day > 7) {
+            return;
+        }
+
+        $days = array_map('intval', $this->delivery_weekdays);
+
+        $this->delivery_weekdays = in_array($day, $days, true)
+            ? array_values(array_diff($days, [$day]))
+            : [...$days, $day];
+
+        sort($this->delivery_weekdays);
     }
 }

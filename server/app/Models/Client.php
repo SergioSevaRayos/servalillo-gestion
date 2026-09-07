@@ -10,7 +10,6 @@ use App\Enums\WaterType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable as AuditableTrait;
@@ -20,12 +19,16 @@ class Client extends Model implements Auditable
 {
     use AuditableTrait, HasFactory, SoftDeletes;
 
+    /** ISO: 1 = lunes … 7 = domingo. */
+    public const WEEKDAY_LABELS = [1 => 'L', 2 => 'M', 3 => 'X', 4 => 'J', 5 => 'V', 6 => 'S', 7 => 'D'];
+
     protected $fillable = [
         'external_ref', 'name', 'tax_id', 'client_type', 'service_kind', 'status',
         'contact_name', 'phone', 'secondary_phone', 'email',
         'address', 'postal_code', 'city', 'province', 'latitude', 'longitude',
-        'water_type', 'default_delivery_type_id', 'typical_quantity', 'quantity_unit',
-        'frequency_days', 'tank_capacity_liters', 'tank_distance_m',
+        'water_type', 'typical_quantity', 'quantity_unit',
+        'frequency_days', 'delivery_weekdays', 'schedule_starts_on', 'schedule_ends_on',
+        'tank_capacity_liters', 'tank_distance_m',
         'requires_own_pump', 'preferred_channel', 'price', 'price_type', 'payment_terms', 'last_served_on',
         'access_notes', 'notes', 'is_active',
     ];
@@ -41,6 +44,9 @@ class Client extends Model implements Auditable
             'longitude' => 'decimal:7',
             'typical_quantity' => 'decimal:2',
             'frequency_days' => 'integer',
+            'delivery_weekdays' => 'array',
+            'schedule_starts_on' => 'date',
+            'schedule_ends_on' => 'date',
             'tank_capacity_liters' => 'integer',
             'tank_distance_m' => 'integer',
             'requires_own_pump' => 'boolean',
@@ -49,11 +55,6 @@ class Client extends Model implements Auditable
             'last_served_on' => 'date',
             'is_active' => 'boolean',
         ];
-    }
-
-    public function defaultDeliveryType(): BelongsTo
-    {
-        return $this->belongsTo(DeliveryType::class, 'default_delivery_type_id');
     }
 
     public function scopeActive(Builder $query): Builder
@@ -157,25 +158,93 @@ class Client extends Model implements Auditable
             ->select('route_stops.*');
     }
 
-    /** Fecha estimada del próximo reparto = última servida + periodicidad. */
+    /** @return array<int, int> días ISO (1..7) en los que se reparte, ordenados. */
+    public function deliveryWeekdays(): array
+    {
+        $days = array_values(array_filter(
+            array_map('intval', $this->delivery_weekdays ?? []),
+            fn (int $d) => $d >= 1 && $d <= 7,
+        ));
+        sort($days);
+
+        return $days;
+    }
+
+    public function hasWeekdaySchedule(): bool
+    {
+        return $this->deliveryWeekdays() !== [];
+    }
+
+    /** ¿El calendario está vigente en esa fecha? (rango [desde, hasta], nulos = abierto). */
+    public function scheduleActiveOn(Carbon $date): bool
+    {
+        if ($this->schedule_starts_on && $date->lt($this->schedule_starts_on->copy()->startOfDay())) {
+            return false;
+        }
+
+        if ($this->schedule_ends_on && $date->gt($this->schedule_ends_on->copy()->endOfDay())) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** ¿Toca reparto ese día concreto según los días de la semana configurados? */
+    public function isScheduledOn(Carbon $date): bool
+    {
+        return $this->hasWeekdaySchedule()
+            && in_array($date->dayOfWeekIso, $this->deliveryWeekdays(), true)
+            && $this->scheduleActiveOn($date);
+    }
+
+    /** Fecha estimada del próximo reparto: por días de la semana o por "cada N días". */
     public function nextDeliveryOn(): ?Carbon
     {
+        if ($this->hasWeekdaySchedule()) {
+            $date = today();
+
+            for ($i = 0; $i < 14; $i++) {
+                if ($this->isScheduledOn($date)) {
+                    return $date->copy();
+                }
+                $date->addDay();
+            }
+
+            return null; // el calendario ya terminó
+        }
+
         return ($this->last_served_on && $this->frequency_days)
             ? $this->last_served_on->copy()->addDays($this->frequency_days)
             : null;
     }
 
-    /** ¿Le toca reparto? (estimación vencida o para hoy). */
+    /** ¿Le toca reparto hoy? */
     public function isDeliveryDue(): bool
     {
+        if ($this->hasWeekdaySchedule()) {
+            return $this->isScheduledOn(today());
+        }
+
         $next = $this->nextDeliveryOn();
 
         return $next !== null && ($next->isToday() || $next->isPast());
     }
 
-    /** "semanal", "quincenal", "cada 10 días"… */
+    /** "L·X·V", "L·X·V · ene–mar", "Semanal", "cada 10 días"… */
     public function frequencyLabel(): string
     {
+        if ($this->hasWeekdaySchedule()) {
+            $days = implode('·', array_map(fn (int $d) => self::WEEKDAY_LABELS[$d], $this->deliveryWeekdays()));
+            $range = match (true) {
+                $this->schedule_starts_on && $this->schedule_ends_on => ' · '.$this->schedule_starts_on->isoFormat('MMM').'–'.$this->schedule_ends_on->isoFormat('MMM'),
+                (bool) $this->schedule_ends_on => ' · hasta '.$this->schedule_ends_on->isoFormat('D MMM'),
+                (bool) $this->schedule_starts_on => ' · desde '.$this->schedule_starts_on->isoFormat('D MMM'),
+                default => '',
+            };
+
+            return $days.$range;
+        }
+
         return match (true) {
             $this->frequency_days === null => 'Bajo demanda',
             $this->frequency_days === 7 => 'Semanal',

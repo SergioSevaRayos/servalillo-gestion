@@ -430,13 +430,26 @@ Backed enums con `->label()` en español; casteados en los modelos.
   Permisos `clients.{view,create,update,delete}` en `RolePermissionSeeder::PERMISSIONS`.
 - Validación = `App\Livewire\Forms\ClientForm` (Form object, mismo patrón que el resto del panel, NO
   FormRequest). CRUD simple → sin Service intermedio, la lógica vive en el Form.
-- `Client` implementa `Auditable` + `SoftDeletes`. `frequency_days` null = "bajo demanda";
-  `nextDeliveryOn()` = `last_served_on` + `frequency_days` días; `isDeliveryDue()` alimenta el badge
-  ámbar "le toca reparto" del listado y el filtro `schedule=due` (que usa `whereRaw` con intervalo
-  de Postgres: `last_served_on + (frequency_days || ' days')::interval <= now()`).
+- `Client` implementa `Auditable` + `SoftDeletes`.
+- **Calendario de reparto** — el cliente puede ser: **bajo demanda** (nada) / **días de la semana**
+  (`delivery_weekdays` jsonb `[1..7]` ISO, con rango opcional `schedule_starts_on`/`schedule_ends_on`;
+  `schedule_ends_on` null = indefinido) / **cada N días** (`frequency_days` + `last_served_on`, lo
+  anterior). Si hay `delivery_weekdays`, gana sobre `frequency_days`. Helpers en `Client`:
+  `deliveryWeekdays()`, `hasWeekdaySchedule()`, `scheduleActiveOn()`, `isScheduledOn()`,
+  `nextDeliveryOn()`, `isDeliveryDue()` (todos ramifican weekday vs frequency), `frequencyLabel()`
+  ("L·X·V · abr.–jun." / "Quincenal" / …). `Client::WEEKDAY_LABELS` (1→L … 7→D).
+- **Generación automática de paradas recurrentes** (`App\Services\RecurringStopService`): para los
+  clientes con `delivery_weekdays`, crea la parada del día (`route_id = null`, `scheduled_for` = ese
+  día, `delivery_type_id` = agua). Idempotente (`stopExists` por CIF/nombre + `scheduled_for`). Se
+  dispara desde `Routes\Board` al abrir/cambiar de día (`generateRecurringStops()`, guardado con
+  `can('routes.update')`) y desde el comando `rutas:generar-recurrentes {fecha?}` (scheduler diario
+  05:30, horizonte +14 días). **El tablero filtra "Sin asignar"** a `scheduled_for IS NULL` (backlog
+  general) **OR** `scheduled_for = fecha vista` (recurrentes del día).
 - **"Planificar reparto"** en la ficha crea un `RouteStop` con `route_id = null` (backlog "Sin
-  asignar" del Kanban) copiando nombre/CIF/dirección/coordenadas/tipo/litros del cliente. Requiere
-  `clients.update` **y** `routes.update`.
+  asignar" del Kanban) copiando nombre/CIF/dirección/coordenadas/litros del cliente y
+  `delivery_type_id = DeliveryType::waterId()`. Requiere `clients.update` **y** `routes.update`.
+- **El producto siempre es agua**: se eliminó `clients.default_delivery_type_id`. `DeliveryType::waterId()`
+  (slug `agua`) es el que usan `planDelivery`, `Chofer\Today::addClientStop` y el generador.
 - **Import Access = comando, una sola vez** (decisión del usuario, NO subida por UI):
   `php artisan clientes:importar <archivo.csv> [--dry-run]`, archivo en la raíz del proyecto o ruta
   absoluta. `App\Services\ClientImporter` + `league/csv` (^9.0). Upsert por `external_ref` (con
@@ -479,8 +492,7 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `fixed`|`per_liter`; los que ya tenían precio → `per_liter`). `save()` pone `price_type = null`
   si `price` es null. Ficha: `Client::priceLabel()` → "45,00 € (Tarifa fija)" / "0,9500 €/L".
 - El **tipo de servicio** (`service_kind` Reparto/Viaje) ahora es visible **también en el alta de
-  pre-cliente** (una llamada puede ser de un viaje). El `default_delivery_type_id` se relabeló
-  "Tipo de reparto" → **"Producto habitual"** para no chocar con "Tipo de servicio".
+  pre-cliente** (una llamada puede ser de un viaje).
 - **Gotcha del componente `x-ui.select` con `placeholder`**: la `<option value="" disabled selected>`
   no se honra visualmente — el `<select>` MUESTRA la primera opción real aunque el modelo Livewire
   siga en `null` (se guarda `null`, solo el display engaña). Es pre-existente (afecta a

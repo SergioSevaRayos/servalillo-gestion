@@ -1,4 +1,4 @@
-@props(['deliveryTypes', 'types', 'editing' => false, 'status' => 'customer'])
+@props(['deliveryTypes', 'types', 'form', 'editing' => false, 'status' => 'customer'])
 
 @php $prospect = $status === 'prospect'; @endphp
 
@@ -92,14 +92,32 @@
 
     @unless ($prospect)
         <div>
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Reparto habitual') }}</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Calendario de reparto') }}</p>
             <div class="mt-1.5 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                <x-ui.select name="default_delivery_type_id" label="{{ __('Producto habitual') }}" wire:model="form.default_delivery_type_id" placeholder="{{ __('Sin definir') }}">
-                    @foreach ($deliveryTypes as $dt)
-                        <option value="{{ $dt->id }}">{{ $dt->name }}</option>
-                    @endforeach
-                </x-ui.select>
-                <x-ui.input name="frequency_days" type="number" label="{{ __('Periodicidad (días)') }}" wire:model="form.frequency_days" :help="__('En blanco = bajo demanda.')" />
+                <div class="sm:col-span-2 lg:col-span-3">
+                    <x-input-label :value="__('Días de reparto fijos')" />
+                    <div class="mt-1.5 flex flex-wrap gap-1.5">
+                        @php $selectedDays = array_map('intval', (array) $form->delivery_weekdays); @endphp
+                        @foreach (\App\Models\Client::WEEKDAY_LABELS as $num => $letter)
+                            <button type="button" wire:key="weekday-{{ $num }}" wire:click="toggleWeekday({{ $num }})" @class([
+                                'flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-semibold transition-colors',
+                                'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-500 dark:bg-primary-500/15 dark:text-primary-200' => in_array($num, $selectedDays, true),
+                                'border-slate-300 text-slate-500 hover:border-slate-400 dark:border-slate-700 dark:text-slate-400' => ! in_array($num, $selectedDays, true),
+                            ])>{{ $letter }}</button>
+                        @endforeach
+                    </div>
+                    <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{{ __('Si marcas días, el cliente sale solo en la ruta esos días. Deja vacío para usar "cada N días".') }}</p>
+                </div>
+                <x-ui.input name="schedule_starts_on" type="date" label="{{ __('Desde') }}" wire:model="form.schedule_starts_on" />
+                <x-ui.input name="schedule_ends_on" type="date" label="{{ __('Hasta') }}" wire:model="form.schedule_ends_on" :help="__('Vacío = indefinido.')" />
+                <x-ui.input name="frequency_days" type="number" label="{{ __('O cada N días') }}" wire:model="form.frequency_days" :help="__('Solo si no marcas días de la semana.')" />
+                <x-ui.input name="last_served_on" type="date" label="{{ __('Último reparto') }}" wire:model="form.last_served_on" />
+            </div>
+        </div>
+
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Facturación y depósito') }}</p>
+            <div class="mt-1.5 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                 <x-ui.input name="tank_capacity_liters" type="number" label="{{ __('Capacidad del depósito (L)') }}" wire:model="form.tank_capacity_liters" />
                 <x-ui.select name="preferred_channel" label="{{ __('Canal de albarán') }}" wire:model="form.preferred_channel" placeholder="{{ __('Sin preferencia') }}">
                     <option value="email">{{ __('Email') }}</option>
@@ -112,7 +130,6 @@
                     @endforeach
                 </x-ui.select>
                 <x-ui.input name="payment_terms" label="{{ __('Forma de pago') }}" wire:model="form.payment_terms" />
-                <x-ui.input name="last_served_on" type="date" label="{{ __('Último reparto') }}" wire:model="form.last_served_on" />
                 <div class="flex items-end pb-2">
                     <x-ui.checkbox name="requires_own_pump" label="{{ __('Requiere bomba propia') }}" wire:model="form.requires_own_pump" />
                 </div>
