@@ -78,17 +78,6 @@ class Today extends Component
         return $this->isToday() || $this->route?->status === RouteStatus::InProgress;
     }
 
-    /** Ventana corta de días alrededor del seleccionado (siempre en el centro), para el selector. */
-    #[Computed]
-    public function pickerDays(): array
-    {
-        $center = Carbon::parse($this->date)->startOfDay();
-
-        return collect(range(-2, 2))
-            ->map(fn (int $i) => $center->copy()->addDays($i))
-            ->all();
-    }
-
     public function selectDay(string $date): void
     {
         $this->date = $this->normalizeDate($date);

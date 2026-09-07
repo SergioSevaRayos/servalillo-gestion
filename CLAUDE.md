@@ -326,10 +326,19 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - **`/chofer/ruta` (`chofer.today`) es `App\Livewire\Chofer\Today`** (ya no un placeholder). Muestra
   **la ruta del chofer para un día** (`routes` donde `driver_id` = su `driver->id` y `route_date` =
   `#[Url] $date`, def. hoy) como una columna de paradas. Mobile-first, `.surface`, **nunca `.glass`**.
-- **Selector de día** estilo teclas (`.day-key` en `app.css`): **5 días** con el elegido en el centro
-  (`pickerDays()` = `selected ± 2`) + flechas `shiftDay(±1)`; `selectDay()` cambia el día, `goToday()`
-  vuelve a hoy. La tecla seleccionada se ve "pulsada". **OJO:** `selectDay`/`goToday` — los nombres de
-  método en PHP son *case-insensitive*, `goToDay`/`goToday` colisionan.
+- **Selector de día = carrusel "coverflow"** (`.day-carousel*` en `app.css`, `Alpine.data('dayCarousel')`
+  en `app.js`). El día en foco va grande y centrado; los vecinos, cada vez más pequeños, girados
+  (`rotateY`) y difuminados. **Todo el gesto es cliente**: `offset` fraccional + animación CSS al
+  arrastrar / girar la rueda del ratón encima / pulsar flechas / tocar un día; al soltar se redondea
+  al día más cercano y se llama a `$wire.selectDay(fecha)` **una sola vez** (recarga la ruta + URL).
+  - El `<div x-data="dayCarousel(...)">` lleva **`wire:ignore`** — es imprescindible: sin él, `initial`
+    (`@js($this->date)`) cambia en cada commit, Livewire re-morfea el atributo `x-data` y Alpine
+    reinstancia el componente perdiendo su estado y la animación.
+  - El servidor sigue siendo la fuente de verdad de `date`: `$wire.$watch('date', …)` recoloca el
+    carrusel si cambia por fuera (botón "Hoy" del header, que hace `wire:click="goToday"`).
+  - `shiftDay(±n)` sigue existiendo en el componente (API), pero el carrusel usa `selectDay`.
+  - **OJO:** `selectDay`/`goToday` — los nombres de método en PHP son *case-insensitive*,
+    `goToDay`/`goToday` colisionan.
 - **Solo se puede operar** (empezar/terminar jornada, cerrar paradas) la ruta de **hoy** o una que
   quedó `InProgress` (cerrar la de anoche). `#[Computed] operable()` lo decide; `authorizeRoute()` y
   las tarjetas `disabled` lo aplican. Otros días = solo lectura.

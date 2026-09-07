@@ -173,23 +173,40 @@
     | Selector de día del chofer (Bloque 7): fila de "teclas". La seleccionada se ve "pulsada"
     | (baja 2px y pierde la sombra inferior). Solo transiciona transform/box-shadow.
     */
-    .day-key {
-        @apply flex min-w-0 flex-col items-center rounded-lg border border-slate-200 bg-white px-1 py-1.5 text-slate-600 transition-[transform,box-shadow] duration-100;
-        @apply dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300;
-        box-shadow: 0 2px 0 theme('colors.slate.200');
+    /* Carrusel de días del chofer (Bloque 7): coverflow. El item en foco al frente, los vecinos
+       girados y difuminados. La distancia/rotación/opacidad las calcula app.js (dayCarousel). */
+    .day-carousel {
+        @apply relative flex h-[66px] select-none items-center justify-center overflow-hidden;
+        perspective: 620px;
     }
-    .dark .day-key {
-        box-shadow: 0 2px 0 theme('colors.slate.900');
+    .day-carousel__track {
+        @apply relative h-full w-full;
+        transform-style: preserve-3d;
     }
-    .day-key:active {
-        @apply translate-y-0.5;
-        box-shadow: none;
+    .day-carousel__item {
+        @apply absolute left-1/2 top-1/2 flex h-[54px] w-[50px] flex-col items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500;
+        @apply dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400;
+        margin: -27px 0 0 -25px;
+        transform-style: preserve-3d;
+        transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
     }
-    .day-key--today {
-        @apply border-primary-300 text-primary-700 dark:border-primary-500/50 dark:text-primary-300;
+    .day-carousel.is-dragging .day-carousel__item {
+        transition: none;
     }
-    .day-key--selected {
-        @apply translate-y-0.5 border-primary-500 bg-primary-50 font-semibold text-primary-800 dark:bg-primary-500/15 dark:text-primary-200;
-        box-shadow: none;
+    .day-carousel__item .day-carousel__dow {
+        @apply text-[10px] font-semibold uppercase tracking-wide opacity-70;
+    }
+    .day-carousel__item .day-carousel__num {
+        @apply text-base font-bold tabular-nums;
+    }
+    .day-carousel__item.is-today {
+        @apply border-primary-300 text-primary-600 dark:border-primary-500/50 dark:text-primary-300;
+    }
+    .day-carousel__item.is-focus {
+        @apply border-primary-500 bg-primary-50 font-bold text-primary-800 dark:bg-primary-500/15 dark:text-primary-100;
+    }
+    .day-carousel__arrow {
+        @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-lg text-slate-400 transition-colors;
+        @apply hover:text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:hover:text-slate-200;
     }
 }

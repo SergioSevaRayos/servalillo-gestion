@@ -71,7 +71,7 @@ it('el chofer navega a otros días y ve la ruta de ese día', function () {
         ->call('selectDay', $ayer->toDateString())
         ->assertSet('date', $ayer->toDateString())
         ->assertSee('Ruta de ayer')
-        ->assertSee('Ir a hoy')
+        ->assertSee('Hoy')
         ->call('goToday')
         ->assertSet('date', today()->toDateString());
 });

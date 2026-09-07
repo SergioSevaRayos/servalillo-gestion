@@ -3,42 +3,55 @@
     use Illuminate\Support\Carbon;
     $route = $this->route;
     $selected = Carbon::parse($this->date);
-    $todayStr = today()->toDateString();
-    // Carbon dayOfWeek: 0 = domingo … 6 = sábado
-    $dayLetters = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 @endphp
 
 {{-- Web operativa del chofer: siempre .surface, nunca .glass (uso al aire libre, alto contraste). --}}
 <div class="mx-auto max-w-2xl">
     <div class="flex items-baseline justify-between gap-3">
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ __('Mi ruta') }}</h1>
-        @unless ($this->isToday())
-            <button type="button" wire:click="goToday" class="text-sm font-medium text-primary-600 hover:text-primary-800 dark:text-primary-400">
-                {{ __('Ir a hoy') }}
-            </button>
-        @endunless
+        <button type="button" wire:click="goToday" @disabled($this->isToday()) @class([
+            'text-sm font-semibold transition-colors',
+            'text-primary-600 hover:text-primary-800 dark:text-primary-400' => ! $this->isToday(),
+            'cursor-default text-slate-300 dark:text-slate-600' => $this->isToday(),
+        ])>
+            {{ __('Hoy') }}
+        </button>
     </div>
     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $selected->isoFormat('dddd, D [de] MMMM') }}</p>
 
-    {{-- Selector de día, estilo teclas: 5 días con el elegido en el centro --}}
-    <div class="mt-3 flex items-stretch gap-1.5">
-        <button type="button" wire:click="shiftDay(-1)" aria-label="{{ __('Día anterior') }}"
-            class="day-key w-9 shrink-0 justify-center text-base text-slate-400">‹</button>
+    {{-- Selector de día tipo carrusel "coverflow": el día en foco al centro, los vecinos girados
+         y difuminados. Se mueve arrastrando, con la rueda del ratón encima, con las flechas o
+         tocando un día. La lógica del gesto está en resources/js/app.js (dayCarousel). --}}
+    <div class="mt-3 flex items-center justify-center gap-1.5" wire:ignore
+        x-data="dayCarousel({ initial: @js($this->date), today: @js(today()->toDateString()) })">
+        <button type="button" x-on:click="nudge(-1)" aria-label="{{ __('Día anterior') }}"
+            class="day-carousel__arrow">‹</button>
 
-        @foreach ($this->pickerDays() as $day)
-            @php $ds = $day->toDateString(); @endphp
-            <button type="button" wire:click="selectDay('{{ $ds }}')" @class([
-                'day-key flex-1',
-                'day-key--selected' => $ds === $this->date,
-                'day-key--today' => $ds === $todayStr && $ds !== $this->date,
-            ])>
-                <span class="text-[10px] font-semibold uppercase tracking-wide opacity-70">{{ $dayLetters[$day->dayOfWeek] }}</span>
-                <span class="text-sm font-bold tabular-nums">{{ $day->day }}</span>
-            </button>
-        @endforeach
+        <div class="day-carousel w-[260px] max-w-full touch-pan-y"
+            :class="{ 'is-dragging': dragging }"
+            x-on:wheel="onWheel($event)"
+            x-on:pointerdown="onPointerDown($event)"
+            x-on:pointermove="onPointerMove($event)"
+            x-on:pointerup="onPointerUp($event)"
+            x-on:pointercancel="onPointerUp($event)"
+            role="group" aria-label="{{ __('Selector de día') }}">
+            <div class="day-carousel__track">
+                <template x-for="d in days()" :key="d.iso">
+                    <button type="button"
+                        class="day-carousel__item"
+                        :class="{ 'is-focus': d.i === focusIndex(), 'is-today': d.iso === todayIso && d.i !== focusIndex() }"
+                        :style="style(d.i)"
+                        :aria-current="d.i === focusIndex() ? 'date' : null"
+                        x-on:click="tap(d)">
+                        <span class="day-carousel__dow" x-text="LETTERS[d.dow]"></span>
+                        <span class="day-carousel__num" x-text="d.day"></span>
+                    </button>
+                </template>
+            </div>
+        </div>
 
-        <button type="button" wire:click="shiftDay(1)" aria-label="{{ __('Día siguiente') }}"
-            class="day-key w-9 shrink-0 justify-center text-base text-slate-400">›</button>
+        <button type="button" x-on:click="nudge(1)" aria-label="{{ __('Día siguiente') }}"
+            class="day-carousel__arrow">›</button>
     </div>
 
     @if (! $route)

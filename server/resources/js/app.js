@@ -240,6 +240,134 @@ document.addEventListener('alpine:init', () => {
             }
         },
     }));
+
+    /*
+    | Selector de día del chofer (Bloque 7): carrusel tipo "coverflow". El día en foco va en
+    | el centro, a tamaño real; los vecinos se ven cada vez más pequeños, girados y difuminados
+    | (planos de fondo). Se mueve arrastrando la tira, girando la rueda del ratón encima, con las
+    | flechas o tocando un día. El desplazamiento durante el gesto es puramente cliente (`offset`
+    | fraccional, animación CSS); al soltar se redondea al día más cercano y se avisa al servidor
+    | una sola vez con `selectDay(fecha)` (que recarga la ruta y actualiza la URL). El servidor
+    | sigue siendo la fuente de verdad de `date`: si cambia por fuera ("Ir a hoy"), el carrusel
+    | se recoloca.
+    */
+    const isoOf = (d) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const addDays = (iso, n) => {
+        const d = new Date(`${iso}T00:00:00`);
+        d.setDate(d.getDate() + n);
+        return d;
+    };
+
+    Alpine.data('dayCarousel', ({ initial, today }) => ({
+        RANGE: 4,          // días renderizados a cada lado del foco
+        STEP_DRAG: 60,     // px de arrastre por día
+        LETTERS: ['D', 'L', 'M', 'X', 'J', 'V', 'S'],
+        todayIso: today,
+        center: initial,   // fecha en foco (fuente de verdad visual)
+        offset: 0,         // desplazamiento fraccional durante el gesto
+        dragging: false,
+        _lastX: 0,
+        _moved: false,
+        _gestureEndAt: 0,
+        _commitTimer: null,
+
+        init() {
+            this.$wire.$watch('date', (v) => {
+                if (v && v !== this.center) {
+                    this.center = v;
+                    this.offset = 0;
+                }
+            });
+        },
+
+        days() {
+            const out = [];
+            for (let i = -this.RANGE; i <= this.RANGE; i++) {
+                const d = addDays(this.center, i);
+                out.push({ i, iso: isoOf(d), day: d.getDate(), dow: d.getDay() });
+            }
+            return out;
+        },
+
+        focusIndex() {
+            return Math.round(this.offset);
+        },
+
+        style(i) {
+            const p = i - this.offset;
+            const a = Math.abs(p);
+            const x = p * 58 - Math.sign(p) * Math.min(a, 3) * 6;
+            const scale = Math.max(0.5, 1 - a * 0.17);
+            const rot = Math.max(-38, Math.min(38, -p * 18));
+            const opacity = a > this.RANGE - 0.5 ? 0 : Math.max(0.12, 1 - a * 0.3);
+            return `transform: translateX(${x}px) translateZ(${-a * 42}px) rotateY(${rot}deg) scale(${scale}); opacity:${opacity}; z-index:${100 - Math.round(a * 10)};`;
+        },
+
+        scheduleCommit() {
+            clearTimeout(this._commitTimer);
+            this._commitTimer = setTimeout(() => this.commit(), 200);
+        },
+
+        commit() {
+            const step = Math.round(this.offset);
+            this.offset = 0;
+            if (step !== 0) {
+                this.center = isoOf(addDays(this.center, step));
+                this.$wire.selectDay(this.center);
+            }
+        },
+
+        nudge(dir) {
+            this.offset += dir;
+            this.scheduleCommit();
+        },
+
+        tap(d) {
+            // Ignora el click sintético que el navegador dispara justo al soltar un arrastre.
+            if (Date.now() - this._gestureEndAt < 350) return;
+            if (d.i === this.focusIndex()) return;
+            this.offset = d.i;
+            this.scheduleCommit();
+        },
+
+        onWheel(e) {
+            const raw = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+            if (! raw) return;
+            e.preventDefault();
+            this.offset += raw / 90;
+            this.offset = Math.max(-this.RANGE, Math.min(this.RANGE, this.offset));
+            this.scheduleCommit();
+        },
+
+        onPointerDown(e) {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            clearTimeout(this._commitTimer);
+            this.dragging = true;
+            this._moved = false;
+            this._lastX = e.clientX;
+            try { this.$el.setPointerCapture(e.pointerId); } catch { /* pointer sin id */ }
+        },
+
+        onPointerMove(e) {
+            if (! this.dragging) return;
+            const dx = e.clientX - this._lastX;
+            this._lastX = e.clientX;
+            if (Math.abs(dx) > 0) this._moved = true;
+            // arrastrar a la izquierda (dx < 0) trae los días siguientes al foco
+            this.offset -= dx / this.STEP_DRAG;
+            this.offset = Math.max(-this.RANGE, Math.min(this.RANGE, this.offset));
+        },
+
+        onPointerUp(e) {
+            if (! this.dragging) return;
+            this.dragging = false;
+            try { this.$el.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+            if (this._moved) this._gestureEndAt = Date.now();
+            this._moved = false;
+            this.scheduleCommit();
+        },
+    }));
 });
 
 /*
