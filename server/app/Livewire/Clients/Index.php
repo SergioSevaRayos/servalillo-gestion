@@ -109,7 +109,7 @@ class Index extends Component
 
     public function render()
     {
-        $sortable = ['name', 'city', 'tax_id', 'typical_quantity', 'frequency_days', 'last_served_on', 'is_active'];
+        $sortable = ['name', 'city', 'phone', 'typical_quantity', 'frequency_days', 'last_served_on', 'is_active'];
 
         $clients = Client::query()
             ->search($this->search)

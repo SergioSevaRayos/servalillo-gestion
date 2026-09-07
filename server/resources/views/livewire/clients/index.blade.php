@@ -13,7 +13,7 @@
         <input
             type="search"
             wire:model.live.debounce.400ms="search"
-            placeholder="{{ __('Buscar por nombre, CIF, código, población, teléfono…') }}"
+            placeholder="{{ __('Buscar por nombre, teléfono, CIF, código, población…') }}"
             class="block w-full rounded-lg border-slate-300 shadow-soft-sm placeholder:text-slate-400 focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:max-w-xs lg:text-sm"
         />
         <select wire:model.live="status" class="rounded-lg border-slate-300 shadow-soft-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:text-sm">
@@ -44,7 +44,7 @@
         <thead>
             <tr>
                 <x-ui.sortable-th field="name" :sort="$sort" :direction="$direction">{{ __('Nombre') }}</x-ui.sortable-th>
-                <x-ui.sortable-th field="tax_id" :sort="$sort" :direction="$direction">{{ __('CIF') }}</x-ui.sortable-th>
+                <x-ui.sortable-th field="phone" :sort="$sort" :direction="$direction">{{ __('Teléfono') }}</x-ui.sortable-th>
                 <x-ui.sortable-th field="city" :sort="$sort" :direction="$direction">{{ __('Población') }}</x-ui.sortable-th>
                 <th>{{ __('Tipo') }}</th>
                 <x-ui.sortable-th field="typical_quantity" :sort="$sort" :direction="$direction" class="text-right">{{ __('Litros') }}</x-ui.sortable-th>
@@ -65,7 +65,16 @@
                             <x-ui.badge variant="warning" class="ml-1">{{ __('toca reparto') }}</x-ui.badge>
                         @endif
                     </td>
-                    <td data-label="{{ __('CIF') }}">{{ $client->tax_id ?? '—' }}</td>
+                    <td data-label="{{ __('Teléfono') }}" class="whitespace-nowrap">
+                        @if ($client->phone)
+                            <a href="tel:{{ $client->phone }}" class="text-primary-600 hover:underline dark:text-primary-400">{{ $client->phone }}</a>
+                            @if ($client->secondary_phone)
+                                <span class="block text-xs text-slate-400">{{ $client->secondary_phone }}</span>
+                            @endif
+                        @else
+                            —
+                        @endif
+                    </td>
                     <td data-label="{{ __('Población') }}">{{ $client->city ?? '—' }}</td>
                     <td data-label="{{ __('Tipo') }}">{{ $client->client_type?->label() ?? '—' }}</td>
                     <td data-label="{{ __('Litros') }}" class="text-right">{{ $client->typical_quantity !== null ? number_format($client->typical_quantity, 0, ',', '.').' L' : '—' }}</td>
