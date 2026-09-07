@@ -180,6 +180,10 @@ Backed enums con `->label()` en español; casteados en los modelos.
   verdad** el modelo flexible de repartos: al elegir un `delivery_type_id` se renderizan dinámicamente
   los campos de su `field_schema` y se validan con `DeliveryTypeSchemaValidator` antes de guardarlos en
   `route_stops.data`. Si tocas el editor de tipos de reparto en el futuro, prueba también este formulario.
+  - El modal `stop-form` es **ancho** (`<x-modal max-width="3xl">`) con rejilla `grid-cols-1
+    sm:grid-cols-2 lg:grid-cols-3` para no desperdiciar el ancho en escritorio; los campos van en un
+    contenedor con `max-h-[70vh] overflow-y-auto themed-scrollbar` (scroll interno solo si el schema es
+    muy largo, cabecera/pie fijos). `<x-modal>` acepta `sm|md|lg|xl|2xl|3xl|4xl`.
 - **Drag & drop = SortableJS** (`npm install sortablejs`, importado en `resources/js/app.js`,
   función `initKanbanColumns`), no el plugin `@alpinejs/sort` — se descartó por no poder verificar con
   certeza su API exacta de arrastre multi-columna sin acceso a la documentación en vivo; SortableJS es
