@@ -4,7 +4,8 @@
     $route = $this->route;
     $selected = Carbon::parse($this->date);
     $todayStr = today()->toDateString();
-    $dayLetters = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+    // Carbon dayOfWeek: 0 = domingo … 6 = sábado
+    $dayLetters = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 @endphp
 
 {{-- Web operativa del chofer: siempre .surface, nunca .glass (uso al aire libre, alto contraste). --}}
@@ -19,25 +20,25 @@
     </div>
     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $selected->isoFormat('dddd, D [de] MMMM') }}</p>
 
-    {{-- Selector de día, estilo teclas --}}
+    {{-- Selector de día, estilo teclas: 5 días con el elegido en el centro --}}
     <div class="mt-3 flex items-stretch gap-1.5">
-        <button type="button" wire:click="shiftWeek(-1)" aria-label="{{ __('Semana anterior') }}"
-            class="day-key w-8 shrink-0 justify-center text-slate-400">‹</button>
+        <button type="button" wire:click="shiftDay(-1)" aria-label="{{ __('Día anterior') }}"
+            class="day-key w-9 shrink-0 justify-center text-base text-slate-400">‹</button>
 
-        @foreach ($this->weekDays() as $i => $day)
+        @foreach ($this->pickerDays() as $day)
             @php $ds = $day->toDateString(); @endphp
             <button type="button" wire:click="selectDay('{{ $ds }}')" @class([
                 'day-key flex-1',
                 'day-key--selected' => $ds === $this->date,
                 'day-key--today' => $ds === $todayStr && $ds !== $this->date,
             ])>
-                <span class="text-[10px] font-semibold uppercase tracking-wide opacity-70">{{ $dayLetters[$i] }}</span>
+                <span class="text-[10px] font-semibold uppercase tracking-wide opacity-70">{{ $dayLetters[$day->dayOfWeek] }}</span>
                 <span class="text-sm font-bold tabular-nums">{{ $day->day }}</span>
             </button>
         @endforeach
 
-        <button type="button" wire:click="shiftWeek(1)" aria-label="{{ __('Semana siguiente') }}"
-            class="day-key w-8 shrink-0 justify-center text-slate-400">›</button>
+        <button type="button" wire:click="shiftDay(1)" aria-label="{{ __('Día siguiente') }}"
+            class="day-key w-9 shrink-0 justify-center text-base text-slate-400">›</button>
     </div>
 
     @if (! $route)

@@ -83,14 +83,14 @@ class Today extends Component
         return $this->isToday() || $this->route?->status === RouteStatus::InProgress;
     }
 
-    /** Los 7 días (lunes→domingo) de la semana del día seleccionado, para el selector. */
+    /** Ventana corta de días alrededor del seleccionado (siempre en el centro), para el selector. */
     #[Computed]
-    public function weekDays(): array
+    public function pickerDays(): array
     {
-        $monday = Carbon::parse($this->date)->startOfWeek(Carbon::MONDAY);
+        $center = Carbon::parse($this->date)->startOfDay();
 
-        return collect(range(0, 6))
-            ->map(fn (int $i) => $monday->copy()->addDays($i))
+        return collect(range(-2, 2))
+            ->map(fn (int $i) => $center->copy()->addDays($i))
             ->all();
     }
 
@@ -100,9 +100,9 @@ class Today extends Component
         unset($this->route);
     }
 
-    public function shiftWeek(int $weeks): void
+    public function shiftDay(int $days): void
     {
-        $this->date = Carbon::parse($this->date)->addWeeks($weeks)->toDateString();
+        $this->date = Carbon::parse($this->date)->addDays($days)->toDateString();
         unset($this->route);
     }
 

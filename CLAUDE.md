@@ -140,6 +140,9 @@ Backed enums con `->label()` en español; casteados en los modelos.
     `withUnencryptedCookies(['theme' => 'dark'])`, si no el test recibe `null` y da un falso negativo.
 - Menú móvil = `<x-ui.drop-menu>`: gota → 3 gotas con rebote (`ease-[cubic-bezier(0.34,1.56,0.64,1)]`,
   solo `opacity`/`transform`). Referenciado desde `livewire/layout/navigation.blade.php`.
+  - **El botón y el panel son sólidos, NO `.glass`**, y la barra `<nav>` sticky pierde el blur por
+    debajo de `md` (`max-md:backdrop-blur-none max-md:bg-white/95 …`): un `backdrop-filter` en un
+    elemento `sticky`/`fixed` se repinta en cada frame de scroll en móvil y "vibra".
 - `/style-guide` (rol administrador/mantenimiento) muestra todos los componentes — punto de referencia
   visual antes de tocar nada del sistema de diseño.
 - `lang/es/{auth,passwords,validation,pagination}.php`: la app no traía ningún lang propio; sin esto los
@@ -305,10 +308,10 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - **`/chofer/ruta` (`chofer.today`) es `App\Livewire\Chofer\Today`** (ya no un placeholder). Muestra
   **la ruta del chofer para un día** (`routes` donde `driver_id` = su `driver->id` y `route_date` =
   `#[Url] $date`, def. hoy) como una columna de paradas. Mobile-first, `.surface`, **nunca `.glass`**.
-- **Selector de día** estilo teclas (`.day-key` en `app.css`): fila lunes→domingo de la semana del
-  día elegido + flechas `shiftWeek(±1)`; `selectDay()` cambia el día, `goToday()` vuelve a hoy. La
-  tecla seleccionada se ve "pulsada". **OJO:** `selectDay` y `goToday` — los nombres de método en PHP
-  son *case-insensitive*, `goToDay`/`goToday` colisionan.
+- **Selector de día** estilo teclas (`.day-key` en `app.css`): **5 días** con el elegido en el centro
+  (`pickerDays()` = `selected ± 2`) + flechas `shiftDay(±1)`; `selectDay()` cambia el día, `goToday()`
+  vuelve a hoy. La tecla seleccionada se ve "pulsada". **OJO:** `selectDay`/`goToday` — los nombres de
+  método en PHP son *case-insensitive*, `goToDay`/`goToday` colisionan.
 - **Solo se puede operar** (empezar/terminar jornada, cerrar paradas) la ruta de **hoy** o una que
   quedó `InProgress` (cerrar la de anoche). `#[Computed] operable()` lo decide; `authorizeRoute()` y
   las tarjetas `disabled` lo aplican. Otros días = solo lectura.

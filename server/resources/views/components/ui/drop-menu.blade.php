@@ -28,19 +28,20 @@
             x-transition:leave="ease-in duration-150"
             x-transition:leave-start="opacity-100 scale-100"
             x-transition:leave-end="opacity-0 scale-90 translate-y-2"
-            class="glass w-60 origin-bottom-right rounded-2xl p-2"
+            class="w-60 origin-bottom-right rounded-2xl border border-slate-200 bg-white p-2 shadow-soft-lg dark:border-slate-700 dark:bg-slate-800"
         >
             <nav class="flex flex-col gap-0.5" @click="open = false">
                 {{ $slot }}
             </nav>
         </div>
 
+        {{-- Botón sólido (sin blur): un backdrop-filter fijo "vibra" al hacer scroll en móvil. --}}
         <button
             type="button"
             @click="open = !open"
             :aria-expanded="open.toString()"
             aria-label="{{ __('Abrir menú') }}"
-            class="glass relative grid h-14 w-14 shrink-0 place-items-center rounded-full text-primary-600 transition-transform active:scale-95 dark:text-primary-300"
+            class="relative grid h-14 w-14 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-primary-600 shadow-soft-lg transition-transform active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-primary-300"
         >
             {{-- gota única (reposo) --}}
             <svg
