@@ -102,17 +102,17 @@
         @endif
     </div>
 
-    <x-modal name="stop-form" max-width="lg">
+    <x-modal name="stop-form" max-width="3xl">
         <form wire:submit="saveStop" class="p-6">
             <h3 class="text-lg font-medium text-slate-900 dark:text-white">
                 {{ $this->form->editing ? __('Editar parada') : __('Nueva parada') }}
             </h3>
 
-            <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div class="sm:col-span-2">
+            <div class="mt-6 grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto px-1 -mx-1 themed-scrollbar sm:grid-cols-2 lg:grid-cols-3">
+                <div class="sm:col-span-2 lg:col-span-3">
                     <x-ui.input name="customer_name" label="{{ __('Cliente') }}" wire:model="form.customer_name" />
                 </div>
-                <div class="sm:col-span-2">
+                <div class="sm:col-span-2 lg:col-span-3">
                     <x-ui.input name="address" label="{{ __('Dirección') }}" wire:model="form.address" />
                 </div>
                 <x-ui.input name="contact_name" label="{{ __('Contacto') }}" wire:model="form.contact_name" />
@@ -126,7 +126,7 @@
 
                 <x-ui.input name="planned_quantity" label="{{ __('Cantidad prevista') }}" type="number" step="0.01" wire:model="form.planned_quantity" />
 
-                <div class="sm:col-span-2">
+                <div class="sm:col-span-2 lg:col-span-3">
                     <x-ui.select name="delivery_type_id" label="{{ __('Tipo de reparto') }}" wire:model.live="form.delivery_type_id" placeholder="{{ __('Sin tipo específico') }}">
                         @foreach ($this->deliveryTypes as $type)
                             <option value="{{ $type->id }}">{{ $type->name }}</option>
@@ -136,7 +136,7 @@
 
                 @if ($this->selectedDeliveryType)
                     @foreach ($this->selectedDeliveryType->fields() as $field)
-                        <div>
+                        <div @class(['sm:col-span-2 lg:col-span-3' => $field['type'] === 'textarea'])>
                             @switch($field['type'])
                                 @case('boolean')
                                     <div class="flex h-full items-end pb-2">
