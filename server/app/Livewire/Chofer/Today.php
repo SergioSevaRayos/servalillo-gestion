@@ -5,6 +5,7 @@ namespace App\Livewire\Chofer;
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Livewire\Forms\StopActionForm;
+use App\Models\Client;
 use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
@@ -40,6 +41,9 @@ class Today extends Component
 
     /** Motivo del ajuste si el contador no cuadra con lo repartido. */
     public ?string $meterNote = null;
+
+    /** Búsqueda de cliente para añadirlo a la ruta (llamada de un cliente sobre la marcha). */
+    public string $clientSearch = '';
 
     public function mount(): void
     {
@@ -176,6 +180,58 @@ class Today extends Component
         unset($this->route);
         $this->dispatch('close-modal', 'stop-action');
         $this->dispatch('toast', message: 'Parada reabierta.', variant: 'success');
+    }
+
+    /** Abre el buscador para añadir un cliente que ha llamado como una parada más. */
+    public function openAddStop(): void
+    {
+        $this->authorizeRoute();
+        $this->clientSearch = '';
+        $this->dispatch('open-modal', 'add-stop');
+    }
+
+    /** Clientes activos que coinciden con la búsqueda (mín. 2 caracteres). */
+    #[Computed]
+    public function clientMatches()
+    {
+        $term = trim($this->clientSearch);
+
+        if (mb_strlen($term) < 2) {
+            return collect();
+        }
+
+        return Client::query()->active()->search($term)->orderBy('name')->limit(8)->get();
+    }
+
+    /** Añade el cliente elegido al final de la ruta como parada pendiente. */
+    public function addClientStop(Client $client): void
+    {
+        $this->authorizeRoute();
+        abort_if($this->finished, 403, 'La jornada ya está cerrada.');
+
+        $route = $this->route;
+
+        RouteStop::create([
+            'route_id' => $route->id,
+            'position' => ($route->stops()->max('position') ?? 0) + 1,
+            'service_kind' => $client->service_kind->value,
+            'customer_name' => $client->name,
+            'customer_tax_id' => $client->tax_id,
+            'address' => $client->address,
+            'latitude' => $client->latitude,
+            'longitude' => $client->longitude,
+            'contact_name' => $client->contact_name,
+            'contact_phone' => $client->phone,
+            'delivery_type_id' => $client->default_delivery_type_id,
+            'status' => RouteStopStatus::Pending,
+            'planned_quantity' => $client->typical_quantity,
+            'data' => [],
+        ]);
+
+        $this->clientSearch = '';
+        unset($this->route);
+        $this->dispatch('close-modal', 'add-stop');
+        $this->dispatch('toast', message: "{$client->name} añadido a la ruta.", variant: 'success');
     }
 
     public function openStartDay(): void

@@ -360,6 +360,12 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - Autorización: `RoutePolicy::operate` y `RouteStopPolicy::complete` (permiso + `owns()`), ya existían.
 - `<x-chofer.stop-card>` es la tarjeta táctil del chofer (grande, sin drag), distinta de
   `<x-routes.stop-card>` (Kanban del admin).
+- **Añadir cliente sobre la marcha** (un cliente llama al chofer): botón "Añadir cliente (ha llamado)"
+  **al final de la lista de paradas** (visible si `operable() && ! finished`) → modal `add-stop` con
+  buscador (`clientMatches`, `Client::scopeSearch`, mín. 2 caracteres) → `addClientStop(Client)` crea
+  una `RouteStop` `Pending` al final de la ruta con los datos del cliente (mismo copiado que
+  `Clients\Show::planDelivery`, incl. `service_kind`). Autorización: `authorizeRoute()` (= `RoutePolicy::
+  operate` + `operable()`); no hace falta permiso nuevo, el chofer ya tiene `routes.view.own`.
 - **Contador de litros / cuadre:** es un contador de litros *dispensados* (como el cuentakilómetros,
   pero de litros), **independiente de la cisterna** (el camión puede rellenar o no durante el día).
   `trucks.liter_meter` guarda la última lectura conocida; `routes.liter_meter_start` /

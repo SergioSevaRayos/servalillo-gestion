@@ -150,7 +150,7 @@ class DatabaseSeeder extends Seeder
         $this->seedClients([$gasoleo, $agua]);
 
         // --- Viajes de ejemplo (para el filtro del tablero) ---------------
-        $this->seedTrips($today, $admin);
+        $this->seedTrips($drivers, $today, $admin);
 
         $this->command->info('Seed completo. Usuarios: admin@ / soporte@ / pedro@ ... contraseña "password".');
     }
@@ -517,15 +517,21 @@ class DatabaseSeeder extends Seeder
         Client::factory()->count(12)->create();
     }
 
-    /** Una ruta de "viaje" para hoy + backlog, para que el filtro Reparto/Viajes del tablero tenga contenido. */
-    private function seedTrips(Carbon $today, User $creator): void
+    /**
+     * Una ruta de "viaje" para hoy + backlog, para que el filtro Reparto/Viajes del tablero tenga contenido.
+     *
+     * @param  array<int, Driver>  $drivers
+     */
+    private function seedTrips(array $drivers, Carbon $today, User $creator): void
     {
         if (Route::where('service_kind', ServiceKind::Viaje->value)->exists()) {
             return;
         }
 
         $truck = Truck::where('code', 'C-04')->first();
-        $driver = Driver::query()->inRandomOrder()->first();
+        // Un chofer que no tenga ya una ruta hoy (el chofer web muestra una sola ruta por día).
+        $busy = Route::whereDate('route_date', $today->toDateString())->pluck('driver_id')->all();
+        $driver = collect($drivers)->first(fn (Driver $d) => ! in_array($d->id, $busy, true)) ?? collect($drivers)->last();
         $clients = Client::where('service_kind', ServiceKind::Viaje->value)->take(6)->get();
 
         if (! $truck || ! $driver || $clients->isEmpty()) {

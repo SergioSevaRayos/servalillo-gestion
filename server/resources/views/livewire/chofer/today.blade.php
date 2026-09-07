@@ -156,6 +156,15 @@
                 <x-ui.card><x-ui.empty-state title="{{ __('Esta ruta no tiene paradas') }}" /></x-ui.card>
             @endforelse
         </div>
+
+        {{-- Añadir un cliente que ha llamado como parada nueva (al final de la ruta) --}}
+        @if ($this->operable() && ! $this->finished)
+            <button type="button" wire:click="openAddStop"
+                class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 py-3 text-sm font-medium text-slate-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-primary-500 dark:hover:text-primary-300">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                {{ __('Añadir cliente (ha llamado)') }}
+            </button>
+        @endif
     @endif
 
     {{-- Modal: empezar jornada --}}
@@ -218,6 +227,43 @@
                 <x-ui.button type="submit">{{ __('Terminar') }}</x-ui.button>
             </div>
         </form>
+    </x-modal>
+
+    {{-- Modal: añadir un cliente a la ruta (llamada sobre la marcha) --}}
+    <x-modal name="add-stop" max-width="lg">
+        <div class="p-6">
+            <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ __('Añadir cliente a la ruta') }}</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ __('Busca el cliente que ha llamado; se añade como una parada más al final.') }}</p>
+
+            <input type="search" wire:model.live.debounce.300ms="clientSearch"
+                placeholder="{{ __('Nombre, CIF, teléfono o población…') }}"
+                class="mt-4 block w-full rounded-lg border-slate-300 shadow-soft-sm placeholder:text-slate-400 focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
+
+            <div class="mt-3 max-h-72 space-y-1.5 overflow-y-auto themed-scrollbar">
+                @forelse ($this->clientMatches as $c)
+                    <button type="button" wire:click="addClientStop({{ $c->id }})" wire:key="cm-{{ $c->id }}"
+                        class="flex w-full flex-col rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-primary-400 hover:bg-primary-50/60 dark:border-slate-700 dark:hover:border-primary-500 dark:hover:bg-primary-500/10">
+                        <span class="font-medium text-slate-800 dark:text-slate-100">
+                            {{ $c->name }}
+                            @if ($c->service_kind === \App\Enums\ServiceKind::Viaje)
+                                <x-ui.badge variant="primary" class="ml-1">{{ __('Viaje') }}</x-ui.badge>
+                            @endif
+                        </span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400">
+                            {{ collect([$c->city, $c->tax_id, $c->phone])->filter()->join(' · ') ?: '—' }}
+                        </span>
+                    </button>
+                @empty
+                    <p class="py-8 text-center text-sm text-slate-400">
+                        {{ mb_strlen(trim($clientSearch)) < 2 ? __('Escribe al menos 2 caracteres.') : __('Ningún cliente coincide.') }}
+                    </p>
+                @endforelse
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cerrar') }}</x-ui.button>
+            </div>
+        </div>
     </x-modal>
 
     {{-- Modal: acción sobre una parada --}}

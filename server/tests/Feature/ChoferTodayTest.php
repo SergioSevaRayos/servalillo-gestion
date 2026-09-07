@@ -4,6 +4,7 @@ use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Jobs\ProcessDeliveryNote;
 use App\Livewire\Chofer\Today;
+use App\Models\Client;
 use App\Models\DeliveryType;
 use App\Models\Driver;
 use App\Models\Route;
@@ -113,6 +114,49 @@ it('empezar jornada registra la lectura del contador de litros y pone la ruta En
     expect($route->status)->toBe(RouteStatus::InProgress)
         ->and($route->started_at)->not->toBeNull()
         ->and($route->liter_meter_start)->toBe(500120);
+});
+
+it('el chofer busca un cliente que ha llamado y lo añade a su ruta', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress], stops: 2);
+    $client = Client::factory()->create([
+        'name' => 'Bar Manolo', 'city' => 'Tegueste', 'typical_quantity' => 400,
+    ]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openAddStop')
+        ->set('clientSearch', 'Manolo')
+        ->assertSee('Bar Manolo')
+        ->assertSee('Tegueste')
+        ->call('addClientStop', $client->id)
+        ->assertDispatched('toast');
+
+    $stop = RouteStop::where('route_id', $route->id)->where('customer_name', 'Bar Manolo')->first();
+    expect($stop)->not->toBeNull()
+        ->and($stop->position)->toBe(3) // al final, tras las 2 que ya había
+        ->and((float) $stop->planned_quantity)->toBe(400.0)
+        ->and($stop->status)->toBe(RouteStopStatus::Pending);
+});
+
+it('el buscador de cliente no muestra nada con menos de 2 caracteres', function () {
+    [$user] = chofer(['status' => RouteStatus::InProgress]);
+    Client::factory()->create(['name' => 'Cliente Buscable']);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openAddStop')
+        ->set('clientSearch', 'C')
+        ->assertDontSee('Cliente Buscable')
+        ->set('clientSearch', 'Cliente')
+        ->assertSee('Cliente Buscable');
+});
+
+it('un chofer sin ruta hoy no puede añadir clientes', function () {
+    $user = makeUser('chofer');
+    Driver::factory()->create(['user_id' => $user->id]);
+    $client = Client::factory()->create();
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('addClientStop', $client->id)
+        ->assertStatus(404);
 });
 
 it('empezar jornada exige la lectura del contador de litros', function () {
