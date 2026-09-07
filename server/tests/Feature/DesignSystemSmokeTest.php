@@ -43,7 +43,7 @@ test('la web del chofer no usa cristal en el contenido operativo', function () {
     $response = $this->actingAs($user)->get('/chofer/ruta');
 
     $response->assertOk();
-    $response->assertSee('Mi ruta de hoy');
+    $response->assertSee('Mi ruta');
     // El contenido operativo del chofer va sobre .surface, nunca .glass.
     $response->assertSee('surface', escape: false);
 });

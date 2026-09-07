@@ -62,6 +62,46 @@ it('un chofer sin ruta hoy ve el estado vacío', function () {
         ->assertSee('No tienes ninguna ruta asignada para hoy');
 });
 
+it('el chofer navega a otros días y ve la ruta de ese día', function () {
+    [$user, $driver] = chofer();
+    $ayer = today()->subDay();
+    $rutaAyer = Route::factory()->status(RouteStatus::Completed)->create([
+        'driver_id' => $driver->id, 'route_date' => $ayer, 'name' => 'Ruta de ayer',
+    ]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->assertSet('date', today()->toDateString())
+        ->call('selectDay', $ayer->toDateString())
+        ->assertSet('date', $ayer->toDateString())
+        ->assertSee('Ruta de ayer')
+        ->assertSee('Ir a hoy')
+        ->call('goToday')
+        ->assertSet('date', today()->toDateString());
+});
+
+it('acepta el día por la URL y salta a hoy si es inválido', function () {
+    [$user] = chofer();
+
+    Livewire::actingAs($user)->withUrlParams(['date' => '2026-01-15'])
+        ->test(Today::class)->assertSet('date', '2026-01-15');
+
+    Livewire::actingAs($user)->withUrlParams(['date' => 'no-es-fecha'])
+        ->test(Today::class)->assertSet('date', today()->toDateString());
+});
+
+it('no deja empezar una jornada de un día que no es hoy', function () {
+    [$user, $driver] = chofer();
+    $manana = today()->addDay();
+    Route::factory()->status(RouteStatus::Published)->create(['driver_id' => $driver->id, 'route_date' => $manana]);
+
+    $c = Livewire::actingAs($user)->test(Today::class)
+        ->call('selectDay', $manana->toDateString())
+        ->assertDontSee('wire:click="openStartDay"', escape: false)  // el botón no se pinta
+        ->assertSee('Ruta planificada');
+
+    $c->call('startDay')->assertForbidden();
+});
+
 it('empezar jornada registra cuentakilómetros y contador de litros, y pone la ruta En curso', function () {
     [$user, $driver, $route, $truck] = chofer();
 

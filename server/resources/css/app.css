@@ -168,4 +168,28 @@
     .digit-wheel__item {
         @apply flex h-11 shrink-0 snap-center items-center justify-center text-2xl font-semibold tabular-nums text-slate-800 dark:text-slate-100;
     }
+
+    /*
+    | Selector de día del chofer (Bloque 7): fila de "teclas". La seleccionada se ve "pulsada"
+    | (baja 2px y pierde la sombra inferior). Solo transiciona transform/box-shadow.
+    */
+    .day-key {
+        @apply flex min-w-0 flex-col items-center rounded-lg border border-slate-200 bg-white px-1 py-1.5 text-slate-600 transition-[transform,box-shadow] duration-100;
+        @apply dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300;
+        box-shadow: 0 2px 0 theme('colors.slate.200');
+    }
+    .dark .day-key {
+        box-shadow: 0 2px 0 theme('colors.slate.900');
+    }
+    .day-key:active {
+        @apply translate-y-0.5;
+        box-shadow: none;
+    }
+    .day-key--today {
+        @apply border-primary-300 text-primary-700 dark:border-primary-500/50 dark:text-primary-300;
+    }
+    .day-key--selected {
+        @apply translate-y-0.5 border-primary-500 bg-primary-50 font-semibold text-primary-800 dark:bg-primary-500/15 dark:text-primary-200;
+        box-shadow: none;
+    }
 }

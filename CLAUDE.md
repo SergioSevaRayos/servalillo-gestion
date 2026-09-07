@@ -303,8 +303,15 @@ Backed enums con `->label()` en español; casteados en los modelos.
 
 ### Web operativa del Chofer (Bloque 7)
 - **`/chofer/ruta` (`chofer.today`) es `App\Livewire\Chofer\Today`** (ya no un placeholder). Muestra
-  **la ruta de hoy del chofer** (`routes` donde `driver_id` = su `driver->id` y `route_date` = hoy)
-  como una sola columna de paradas. Mobile-first, siempre `.surface`, **nunca `.glass`**.
+  **la ruta del chofer para un día** (`routes` donde `driver_id` = su `driver->id` y `route_date` =
+  `#[Url] $date`, def. hoy) como una columna de paradas. Mobile-first, `.surface`, **nunca `.glass`**.
+- **Selector de día** estilo teclas (`.day-key` en `app.css`): fila lunes→domingo de la semana del
+  día elegido + flechas `shiftWeek(±1)`; `selectDay()` cambia el día, `goToday()` vuelve a hoy. La
+  tecla seleccionada se ve "pulsada". **OJO:** `selectDay` y `goToday` — los nombres de método en PHP
+  son *case-insensitive*, `goToDay`/`goToday` colisionan.
+- **Solo se puede operar** (empezar/terminar jornada, cerrar paradas) la ruta de **hoy** o una que
+  quedó `InProgress` (cerrar la de anoche). `#[Computed] operable()` lo decide; `authorizeRoute()` y
+  las tarjetas `disabled` lo aplican. Otros días = solo lectura.
 - **Ciclo de jornada** (lo controla el chofer, no el admin):
   - "Empezar jornada" → modal con lectura de odómetro de inicio → `OdometerService::recordStart()` +
     ruta pasa a `InProgress` (`started_at`). Las paradas no se pueden operar hasta empezar

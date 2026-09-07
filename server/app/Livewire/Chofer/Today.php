@@ -11,19 +11,28 @@ use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
 use App\Services\OdometerService;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
- * Web operativa del chofer: su ruta de hoy en una sola columna de paradas.
- * Alto contraste, mobile-first, sin glassmorphism (uso al aire libre).
+ * Web operativa del chofer: la ruta de un día concreto (por defecto hoy) en una columna
+ * de paradas, con selector de día. Alto contraste, mobile-first, sin glassmorphism.
+ *
+ * Solo se puede *operar* (empezar/terminar jornada, cerrar paradas) la ruta de hoy o una
+ * que quedó `InProgress` (p. ej. cerrar la de anoche). Los otros días son solo lectura.
  */
 #[Layout('layouts.app')]
 class Today extends Component
 {
     public StopActionForm $form;
+
+    /** Día que se está viendo (YYYY-MM-DD). */
+    #[Url]
+    public string $date = '';
 
     /** Lectura de odómetro que se está introduciendo (inicio/fin de jornada). */
     public ?int $odometer = null;
@@ -40,6 +49,8 @@ class Today extends Component
     public function mount(): void
     {
         abort_unless(auth()->user()?->can('routes.view.own'), 403);
+
+        $this->date = $this->normalizeDate($this->date);
     }
 
     #[Computed]
@@ -54,9 +65,60 @@ class Today extends Component
         return Route::query()
             ->with(['truck', 'stops.deliveryType', 'odometerReadings'])
             ->where('driver_id', $driver->id)
-            ->whereDate('route_date', today())
+            ->whereDate('route_date', $this->date)
             ->orderByDesc('id')
             ->first();
+    }
+
+    #[Computed]
+    public function isToday(): bool
+    {
+        return $this->date === today()->toDateString();
+    }
+
+    /** ¿Se puede operar la ruta que se está viendo? (hoy, o una que quedó a medias). */
+    #[Computed]
+    public function operable(): bool
+    {
+        return $this->isToday() || $this->route?->status === RouteStatus::InProgress;
+    }
+
+    /** Los 7 días (lunes→domingo) de la semana del día seleccionado, para el selector. */
+    #[Computed]
+    public function weekDays(): array
+    {
+        $monday = Carbon::parse($this->date)->startOfWeek(Carbon::MONDAY);
+
+        return collect(range(0, 6))
+            ->map(fn (int $i) => $monday->copy()->addDays($i))
+            ->all();
+    }
+
+    public function selectDay(string $date): void
+    {
+        $this->date = $this->normalizeDate($date);
+        unset($this->route);
+    }
+
+    public function shiftWeek(int $weeks): void
+    {
+        $this->date = Carbon::parse($this->date)->addWeeks($weeks)->toDateString();
+        unset($this->route);
+    }
+
+    public function goToday(): void
+    {
+        $this->date = today()->toDateString();
+        unset($this->route);
+    }
+
+    private function normalizeDate(?string $date): string
+    {
+        try {
+            return $date ? Carbon::parse($date)->toDateString() : today()->toDateString();
+        } catch (\Throwable) {
+            return today()->toDateString();
+        }
     }
 
     #[Computed]
@@ -239,10 +301,13 @@ class Today extends Component
     {
         abort_unless($this->route !== null, 404);
         $this->authorize('operate', $this->route);
+        abort_unless($this->operable(), 403, 'Solo puedes operar tu ruta activa.');
     }
 
     private function guardStarted(): void
     {
+        $this->authorizeRoute();
+
         if (! $this->started || $this->finished) {
             abort(403, 'La jornada no está en curso.');
         }

@@ -1,17 +1,49 @@
 @php
     use App\Enums\RouteStopStatus;
+    use Illuminate\Support\Carbon;
     $route = $this->route;
+    $selected = Carbon::parse($this->date);
+    $todayStr = today()->toDateString();
+    $dayLetters = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 @endphp
 
 {{-- Web operativa del chofer: siempre .surface, nunca .glass (uso al aire libre, alto contraste). --}}
 <div class="mx-auto max-w-2xl">
-    <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ __('Mi ruta de hoy') }}</h1>
-    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ now()->isoFormat('dddd, D [de] MMMM') }}</p>
+    <div class="flex items-baseline justify-between gap-3">
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ __('Mi ruta') }}</h1>
+        @unless ($this->isToday())
+            <button type="button" wire:click="goToday" class="text-sm font-medium text-primary-600 hover:text-primary-800 dark:text-primary-400">
+                {{ __('Ir a hoy') }}
+            </button>
+        @endunless
+    </div>
+    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $selected->isoFormat('dddd, D [de] MMMM') }}</p>
+
+    {{-- Selector de día, estilo teclas --}}
+    <div class="mt-3 flex items-stretch gap-1.5">
+        <button type="button" wire:click="shiftWeek(-1)" aria-label="{{ __('Semana anterior') }}"
+            class="day-key w-8 shrink-0 justify-center text-slate-400">‹</button>
+
+        @foreach ($this->weekDays() as $i => $day)
+            @php $ds = $day->toDateString(); @endphp
+            <button type="button" wire:click="selectDay('{{ $ds }}')" @class([
+                'day-key flex-1',
+                'day-key--selected' => $ds === $this->date,
+                'day-key--today' => $ds === $todayStr && $ds !== $this->date,
+            ])>
+                <span class="text-[10px] font-semibold uppercase tracking-wide opacity-70">{{ $dayLetters[$i] }}</span>
+                <span class="text-sm font-bold tabular-nums">{{ $day->day }}</span>
+            </button>
+        @endforeach
+
+        <button type="button" wire:click="shiftWeek(1)" aria-label="{{ __('Semana siguiente') }}"
+            class="day-key w-8 shrink-0 justify-center text-slate-400">›</button>
+    </div>
 
     @if (! $route)
         <x-ui.card class="mt-6">
             <x-ui.empty-state
-                title="{{ __('No tienes ninguna ruta asignada para hoy') }}"
+                title="{{ $this->isToday() ? __('No tienes ninguna ruta asignada para hoy') : __('No hay ruta para este día') }}"
                 description="{{ __('Cuando el equipo de oficina te asigne una ruta, aparecerá aquí.') }}"
             />
         </x-ui.card>
@@ -47,7 +79,7 @@
                 <div class="mt-4 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
                     <div class="flex items-center justify-between text-sm">
                         <span class="font-medium text-slate-700 dark:text-slate-200">{{ __('Contador de litros') }}</span>
-                        <span class="text-slate-500 dark:text-slate-400">{{ __('repartido hoy: :n L', ['n' => number_format($mt['delivered'], 0, ',', '.')]) }}</span>
+                        <span class="text-slate-500 dark:text-slate-400">{{ __('repartido: :n L', ['n' => number_format($mt['delivered'], 0, ',', '.')]) }}</span>
                     </div>
                     <div class="mt-2 flex items-end justify-between">
                         <div>
@@ -71,10 +103,16 @@
             {{-- Control de jornada --}}
             <div class="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
                 @if (! $this->started)
-                    <x-ui.button class="w-full justify-center" size="lg" wire:click="openStartDay">
-                        {{ __('Empezar jornada') }}
-                    </x-ui.button>
-                    <p class="mt-2 text-center text-xs text-slate-400">{{ __('Anota las lecturas del camión para poder operar las paradas.') }}</p>
+                    @if ($this->isToday())
+                        <x-ui.button class="w-full justify-center" size="lg" wire:click="openStartDay">
+                            {{ __('Empezar jornada') }}
+                        </x-ui.button>
+                        <p class="mt-2 text-center text-xs text-slate-400">{{ __('Anota las lecturas del camión para poder operar las paradas.') }}</p>
+                    @else
+                        <p class="text-center text-sm text-slate-500 dark:text-slate-400">
+                            {{ $selected->isFuture() ? __('Ruta planificada. Podrás empezarla ese día.') : __('Esta jornada no llegó a iniciarse.') }}
+                        </p>
+                    @endif
                 @elseif (! $this->finished)
                     <x-ui.button variant="secondary" class="w-full justify-center" size="lg" wire:click="openEndDay">
                         {{ __('Terminar jornada') }}
@@ -107,7 +145,7 @@
                 <x-chofer.stop-card
                     :stop="$stop"
                     :index="$loop->iteration"
-                    :disabled="! $this->started || $this->finished"
+                    :disabled="! $this->operable() || ! $this->started || $this->finished"
                 />
             @empty
                 <x-ui.card><x-ui.empty-state title="{{ __('Esta ruta no tiene paradas') }}" /></x-ui.card>
