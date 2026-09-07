@@ -474,6 +474,13 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `Client::quantityLabel()` → "3 m³ (3.000 L)". Campos de suministro nuevos: `water_type` (enum
   `WaterType` corriente/potable), `tank_distance_m` (metros), en la sección "Datos del suministro"
   del form y de la ficha, visible para prospectos y clientes.
+- **Precio: tarifa fija o por litro**. `clients.price_per_liter` → **renombrado a `clients.price`**
+  (migración `2026_09_07_140000_...`, `renameColumn`) + `clients.price_type` (enum `PriceType`:
+  `fixed`|`per_liter`; los que ya tenían precio → `per_liter`). `save()` pone `price_type = null`
+  si `price` es null. Ficha: `Client::priceLabel()` → "45,00 € (Tarifa fija)" / "0,9500 €/L".
+- El **tipo de servicio** (`service_kind` Reparto/Viaje) ahora es visible **también en el alta de
+  pre-cliente** (una llamada puede ser de un viaje). El `default_delivery_type_id` se relabeló
+  "Tipo de reparto" → **"Producto habitual"** para no chocar con "Tipo de servicio".
 - **Gotcha del componente `x-ui.select` con `placeholder`**: la `<option value="" disabled selected>`
   no se honra visualmente — el `<select>` MUESTRA la primera opción real aunque el modelo Livewire
   siga en `null` (se guarda `null`, solo el display engaña). Es pre-existente (afecta a

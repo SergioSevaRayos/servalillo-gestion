@@ -119,7 +119,7 @@ it('empezar jornada registra la lectura del contador de litros y pone la ruta En
 it('el chofer busca un cliente que ha llamado y lo añade a su ruta', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress], stops: 2);
     $client = Client::factory()->create([
-        'name' => 'Bar Manolo', 'city' => 'Tegueste', 'typical_quantity' => 400,
+        'name' => 'Bar Manolo', 'city' => 'Tegueste', 'typical_quantity' => 400, 'is_active' => true,
     ]);
 
     Livewire::actingAs($user)->test(Today::class)
@@ -139,7 +139,7 @@ it('el chofer busca un cliente que ha llamado y lo añade a su ruta', function (
 
 it('el buscador de cliente no muestra nada con menos de 2 caracteres', function () {
     [$user] = chofer(['status' => RouteStatus::InProgress]);
-    Client::factory()->create(['name' => 'Cliente Buscable']);
+    Client::factory()->create(['name' => 'Cliente Buscable', 'is_active' => true]);
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('openAddStop')
@@ -161,7 +161,7 @@ it('un chofer sin ruta hoy no puede añadir clientes', function () {
 
 it('la búsqueda para añadir cliente no incluye pre-clientes', function () {
     [$user] = chofer(['status' => RouteStatus::InProgress]);
-    Client::factory()->create(['name' => 'Aguas Reales SL']);
+    Client::factory()->create(['name' => 'Aguas Reales SL', 'is_active' => true]);
     Client::factory()->prospect()->create(['name' => 'Aguas Fantasma SL']);
 
     Livewire::actingAs($user)->test(Today::class)

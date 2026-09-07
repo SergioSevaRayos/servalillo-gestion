@@ -136,7 +136,7 @@
                 @endif
             </h3>
 
-            <div class="mt-4 max-h-[72vh] overflow-y-auto px-1 -mx-1 themed-scrollbar">
+            <div class="mt-4 max-h-[72vh] overflow-y-auto px-1 -mx-1 pb-2 themed-scrollbar">
                 <x-clients.form-fields
                     :delivery-types="$this->deliveryTypes"
                     :types="$types"

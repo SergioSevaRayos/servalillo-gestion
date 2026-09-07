@@ -38,7 +38,7 @@ class ClientImporter
         'capacidad' => 'tank_capacity_liters', 'deposito' => 'tank_capacity_liters', 'capacidad deposito' => 'tank_capacity_liters',
         'bomba' => 'requires_own_pump', 'bomba propia' => 'requires_own_pump',
         'canal' => 'preferred_channel', 'canal albaran' => 'preferred_channel',
-        'precio' => 'price_per_liter', 'precio litro' => 'price_per_liter',
+        'precio' => 'price', 'precio litro' => 'price', 'precio por litro' => 'price', 'tarifa' => 'price',
         'forma de pago' => 'payment_terms', 'pago' => 'payment_terms',
         'tipo de reparto' => 'delivery_type', 'producto' => 'delivery_type',
         'ultimo reparto' => 'last_served_on', 'ultima fecha' => 'last_served_on', 'ultimo servicio' => 'last_served_on',
@@ -128,7 +128,7 @@ class ClientImporter
                 'is_active' => $this->parseBool($value),
                 'preferred_channel' => Str::contains($this->normalize($value), 'fisic') ? 'physical' : 'email',
                 'last_served_on' => rescue(fn () => Carbon::parse($value)->toDateString(), null, false),
-                'latitude', 'longitude', 'typical_quantity', 'price_per_liter' => $this->parseNumber($value),
+                'latitude', 'longitude', 'typical_quantity', 'price' => $this->parseNumber($value),
                 'tank_capacity_liters' => (int) $this->parseNumber($value),
                 'delivery_type' => null, // se resuelve abajo
                 default => $value,

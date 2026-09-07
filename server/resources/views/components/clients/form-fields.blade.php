@@ -22,6 +22,11 @@
             <x-ui.input name="name" label="{{ __('Nombre / razón social') }}" wire:model="form.name" />
             @if ($prospect)
                 <x-ui.input name="phone" label="{{ __('Teléfono') }}" wire:model="form.phone" />
+                <x-ui.select name="service_kind" label="{{ __('Tipo de servicio') }}" wire:model="form.service_kind">
+                    @foreach (\App\Enums\ServiceKind::options() as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </x-ui.select>
             @else
                 <x-ui.input name="tax_id" label="{{ __('CIF / NIF') }}" wire:model="form.tax_id" />
                 <x-ui.input name="external_ref" label="{{ __('Código (Access)') }}" wire:model="form.external_ref" />
@@ -89,7 +94,7 @@
         <div>
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Reparto habitual') }}</p>
             <div class="mt-1.5 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                <x-ui.select name="default_delivery_type_id" label="{{ __('Tipo de reparto') }}" wire:model="form.default_delivery_type_id" placeholder="{{ __('Sin definir') }}">
+                <x-ui.select name="default_delivery_type_id" label="{{ __('Producto habitual') }}" wire:model="form.default_delivery_type_id" placeholder="{{ __('Sin definir') }}">
                     @foreach ($deliveryTypes as $dt)
                         <option value="{{ $dt->id }}">{{ $dt->name }}</option>
                     @endforeach
@@ -100,7 +105,12 @@
                     <option value="email">{{ __('Email') }}</option>
                     <option value="physical">{{ __('Entrega en mano') }}</option>
                 </x-ui.select>
-                <x-ui.input name="price_per_liter" type="number" step="any" label="{{ __('Precio / litro (€)') }}" wire:model="form.price_per_liter" />
+                <x-ui.input name="price" type="number" step="any" label="{{ __('Precio (€)') }}" wire:model="form.price" />
+                <x-ui.select name="price_type" label="{{ __('Tipo de precio') }}" wire:model="form.price_type">
+                    @foreach (\App\Enums\PriceType::options() as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </x-ui.select>
                 <x-ui.input name="payment_terms" label="{{ __('Forma de pago') }}" wire:model="form.payment_terms" />
                 <x-ui.input name="last_served_on" type="date" label="{{ __('Último reparto') }}" wire:model="form.last_served_on" />
                 <div class="flex items-end pb-2">

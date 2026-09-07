@@ -42,6 +42,8 @@ class ClientFactory extends Factory
             'tank_capacity_liters' => fake()->optional(0.7)->randomElement([1000, 2000, 3000, 5000, 10000]),
             'requires_own_pump' => fake()->boolean(20),
             'preferred_channel' => fake()->randomElement(['email', 'physical']),
+            'price_type' => $priceType = fake()->randomElement(['per_liter', 'fixed']),
+            'price' => fake()->optional(0.5)->randomElement($priceType === 'fixed' ? [35, 45, 60, 90, 120] : [0.85, 0.95, 1.05, 1.20]),
             'payment_terms' => fake()->randomElement(['Contado', 'Transferencia 30 días', 'Domiciliado']),
             'last_served_on' => fake()->optional(0.8)->dateTimeBetween('-60 days', '-2 days'),
             'access_notes' => fake()->optional(0.4)->randomElement([

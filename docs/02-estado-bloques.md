@@ -576,6 +576,8 @@ modal de edición para completar) o **Descartar** (borrado permanente, `forceDel
   Aprobar/Descartar por fila y en la ficha. Sin permiso nuevo (reusa `clients.update`/`clients.delete`).
 - La **cantidad habitual** pasa a guardarse siempre en litros para todos los clientes; `quantity_unit`
   recuerda la unidad citada (la ficha muestra "3 m³ (3.000 L)").
+- El **precio** puede ser tarifa fija o por litro (`clients.price` + `price_type`, enum `PriceType`;
+  migración `2026_09_07_140000_...` renombra `price_per_liter` → `price`).
 - Detalle en `CLAUDE.md` (sección "Pre-clientes / valoración").
 
 ---

@@ -4,6 +4,7 @@ namespace App\Livewire\Forms;
 
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
+use App\Enums\PriceType;
 use App\Enums\ServiceKind;
 use App\Enums\WaterType;
 use App\Models\Client;
@@ -72,7 +73,9 @@ class ClientForm extends Form
 
     public ?string $preferred_channel = null;
 
-    public ?float $price_per_liter = null;
+    public ?float $price = null;
+
+    public string $price_type = 'per_liter';
 
     public ?string $payment_terms = null;
 
@@ -115,7 +118,8 @@ class ClientForm extends Form
             'tank_capacity_liters' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'requires_own_pump' => ['boolean'],
             'preferred_channel' => ['nullable', 'in:email,physical'],
-            'price_per_liter' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'price' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            'price_type' => ['required', Rule::enum(PriceType::class)],
             'payment_terms' => ['nullable', 'string', 'max:120'],
             'last_served_on' => ['nullable', 'date'],
             'access_notes' => ['nullable', 'string', 'max:2000'],
@@ -148,7 +152,8 @@ class ClientForm extends Form
                         ? (float) $client->typical_quantity / 1000
                         : (float) $client->typical_quantity),
                 'last_served_on' => $client->last_served_on?->toDateString(),
-                'price_per_liter' => $client->price_per_liter !== null ? (float) $client->price_per_liter : null,
+                'price' => $client->price !== null ? (float) $client->price : null,
+                'price_type' => $client->price_type?->value ?? 'per_liter',
                 'latitude', 'longitude' => $client->{$field} !== null ? (string) $client->{$field} : null,
                 default => $client->{$field},
             };
@@ -168,6 +173,11 @@ class ClientForm extends Form
 
         unset($validated['quantity_input']); // no es columna
         $validated['typical_quantity'] = $liters; // sí lo es
+
+        // Sin importe no tiene sentido guardar el tipo de precio.
+        if ($validated['price'] === null) {
+            $validated['price_type'] = null;
+        }
 
         $client = $this->editing
             ? tap($this->editing)->update($validated)

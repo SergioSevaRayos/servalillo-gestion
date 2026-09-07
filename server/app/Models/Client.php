@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
+use App\Enums\PriceType;
 use App\Enums\ServiceKind;
 use App\Enums\WaterType;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,7 +26,7 @@ class Client extends Model implements Auditable
         'address', 'postal_code', 'city', 'province', 'latitude', 'longitude',
         'water_type', 'default_delivery_type_id', 'typical_quantity', 'quantity_unit',
         'frequency_days', 'tank_capacity_liters', 'tank_distance_m',
-        'requires_own_pump', 'preferred_channel', 'price_per_liter', 'payment_terms', 'last_served_on',
+        'requires_own_pump', 'preferred_channel', 'price', 'price_type', 'payment_terms', 'last_served_on',
         'access_notes', 'notes', 'is_active',
     ];
 
@@ -43,7 +44,8 @@ class Client extends Model implements Auditable
             'tank_capacity_liters' => 'integer',
             'tank_distance_m' => 'integer',
             'requires_own_pump' => 'boolean',
-            'price_per_liter' => 'decimal:4',
+            'price' => 'decimal:4',
+            'price_type' => PriceType::class,
             'last_served_on' => 'date',
             'is_active' => 'boolean',
         ];
@@ -96,6 +98,20 @@ class Client extends Model implements Auditable
         }
 
         return $litersFmt;
+    }
+
+    /** "45,00 € (tarifa fija)" / "0,9500 €/L" / null. */
+    public function priceLabel(): ?string
+    {
+        if ($this->price === null) {
+            return null;
+        }
+
+        $type = $this->price_type ?? PriceType::PerLiter;
+        $decimals = $type === PriceType::Fixed ? 2 : 4;
+        $amount = number_format((float) $this->price, $decimals, ',', '.').$type->suffix();
+
+        return $type === PriceType::Fixed ? "{$amount} ({$type->label()})" : $amount;
     }
 
     public function scopeSearch(Builder $query, ?string $term): Builder

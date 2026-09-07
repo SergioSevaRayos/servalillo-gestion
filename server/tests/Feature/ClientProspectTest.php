@@ -1,6 +1,8 @@
 <?php
 
 use App\Enums\ClientStatus;
+use App\Enums\PriceType;
+use App\Enums\ServiceKind;
 use App\Livewire\Clients\Index;
 use App\Livewire\Clients\Show;
 use App\Models\Client;
@@ -27,6 +29,38 @@ it('crea un pre-cliente desde el modal con el toggle', function () {
         ->and((float) $c->typical_quantity)->toBe(3000.0)
         ->and($c->quantity_unit)->toBe('m3')
         ->and($c->tank_distance_m)->toBe(25);
+});
+
+it('un pre-cliente puede ser de tipo viaje', function () {
+    $this->actingAs(makeUser('administrador'));
+
+    Livewire::test(Index::class)
+        ->call('create')
+        ->set('form.status', 'prospect')
+        ->set('form.name', 'Viaje puntual')
+        ->set('form.service_kind', 'viaje')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Client::firstWhere('name', 'Viaje puntual')->service_kind)->toBe(ServiceKind::Viaje);
+});
+
+it('guarda el precio como tarifa fija o por litro', function () {
+    $this->actingAs(makeUser('administrador'));
+
+    Livewire::test(Index::class)
+        ->call('create')
+        ->set('form.name', 'Cliente Tarifa')
+        ->set('form.price', 45)
+        ->set('form.price_type', 'fixed')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $c = Client::firstWhere('name', 'Cliente Tarifa');
+    expect($c->price_type)->toBe(PriceType::Fixed)
+        ->and((float) $c->price)->toBe(45.0)
+        ->and($c->priceLabel())->toContain('45,00 €')
+        ->and($c->priceLabel())->toContain('Tarifa fija');
 });
 
 it('el listado oculta los pre-clientes salvo con el filtro', function () {
