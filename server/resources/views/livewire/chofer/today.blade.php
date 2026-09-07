@@ -5,8 +5,9 @@
     $selected = Carbon::parse($this->date);
 @endphp
 
-{{-- Web operativa del chofer: siempre .surface, nunca .glass (uso al aire libre, alto contraste). --}}
-<div class="mx-auto max-w-2xl">
+{{-- Web operativa del chofer: siempre .surface, nunca .glass (uso al aire libre, alto contraste).
+     wire:poll: refresco automático — lo que cambie oficina aparece solo, sin recargar. --}}
+<div class="mx-auto max-w-2xl" wire:poll.15s>
     <div class="flex items-baseline justify-between gap-3">
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ __('Mi ruta') }}</h1>
         <button type="button" wire:click="goToday" @disabled($this->isToday()) @class([
@@ -165,6 +166,25 @@
                 {{ __('Añadir cliente (ha llamado)') }}
             </button>
         @endif
+    @endif
+
+    {{-- Paradas que reprogramaste para este día y que oficina aún no ha metido en una ruta --}}
+    @if ($this->rescheduledForDay->isNotEmpty())
+        <x-ui.card class="mt-4">
+            <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ __('Reprogramadas para este día') }}</h2>
+            <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{{ __('Pendientes de que oficina las asigne a una ruta.') }}</p>
+            <ul class="mt-3 space-y-2">
+                @foreach ($this->rescheduledForDay as $stop)
+                    <li class="flex items-start justify-between gap-3 rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
+                        <div>
+                            <p class="font-medium text-slate-800 dark:text-slate-100">{{ $stop->customer_name }}</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">{{ $stop->address ?: '—' }}</p>
+                        </div>
+                        <x-ui.badge variant="warning">{{ __('sin asignar') }}</x-ui.badge>
+                    </li>
+                @endforeach
+            </ul>
+        </x-ui.card>
     @endif
 
     {{-- Modal: empezar jornada --}}

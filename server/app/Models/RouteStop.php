@@ -18,7 +18,7 @@ class RouteStop extends Model implements Auditable
     use AuditableTrait, HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'route_id', 'position', 'service_kind', 'scheduled_for', 'customer_name', 'customer_tax_id', 'address',
+        'route_id', 'position', 'service_kind', 'scheduled_for', 'rescheduled_by', 'customer_name', 'customer_tax_id', 'address',
         'latitude', 'longitude', 'contact_name', 'contact_phone', 'delivery_type_id',
         'status', 'scheduled_window_start', 'scheduled_window_end',
         'planned_quantity', 'delivered_quantity', 'completed_at', 'failure_reason', 'data',
@@ -50,6 +50,11 @@ class RouteStop extends Model implements Auditable
     public function deliveryType(): BelongsTo
     {
         return $this->belongsTo(DeliveryType::class);
+    }
+
+    public function rescheduledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rescheduled_by');
     }
 
     public function deliveryNote(): HasOne

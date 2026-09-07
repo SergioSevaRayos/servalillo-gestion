@@ -336,7 +336,33 @@ it('el chofer reprograma una parada fallida para otro día', function () {
         ->and($nueva->id)->not->toBe($stop->id)
         ->and($nueva->route_id)->toBeNull()
         ->and($nueva->scheduled_for->toDateString())->toBe($manana)
+        ->and($nueva->rescheduled_by)->toBe($user->id)
         ->and((float) $nueva->planned_quantity)->toBe(700.0);
+
+    // y le aparece al chofer ese día, en "Reprogramadas para este día"
+    Livewire::actingAs($user)->test(Today::class)
+        ->set('date', $manana)
+        ->assertSee('Reprogramadas para este día')
+        ->assertSee('Bar Central');
+});
+
+it('reprogramar a un día con ruta propia mete la parada en esa ruta', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 1);
+    $manana = today()->addDay()->toDateString();
+    $rutaManana = Route::factory()->create(['driver_id' => $driver->id, 'route_date' => $manana]);
+    $stop = $route->stops->first();
+    $stop->update(['customer_name' => 'Taller Gómez']);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->set('form.outcome', 'skipped')
+        ->set('form.reason', 'sin acceso')
+        ->set('form.reschedule_on', $manana)
+        ->call('saveStop');
+
+    $nueva = RouteStop::where('customer_name', 'Taller Gómez')->where('status', RouteStopStatus::Pending)->first();
+    expect($nueva->route_id)->toBe($rutaManana->id)
+        ->and($nueva->scheduled_for->toDateString())->toBe($manana);
 });
 
 it('reprogramar exige una fecha futura', function () {

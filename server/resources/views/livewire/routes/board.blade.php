@@ -1,4 +1,4 @@
-<div x-on:stops-reordered.window="$wire.call('reorderStops', $event.detail.fromRouteId, $event.detail.fromIds, $event.detail.toRouteId, $event.detail.toIds)">
+<div wire:poll.45s x-on:stops-reordered.window="$wire.call('reorderStops', $event.detail.fromRouteId, $event.detail.fromIds, $event.detail.toRouteId, $event.detail.toIds)">
     <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
         <div class="inline-flex shrink-0 rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-800">
             @foreach ($kinds as $k)

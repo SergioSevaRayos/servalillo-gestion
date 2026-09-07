@@ -167,7 +167,8 @@ class StopActionForm extends Form
         RouteStop::create([
             'route_id' => $targetRoute?->id,
             'position' => ($position ?? 0) + 1,
-            'scheduled_for' => $targetRoute ? null : $date,
+            'scheduled_for' => $date,
+            'rescheduled_by' => auth()->id(),
             'service_kind' => $stop->service_kind->value,
             'customer_name' => $stop->customer_name,
             'customer_tax_id' => $stop->customer_tax_id,

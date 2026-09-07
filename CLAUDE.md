@@ -359,8 +359,17 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `completed_at` solo se rellena en `completed` (coherente con el seeder y `FleetStatsService`).
   - **Reprogramar** (`failed`/`skipped` + campo `reschedule_on`, fecha futura): la parada actual
     queda cerrada (con "· Reprogramada para dd/mm/yyyy" en el motivo) y `StopActionForm::rescheduleStop()`
-    **crea una parada nueva Pendiente** para esa fecha — en la ruta del mismo chofer ese día si existe,
-    si no en "Sin asignar" con `scheduled_for`.
+    **crea una parada nueva Pendiente** para esa fecha con `rescheduled_by` = el chofer y
+    `scheduled_for` = la fecha — en la ruta del mismo chofer ese día si existe, si no en "Sin asignar".
+    El chofer la ve ese día en la tarjeta **"Reprogramadas para este día"** (`Today::rescheduledForDay`,
+    solo lectura: `route_id IS NULL` + `scheduled_for` + `rescheduled_by = auth`) hasta que oficina la
+    asigna a una ruta.
+- **Sincronización admin ↔ chofer = `wire:poll`** (no websockets): la web del chofer refresca cada
+  **15 s** (`wire:poll.15s` en la raíz de `livewire.chofer.today`), el tablero cada **45 s**
+  (`wire:poll.45s` en `livewire.routes.board`). Así lo que cambia oficina le aparece al chofer solo y
+  viceversa, sin recargar. `wire:poll` se salta el ciclo si hay props "sucias" (formulario abierto en
+  el tablero), lo que evita pisar la edición. Push instantáneo con Reverb queda como mejora futura
+  (la infra está en `.env.example`/compose pero Echo no está cableado en `app.js`).
 - Autorización: `RoutePolicy::operate` y `RouteStopPolicy::complete` (permiso + `owns()`), ya existían.
 - `<x-chofer.stop-card>` es la tarjeta táctil del chofer (grande, sin drag), distinta de
   `<x-routes.stop-card>` (Kanban del admin).

@@ -586,14 +586,16 @@ modal de edición para completar) o **Descartar** (borrado permanente, `forceDel
   siempre es agua → se eliminó `clients.default_delivery_type_id`.
 - **El chofer reprograma paradas**: al marcar una parada **Fallida** u **Omitida** puede elegir una
   fecha futura; se cierra la actual y nace una parada pendiente para ese día (en su ruta de ese día
-  si tiene, o en "Sin asignar").
+  si tiene, o en "Sin asignar"). El chofer la ve ese día en "Reprogramadas para este día".
+- **Sincronización automática admin ↔ chofer** vía `wire:poll` (chofer 15 s, tablero 45 s): lo que
+  cambia uno le aparece al otro solo, sin recargar. (Push instantáneo con Reverb = mejora futura.)
 - Detalle en `CLAUDE.md` (sección "Pre-clientes / valoración" y la de clientes).
 
 ---
 
 ## Punto de continuación (última sesión: 2026-09-07)
 
-**Estado:** Bloques 1–9 terminados (**154 tests en verde**). Esta sesión: Bloque 9 (gestión de
+**Estado:** Bloques 1–9 terminados (**155 tests en verde**). Esta sesión: Bloque 9 (gestión de
 clientes) + tipo de servicio Reparto/Viajes (enum `ServiceKind` en clientes, rutas y paradas; filtro
 en el tablero) + selector de día del chofer como carrusel coverflow. **Siguiente = Bloque 10** (API
 Flutter con Sanctum) — sección "API para Flutter" de `docs/01`, y `routes/api.php` (casi vacío).

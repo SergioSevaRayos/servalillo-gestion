@@ -76,6 +76,23 @@ class Today extends Component
         return $this->date === today()->toDateString();
     }
 
+    /**
+     * Paradas que este chofer reprogramó para el día que se está viendo y que aún no
+     * están en una ruta (oficina tiene que asignarlas). Se muestran aparte, en solo lectura.
+     */
+    #[Computed]
+    public function rescheduledForDay()
+    {
+        return RouteStop::query()
+            ->whereNull('route_id')
+            ->whereDate('scheduled_for', $this->date)
+            ->where('rescheduled_by', auth()->id())
+            ->where('status', RouteStopStatus::Pending)
+            ->with('deliveryType')
+            ->orderBy('customer_name')
+            ->get();
+    }
+
     /** ¿Se puede operar la ruta que se está viendo? (hoy, o una que quedó a medias). */
     #[Computed]
     public function operable(): bool
