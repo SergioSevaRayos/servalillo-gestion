@@ -1,6 +1,8 @@
 import Sortable from 'sortablejs';
 import Chart from 'chart.js/auto';
 import SignaturePad from 'signature_pad';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 function applyThemeClass(value) {
     const isDark = value === 'dark'
@@ -375,6 +377,99 @@ document.addEventListener('alpine:init', () => {
         tap(iso) {
             const el = this.elFor(iso);
             if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        },
+    }));
+
+    /*
+    | "Ver recorrido" (Bloque 13): mapa Leaflet con las paradas de una ruta y su trazado.
+    | El componente Livewire (Board / Chofer\Today) emite el evento `open-route-map` con
+    | { stops, meta, skipped }; aquí abrimos el <x-modal name="route-map"> y, cuando el
+    | contenedor ya tiene tamaño (estaba display:none), montamos/actualizamos el mapa.
+    */
+    Alpine.data('routeMap', () => ({
+        map: null,
+        layer: null,
+        summary: '',
+        skippedNote: '',
+
+        open(detail) {
+            this.$dispatch('open-modal', 'route-map');
+            this._whenVisible(() => this.render(detail || {}));
+        },
+
+        _whenVisible(cb, tries = 90) {
+            const el = this.$refs.map;
+            if (el && el.offsetParent !== null && el.clientWidth > 0) return cb();
+            if (tries <= 0) return;
+            requestAnimationFrame(() => this._whenVisible(cb, tries - 1));
+        },
+
+        render(detail) {
+            const stops = Array.isArray(detail.stops) ? detail.stops : [];
+            const meta = detail.meta || null;
+
+            if (! this.map) {
+                this.map = L.map(this.$refs.map, { scrollWheelZoom: true });
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap',
+                }).addTo(this.map);
+                this.layer = L.layerGroup().addTo(this.map);
+            }
+
+            this.layer.clearLayers();
+
+            const points = stops.map((s) => [s.lat, s.lng]);
+            const line = meta && Array.isArray(meta.line) && meta.line.length > 1 ? meta.line : points;
+
+            if (line.length > 1) {
+                L.polyline(line, { color: '#0d9488', weight: 4, opacity: 0.85 }).addTo(this.layer);
+            }
+
+            stops.forEach((s) => {
+                L.marker([s.lat, s.lng], { icon: this._pin(s) })
+                    .addTo(this.layer)
+                    .bindPopup(() => {
+                        const el = document.createElement('div');
+                        el.textContent = `${s.n}. ${s.name}`;
+                        return el;
+                    });
+            });
+
+            if (points.length === 1) {
+                this.map.setView(points[0], 15);
+            } else if (points.length > 1) {
+                this.map.fitBounds(L.latLngBounds(points).pad(0.15));
+            } else {
+                this.map.setView([28.46, -16.25], 10); // Tenerife, sin paradas ubicadas
+            }
+
+            this.map.invalidateSize();
+
+            this.summary = meta && meta.distance_m
+                ? `~${(meta.distance_m / 1000).toFixed(1)} km · ~${Math.round((meta.duration_s || 0) / 60)} min`
+                : '';
+
+            const skipped = detail.skipped || 0;
+            this.skippedNote = skipped === 1
+                ? '1 parada sin ubicación no se muestra.'
+                : (skipped > 1 ? `${skipped} paradas sin ubicación no se muestran.` : '');
+        },
+
+        _pin(s) {
+            const colors = { pending: '#0d9488', completed: '#059669', failed: '#e11d48', skipped: '#64748b' };
+            return L.divIcon({
+                className: '',
+                html: `<span class="route-map-pin" style="background:${colors[s.status] || '#0d9488'}">${s.n}</span>`,
+                iconSize: [26, 26],
+                iconAnchor: [13, 13],
+                popupAnchor: [0, -13],
+            });
+        },
+
+        destroy() {
+            this.map?.remove();
+            this.map = null;
         },
     }));
 });

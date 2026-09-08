@@ -184,6 +184,20 @@ test('"Ruta eficiente": el administrador reordena una ruta y ve un toast', funct
     expect($route->stops()->pluck('id')->all())->toBe([$a->id, $c->id, $b->id]);
 });
 
+test('"Ver recorrido": emite el evento del mapa con las paradas de la ruta', function () {
+    config()->set('servalillo.routing.enabled', false);
+
+    $route = makeRoute('2026-09-10');
+    RouteStop::factory()->for($route)->create(['position' => 1, 'customer_name' => 'Parada Mapa', 'latitude' => 28.40, 'longitude' => -16.40]);
+    RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.42, 'longitude' => -16.42]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('showRouteMap', $route->id)
+        ->assertDispatched('open-route-map', fn ($event, $params) => count($params['stops']) === 2
+            && $params['stops'][0]['name'] === 'Parada Mapa');
+});
+
 test('"Ruta eficiente": un chofer recibe 403', function () {
     $route = makeRoute('2026-09-10');
     RouteStop::factory()->for($route)->count(2)->create();

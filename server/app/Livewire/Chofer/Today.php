@@ -11,6 +11,7 @@ use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
+use App\Services\RouteGeometry;
 use App\Services\RouteOptimizer;
 use App\Support\Notifications\RouteChangeNotifier;
 use Illuminate\Support\Carbon;
@@ -265,6 +266,15 @@ class Today extends Component
         unset($this->route);
         $this->dispatch('close-modal', 'add-stop');
         $this->dispatch('toast', message: "{$client->name} añadido a la ruta.", variant: 'success');
+    }
+
+    /** "Ver recorrido": abre el mapa con las paradas de la ruta y su trazado. */
+    public function showRouteMap(): void
+    {
+        abort_unless($this->route !== null, 404);
+        $this->authorize('operate', $this->route);
+
+        $this->dispatch('open-route-map', ...app(RouteGeometry::class)->payloadFor($this->route));
     }
 
     /** "Organizar mi ruta": reordena las paradas pendientes por cercanía (deja fija la próxima). */

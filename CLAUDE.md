@@ -631,6 +631,23 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `Board::optimizeRoute` con `$this->authorize('reorderStops', $route)`, antes estaba sin usar).
 - Primer uso del **`Http` facade** de la app. En tests: `phpunit.xml` fija `ROUTING_OSRM_ENABLED=false`
   (heurística local determinista, sin red); los tests de OSRM hacen `config()->set(...)` + `Http::fake()`.
+- **"Ver recorrido"** (mismo bloque): botón que abre un mapa **Leaflet** (`npm i leaflet`, mosaicos
+  de OpenStreetMap, sin API key) con las paradas numeradas y el **trazado real por carretera**.
+  - `App\Services\RouteGeometry`: `for(array $points): ?array` pide a OSRM `/route/v1/driving/{lon,lat…}
+    ?overview=full&geometries=geojson` y devuelve `{ line: [[lat,lon]…], distance_m, duration_s }` o
+    null (el mapa cae a línea recta entre paradas). `payloadFor(Route): array` arma
+    `{ stops:[{n,name,lat,lng,status}], meta, skipped }` (numeración por posición real, aparta las
+    paradas sin coordenadas).
+  - `Board::showRouteMap(int $routeId)` (`authorize('view')`) y `Today::showRouteMap()`
+    (`authorize('operate')` — la ruta propia, cualquier día) emiten el evento **`open-route-map`**
+    con ese payload.
+  - `Alpine.data('routeMap')` (`app.js`) escucha `open-route-map`, abre `<x-modal name="route-map">`
+    y, cuando el contenedor ya tiene tamaño (estaba `display:none`), monta el mapa +
+    `invalidateSize()`. Componente Blade compartido `<x-route-map-modal>` (chofer + tablero).
+  - **Gotchas Leaflet**: (1) el preflight de Tailwind (`img{max-width:100%}`) descoloca los
+    mosaicos → override `.leaflet-container img { max-width: none }` en `app.css`; (2) el icono de
+    marcador por defecto se rompe con Vite → se usa `L.divIcon` con HTML (`.route-map-pin`
+    numerada); (3) el `<div>` del mapa lleva `wire:ignore`.
 
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.

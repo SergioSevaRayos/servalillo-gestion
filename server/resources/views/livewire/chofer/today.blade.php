@@ -143,6 +143,38 @@
             </div>
         </x-ui.card>
 
+        {{-- Acciones de la ruta --}}
+        <div class="mt-4 flex flex-wrap gap-2">
+            <button type="button" wire:click="showRouteMap" wire:target="showRouteMap"
+                wire:loading.attr="disabled"
+                class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500">
+                <svg wire:loading.remove wire:target="showRouteMap" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" />
+                </svg>
+                <svg wire:loading wire:target="showRouteMap" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                </svg>
+                {{ __('Ver recorrido') }}
+            </button>
+
+            @if ($this->operable() && ! $this->finished && $this->pendingCount > 1)
+                <button type="button" wire:click="optimizeRoute" wire:target="optimizeRoute"
+                    wire:loading.attr="disabled"
+                    wire:confirm="{{ __('¿Reorganizar las paradas pendientes por cercanía? Tu próxima parada no cambia.') }}"
+                    class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500">
+                    <svg wire:loading.remove wire:target="optimizeRoute" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M11.3 1.046a1 1 0 0 1 .7 1.19L10.42 8H15a1 1 0 0 1 .8 1.6l-7 9.333A1 1 0 0 1 7 18.333L8.58 12H4a1 1 0 0 1-.8-1.6l7-9.333a1 1 0 0 1 1.1-.021Z" clip-rule="evenodd" />
+                    </svg>
+                    <svg wire:loading wire:target="optimizeRoute" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                    </svg>
+                    {{ __('Organizar mi ruta') }}
+                </button>
+            @endif
+        </div>
+
         {{-- Paradas --}}
         <div class="mt-4 space-y-3">
             @forelse ($route->stops as $stop)
@@ -155,23 +187,6 @@
                 <x-ui.card><x-ui.empty-state title="{{ __('Esta ruta no tiene paradas') }}" /></x-ui.card>
             @endforelse
         </div>
-
-        {{-- Reordenar las paradas pendientes por cercanía (la próxima queda fija) --}}
-        @if ($this->operable() && ! $this->finished && $this->pendingCount > 1)
-            <button type="button" wire:click="optimizeRoute" wire:target="optimizeRoute"
-                wire:loading.attr="disabled"
-                wire:confirm="{{ __('¿Reorganizar las paradas pendientes por cercanía? Tu próxima parada no cambia.') }}"
-                class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 py-3 text-sm font-medium text-slate-500 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-400 dark:hover:border-primary-500 dark:hover:text-primary-300">
-                <svg wire:loading.remove wire:target="optimizeRoute" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                    <path fill-rule="evenodd" d="M11.3 1.046a1 1 0 0 1 .7 1.19L10.42 8H15a1 1 0 0 1 .8 1.6l-7 9.333A1 1 0 0 1 7 18.333L8.58 12H4a1 1 0 0 1-.8-1.6l7-9.333a1 1 0 0 1 1.1-.021Z" clip-rule="evenodd" />
-                </svg>
-                <svg wire:loading wire:target="optimizeRoute" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-                </svg>
-                {{ __('Organizar mi ruta') }}
-            </button>
-        @endif
 
         {{-- Añadir un cliente que ha llamado como parada nueva (al final de la ruta) --}}
         @if ($this->operable() && ! $this->finished)
@@ -441,4 +456,6 @@
             </div>
         @endif
     </x-modal>
+
+    <x-route-map-modal />
 </div>

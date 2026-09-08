@@ -10,6 +10,7 @@ use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryTypeSchemaValidator;
 use App\Services\RecurringStopService;
+use App\Services\RouteGeometry;
 use App\Services\RouteOptimizer;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -171,6 +172,15 @@ class Board extends Component
 
         $optimizer = app(RouteOptimizer::class);
         $this->dispatch('toast', ...$optimizer->toast($optimizer->optimize($route)));
+    }
+
+    /** "Ver recorrido": abre el mapa con las paradas de la ruta y su trazado. */
+    public function showRouteMap(int $routeId): void
+    {
+        $route = Route::findOrFail($routeId);
+        $this->authorize('view', $route);
+
+        $this->dispatch('open-route-map', ...app(RouteGeometry::class)->payloadFor($route));
     }
 
     #[Computed]

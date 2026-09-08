@@ -219,4 +219,19 @@
         @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-lg text-slate-400 transition-colors;
         @apply hover:text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:hover:text-slate-200;
     }
+
+    /* Mapa "Ver recorrido" (Bloque 13): chincheta numerada de cada parada. */
+    .route-map-pin {
+        @apply grid h-[26px] w-[26px] place-items-center rounded-full border-2 border-white text-xs font-bold text-white;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    }
+}
+
+/* El preflight de Tailwind (img{max-width:100%}) descoloca los mosaicos de Leaflet. */
+.leaflet-container img {
+    max-width: none;
+}
+.leaflet-container {
+    @apply bg-slate-100 dark:bg-slate-800;
+    font: inherit;
 }

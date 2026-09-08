@@ -687,9 +687,15 @@ de paradas del chofer (`/chofer/ruta`, "Organizar mi ruta"). Se intercaló por d
 - Primer uso del `Http` facade. `phpunit.xml` fija `ROUTING_OSRM_ENABLED=false` (tests deterministas
   con la heurística local); los tests de OSRM hacen `Http::fake()`.
 
+**"Ver recorrido"** (mismo bloque): botón junto a "Ruta eficiente" (tablero + chofer, arriba) que
+abre un **mapa Leaflet** (OpenStreetMap, sin API key) con las paradas numeradas y el **trazado real
+por carretera** (OSRM `/route`, con distancia y duración; cae a línea recta si falla).
+`App\Services\RouteGeometry` + evento `open-route-map` + `Alpine.data('routeMap')` +
+`<x-route-map-modal>` compartido. El botón "Organizar mi ruta" del chofer pasa a la parte superior.
+
 ### Tests
-`RouteOptimizerTest` (7) + añadidos a `RoutesBoardTest` (4), `ChoferTodayTest` (3),
-`RolesAndPoliciesTest`. **Suite total: 202 tests en verde.**
+`RouteOptimizerTest` (7), `RouteGeometryTest` (4) + añadidos a `RoutesBoardTest` (5),
+`ChoferTodayTest` (5), `RolesAndPoliciesTest`. **Suite total: 209 tests en verde.**
 
 Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
 
@@ -700,9 +706,12 @@ Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
 2. `OSRM_URL=http://127.0.0.1:1` (basura) + `php artisan config:clear` → "Ruta eficiente" → toast
    "(Estimación local: el servicio de rutas no respondió.)"; sigue reordenando.
 3. Parada creada desde "+ Añadir parada" (sin coords) → tras optimizar queda al final; el toast lo dice.
-4. `pedro@servalillo.test` → "Empezar jornada" → "Organizar mi ruta" → confirmar → se reordenan las
-   pendientes; la que era "siguiente" sigue primera. Con la jornada terminada el botón no aparece.
-5. `/rutas` como chofer → 403 (ya lo era); el chofer no tiene el botón del tablero.
+4. `pedro@servalillo.test` → "Empezar jornada" → "Organizar mi ruta" (arriba) → confirmar → se
+   reordenan las pendientes; la que era "siguiente" sigue primera. Con la jornada terminada el botón
+   no aparece pero "Ver recorrido" sí.
+5. "Ver recorrido" (chofer o cualquier columna del tablero) → mapa con las paradas numeradas y el
+   trazado por carretera + "~X km · ~Y min". `OSRM_URL` basura → cae a línea recta.
+6. `/rutas` como chofer → 403 (ya lo era); el chofer no tiene el botón "Ruta eficiente" del tablero.
 
 ---
 

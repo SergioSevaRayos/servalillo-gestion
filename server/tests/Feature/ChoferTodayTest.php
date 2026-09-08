@@ -450,6 +450,28 @@ it('un gestor no accede a la web del chofer', function () {
     $this->actingAs(makeUser('administrador'))->get('/chofer/ruta')->assertForbidden();
 });
 
+it('el chofer abre "Ver recorrido" y se emite el evento del mapa', function () {
+    config()->set('servalillo.routing.enabled', false);
+
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    RouteStop::factory()->for($route)->create(['position' => 1, 'customer_name' => 'Mi Parada', 'latitude' => 28.40, 'longitude' => -16.40]);
+    RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.42, 'longitude' => -16.42]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('showRouteMap')
+        ->assertDispatched('open-route-map', fn ($event, $params) => count($params['stops']) === 2);
+});
+
+it('un chofer sin ruta no puede ver el recorrido (404)', function () {
+    $user = makeUser('chofer');
+    Driver::factory()->create(['user_id' => $user->id]);
+    makeRoute(today()->toDateString());
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('showRouteMap')
+        ->assertStatus(404);
+});
+
 it('el chofer organiza su ruta y se reordenan las paradas pendientes', function () {
     config()->set('servalillo.routing.enabled', false);
 
