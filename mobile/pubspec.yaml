@@ -1,0 +1,33 @@
+name: servalillo_tracker
+description: "APK sin interfaz que comparte la ubicación del camión con Gestión Servalillo."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_foreground_task: ^9.1.0
+  geolocator: ^14.0.0
+  permission_handler: ^12.0.0
+  flutter_secure_storage: ^9.2.4
+  sqflite: ^2.4.1
+  path: ^1.9.0
+  path_provider: ^2.1.5
+  http: ^1.2.2
+  uuid: ^4.5.1
+  intl: ^0.20.2
+  battery_plus: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  sqflite_common_ffi: ^2.3.4
+
+flutter:
+  uses-material-design: true

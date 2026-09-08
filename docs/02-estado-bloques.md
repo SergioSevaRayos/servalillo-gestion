@@ -13,7 +13,7 @@
 | 8 | Albaranes (PDF + canales email/físico) + colas | ✅ Hecho |
 | 9 | Gestión de clientes (CRUD + ficha + histórico + import Access) | ✅ Hecho |
 | 10 | API de tracking GPS (Sanctum) | ✅ Hecho |
-| 11 | APK Flutter de tracking | ⬜ |
+| 11 | APK Flutter de tracking (headless) + `GET /api/device` | ✅ Hecho |
 | 12 | Notificaciones in-app + canal de soporte administración ↔ mantenimiento | ✅ Hecho |
 | 13 | Ruta eficiente (optimización de paradas, OSRM + fallback local) | ✅ Hecho |
 
@@ -621,6 +621,10 @@ del chofer sigue siendo la web Livewire.
   `App\Services\GpsIngestService` descarta las de fecha futura, resuelve chofer (del device) y
   camión/ruta (de la ruta de ese chofer para la fecha de la posición — `null` si no procede) e inserta
   en bloque. Bumpea `last_seen_at`.
+- **`GET /api/device`** (`auth:sanctum` + `abilities:gps:ingest`, añadido en el Bloque 11): estado del
+  dispositivo para la pantalla de la APK → `{ device_id, label, is_active, driver: {name}|null,
+  tracking, server_time }`. **No aborta** si el dispositivo está desactivado: devuelve 200 con
+  `is_active: false` para que la APK pare con elegancia.
 - **Esquema**: `devices.truck_id` → `devices.driver_id` (nullable, unique). `gps_positions.truck_id`
   pasa a nullable.
 - **Panel `/mantenimiento/dispositivos`** (`App\Livewire\Maintenance\Devices`, permiso `devices.manage`):
@@ -641,8 +645,51 @@ del chofer sigue siendo la web Livewire.
 5. `php artisan gps:purgar` (sin datos viejos no borra nada).
 
 ### Tests
-`tests/Feature/Api/{DeviceRegisterTest (5), GpsBatchTest (11)}.php`, `PurgeGpsPositionsTest (2)`,
-`MaintenanceDevicesTest (9)`. **Suite total: 253 tests en verde.**
+`tests/Feature/Api/{DeviceRegisterTest (5), GpsBatchTest (11), DeviceShowTest (7)}.php`,
+`PurgeGpsPositionsTest (2)`, `MaintenanceDevicesTest (9)`. **Suite total: 260 tests en verde.**
+
+---
+
+## Bloque 11 — lo que se ha construido
+
+**APK Android "tracker" sin interfaz** (`mobile/`, Flutter). El servicio técnico la instala en el
+móvil de empresa de cada camión; se abre una vez para conceder permisos y a partir de ahí comparte la
+ubicación en segundo plano para siempre. **Sin login, sin interacción del chofer.**
+
+- **Servicio en primer plano** (`flutter_foreground_task`): muestrea la posición cada
+  `ping_interval_seconds` (config del servidor), la encola en SQLite y la envía en lotes de ≤500 a
+  `POST /api/gps/batch`. Sobrevive a cerrar la app y se revive al reiniciar el móvil
+  (`RECEIVE_BOOT_COMPLETED`, solo con "ubicación siempre" concedida).
+- **Cola offline** (`sqflite`): si no hay red, la cola crece (tope ~50 000 filas ≈ 26 días) y se vacía
+  al volver. Borra el lote entero ante cualquier 2xx (anti-duplicado por id contiguo).
+- **Respeta la ventana de pausa** (`pause_start`–`pause_end`, def. 22:00–05:00): en ese rango el
+  servicio sigue vivo pero no muestrea ni envía.
+- **Enrolamiento**: al primer arranque envía un `install_identifier` (UUID persistente) + el
+  `ENROLMENT_SECRET` (horneado en el build con `--dart-define`) a `POST /api/device/register` y guarda
+  el token Sanctum en `flutter_secure_storage`. 401 → "re-enrolar"; 403 → "desactivado".
+- **Una pantalla de estado**: botón de permisos (wizard secuencial) + estado (servicio, enrolado,
+  chofer asignado vía `GET /api/device`, última señal, última posición enviada, pendientes en cola).
+- Config del servidor: `SERVER_URL` (default = dev tunnel), `ENROLMENT_SECRET` (sin default),
+  `APP_VERSION`. En `mobile/dart_define.json` (gitignored); plantilla en `dart_define.example.json`.
+- Toolchain para compilar: JDK 17 + Android SDK (cmdline-tools) — ver `mobile/README.md`.
+- **Tests Dart** (`mobile/test/`, 53): `pause_window`, `tracked_position`, `tracking_config`,
+  `backoff`, `tracker_api` (MockClient), `position_queue` (`sqflite_common_ffi`), `sync_service`,
+  `enrolment_service`, `tracker_controller`.
+
+### Cómo probar el Bloque 11
+1. Servidor accesible desde el móvil (dev tunnel de VSC o LAN). `.env` con `DEVICE_ENROLMENT_SECRET` y
+   `APP_URL`/`trustProxies` OK. `php artisan config:clear`.
+2. `cd mobile` → copiar `dart_define.example.json` a `dart_define.json` y poner `SERVER_URL` +
+   `ENROLMENT_SECRET` (= `DEVICE_ENROLMENT_SECRET` del servidor).
+3. `flutter build apk --release --dart-define-from-file=dart_define.json` →
+   `mobile/build/app/outputs/flutter-apk/app-release.apk`.
+4. `adb install -r app-release.apk` (o pasar el APK al móvil e instalar). Abrir → conceder los 4
+   permisos (ubicación, ubicación "todo el tiempo" en Ajustes, notificaciones, batería sin restricción).
+5. `soporte@servalillo.test` → Mantenimiento → **Dispositivos**: aparece enrolado → asignar a un
+   chofer → los siguientes lotes traen `driver_id`/`truck_id`/`route_id`.
+6. Escenarios: cerrar la app (swipe) → sigue enviando; modo avión 10 min → la cola crece y se vacía al
+   volver; revocar el token en el panel → la APK muestra "re-enrolar"; desactivar el dispositivo →
+   para y muestra "desactivado"; dentro de 22:00–05:00 → deja de muestrear.
 
 ---
 

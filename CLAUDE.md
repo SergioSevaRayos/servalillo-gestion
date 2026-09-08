@@ -739,6 +739,11 @@ Backed enums con `->label()` en español; casteados en los modelos.
   tokens anteriores; emite un token Sanctum en el **`Device`** (`HasApiTokens`) con habilidad
   `gps:ingest`. Devuelve `{ token, device_id, tracking: {ping_interval_seconds, ping_distance_meters,
   pause_start, pause_end} }`.
+- **`GET /api/device`** (`auth:sanctum` + `abilities:gps:ingest`, añadido en el Bloque 11):
+  `DeviceApiController@show`. Estado para la pantalla de la APK → array plano (NO Resource)
+  `{ device_id, label, is_active, driver: {name}|null, tracking, server_time }`. `driver.name` sale de
+  `device->driver->user->name`. **NO aborta** si `is_active` es false: devuelve 200 con
+  `is_active:false` para que la APK pare con elegancia (sí aborta 403 si el token no es de un `Device`).
 - **`POST /api/gps/batch`** (`auth:sanctum` + `abilities:gps:ingest` — aliases añadidos en
   `bootstrap/app.php`): `{ positions: [{lat, lng, recorded_at, accuracy_m?, speed_mps?, heading_deg?,
   battery_level?}] }`, máx **500** por lote. `StoreGpsBatchRequest` + `App\Services\GpsIngestService`:
@@ -761,10 +766,35 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - `bootstrap/app.php` ya devuelve JSON en `api/*` y loguea toda excepción a `error_logs` → los errores
   de la API salen solos en el panel de Mantenimiento. El grupo `api` de Laravel aquí es solo
   `SubstituteBindings` (sin `throttle:api`).
-- Tests: `tests/Feature/Api/{DeviceRegisterTest,GpsBatchTest}.php`, `PurgeGpsPositionsTest.php`,
-  `MaintenanceDevicesTest.php`. Token de device en tests: `Sanctum::actingAs($device, ['gps:ingest'])`
-  o `$device->createToken('t', ['gps:ingest'])->plainTextToken` + `->withToken(...)`. `phpunit.xml` fija
+- Tests: `tests/Feature/Api/{DeviceRegisterTest,GpsBatchTest,DeviceShowTest}.php`,
+  `PurgeGpsPositionsTest.php`, `MaintenanceDevicesTest.php`. Token de device en tests:
+  `Sanctum::actingAs($device, ['gps:ingest'])` o
+  `$device->createToken('t', ['gps:ingest'])->plainTextToken` + `->withToken(...)`. `phpunit.xml` fija
   `DEVICE_ENROLMENT_SECRET=test-enrolment-secret`.
+
+### APK tracker (Bloque 11) — `mobile/`
+
+- **APK Android headless** (Flutter). La instala el servicio técnico en el móvil de cada camión; se
+  abre una vez para permisos y luego comparte ubicación en 2º plano para siempre. **Sin login ni UI
+  del chofer.** Consume `POST /api/device/register`, `GET /api/device`, `POST /api/gps/batch`.
+- **Toolchain para compilar** (no hace falta Android Studio): JDK 17 (`~/tools/jdk-17.0.20.1+1`,
+  Java 21/25 no valen para AGP) + Android SDK (`~/Android`, cmdline-tools, `platforms;android-36`).
+  `export JAVA_HOME=~/tools/jdk-17.0.20.1+1` antes de cualquier `flutter`/`gradle`.
+- **Config = compile-time** (`--dart-define-from-file=dart_define.json`, gitignored):
+  `SERVER_URL` (default = dev tunnel), `ENROLMENT_SECRET` (= `DEVICE_ENROLMENT_SECRET` del servidor,
+  sin default), `APP_VERSION`. Plantilla `mobile/dart_define.example.json`. Cambiar la URL/secreto
+  exige recompilar.
+- Build: `cd mobile && flutter build apk --release --dart-define-from-file=dart_define.json` →
+  `build/app/outputs/flutter-apk/app-release.apk` (firmado con la clave debug — sideload).
+- **Arquitectura Dart**: servicio en 1er plano (`flutter_foreground_task`, `TaskHandler` +
+  `@pragma('vm:entry-point') startCallback()`) → cada tick: `pause_window` → `location_sampler` →
+  `position_queue` (SQLite, cola offline ≤50k) → `sync_service` (lotes ≤500, borra tras 2xx) →
+  `tracker_controller` mapea el resultado a notificación / parar servicio / saltar N ticks.
+  `enrolment_service` (UUID persistente + token en `flutter_secure_storage`). `status_screen` = única
+  pantalla (permisos + estado). Todo lo testeable tiene test en `mobile/test/` (53, con
+  `sqflite_common_ffi` y `MockClient`).
+- `flutter analyze` limpio + `dart format` + `flutter test` antes de dar por bueno. Detalle de
+  instalación, permisos y mataprocesos OEM en `mobile/README.md`.
 
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.

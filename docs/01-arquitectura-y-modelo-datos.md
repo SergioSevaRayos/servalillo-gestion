@@ -183,6 +183,7 @@ jobs / failed_jobs (colas driver database)
 | Método | Ruta | Auth | Uso | Estado |
 |---|---|---|---|---|
 | POST | `/api/device/register` | — (`throttle:device-register` 10/min por IP) | La APK envía `install_identifier` + secreto de `.env` → token Sanctum del dispositivo con habilidad `gps:ingest` + config de tracking | ✅ |
+| GET | `/api/device` | dispositivo (`gps:ingest`) | Estado del dispositivo: `{device_id, label, is_active, driver:{name}\|null, tracking, server_time}`. Un dispositivo desactivado recibe 200 con `is_active:false` (la APK para con elegancia) | ✅ |
 | POST | `/api/gps/batch` | dispositivo (`gps:ingest`) | Lote de hasta 500 posiciones (offline-friendly) | ✅ |
 | — | `/api/auth/*`, `/api/routes/*`, `/api/stops/*`, `/api/routes/{route}/odometer` | — | Operativa del chofer | ❌ no construido — lo hace la web Livewire |
 

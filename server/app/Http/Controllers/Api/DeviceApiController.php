@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\RegisterDeviceRequest;
 use App\Models\Device;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class DeviceApiController extends Controller
 {
@@ -43,5 +44,30 @@ class DeviceApiController extends Controller
             'device_id' => $device->id,
             'tracking' => $device->trackingConfig(),
         ], 201);
+    }
+
+    /**
+     * Estado del dispositivo para la pantalla de la APK: chofer asignado, si sigue activo y la
+     * config de tracking vigente. No aborta si `is_active` es false — devuelve 200 con
+     * `is_active: false` para que la app pare con elegancia en vez de tratarlo como error.
+     */
+    public function show(Request $request): JsonResponse
+    {
+        $device = $request->user();
+
+        abort_unless($device instanceof Device, 403);
+
+        $device->loadMissing('driver.user');
+
+        return response()->json([
+            'device_id' => $device->id,
+            'label' => $device->label,
+            'is_active' => $device->is_active,
+            'driver' => $device->driver?->user
+                ? ['name' => $device->driver->user->name]
+                : null,
+            'tracking' => $device->trackingConfig(),
+            'server_time' => now()->toIso8601String(),
+        ]);
     }
 }

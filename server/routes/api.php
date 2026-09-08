@@ -18,6 +18,10 @@ use Illuminate\Support\Facades\Route;
 Route::post('device/register', [DeviceApiController::class, 'register'])
     ->middleware('throttle:device-register');
 
+// Estado del dispositivo (chofer asignado, activo, config). Lo consulta la pantalla de la APK.
+Route::get('device', [DeviceApiController::class, 'show'])
+    ->middleware(['auth:sanctum', 'abilities:gps:ingest']);
+
 // Lote de posiciones (offline-friendly). Solo tokens de dispositivo con la habilidad.
 Route::post('gps/batch', [GpsController::class, 'store'])
     ->middleware(['auth:sanctum', 'abilities:gps:ingest']);
