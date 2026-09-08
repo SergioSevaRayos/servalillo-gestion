@@ -237,15 +237,13 @@
 }
 
 /*
-| Móvil: la nav "sticky" y el botón de menú "fixed" saltaban al hacer scroll (Safari iOS /
-| Chrome Android no repintan los elementos fixed/sticky en cada frame). Se fuerzan a su propia
-| capa de composición (translateZ) y se quita cualquier backdrop-filter residual, que agrava
-| el repintado.
+| Móvil: un backdrop-filter (aunque sea identidad) en un elemento sticky/fixed se repinta en
+| cada frame de scroll y hace "vibrar" la barra. Se quita del todo; la barra de nav ya es
+| sólida y a ancho completo, y el FAB del menú se teletransporta fuera del <nav> sticky.
 */
 @media (max-width: 767px) {
     nav.sticky > .glass,
     .drop-menu-fab {
-        transform: translateZ(0);
         -webkit-backdrop-filter: none !important;
         backdrop-filter: none !important;
     }

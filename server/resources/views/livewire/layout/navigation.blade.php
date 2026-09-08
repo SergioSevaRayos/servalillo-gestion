@@ -13,10 +13,12 @@ new class extends Component
     }
 }; ?>
 
-<nav class="sticky top-0 z-30 px-4 pt-4">
-    {{-- En móvil: barra sólida y sin backdrop-filter (se repinta en cada frame de scroll y "salta"
-         la barra); el resto lo hace la regla `nav.sticky > .glass` en app.css (translateZ + none). --}}
-    <div class="glass mx-auto flex h-16 max-w-7xl items-center justify-between rounded-2xl px-4 max-md:bg-white/95 dark:max-md:bg-slate-900/95 sm:px-6">
+<nav class="sticky top-0 z-30 px-4 pt-4 max-md:px-0 max-md:pt-0">
+    {{-- En móvil la barra va a ancho completo, pegada arriba y sólida (sin pill flotante ni
+         backdrop-filter): el `pt-4`/`px-4` + esquinas redondeadas dejaban ver el contenido colarse
+         por los huecos al hacer scroll. La regla `nav.sticky > .glass` en app.css la fija a su
+         propia capa (translateZ) y le quita el backdrop-filter, que "vibra" en móvil. --}}
+    <div class="glass mx-auto flex h-16 max-w-7xl items-center justify-between rounded-2xl px-4 max-md:rounded-none max-md:border-x-0 max-md:border-t-0 max-md:border-b-slate-200 max-md:bg-white dark:max-md:border-b-slate-800 dark:max-md:bg-slate-900 sm:px-6">
         <div class="flex items-center gap-8">
             <a href="{{ route('home') }}" wire:navigate class="flex shrink-0 items-center gap-2 text-primary-700 dark:text-primary-300">
                 <x-application-logo class="h-7 w-7" />
@@ -125,8 +127,9 @@ new class extends Component
         </div>
     </div>
 
-    {{-- Menú móvil: botón gota fijo abajo-derecha (ver x-ui.drop-menu) --}}
-    <x-ui.drop-menu>
+    {{-- Menú móvil: botón gota fijo abajo-derecha. Se teletransporta a <body> para no quedar
+         anidado en el <nav> sticky (iOS Safari coloca mal un position:fixed dentro de sticky). --}}
+    <template x-teleport="body"><x-ui.drop-menu>
         @auth
             @if (auth()->user()->isManager())
                 <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate>
@@ -193,5 +196,5 @@ new class extends Component
                 <x-responsive-nav-link>{{ __('Cerrar sesión') }}</x-responsive-nav-link>
             </button>
         @endauth
-    </x-ui.drop-menu>
+    </x-ui.drop-menu></template>
 </nav>
