@@ -113,8 +113,12 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - Paleta `primary` (azul-petróleo) en `tailwind.config.js`; semánticos = escalas nativas de Tailwind
   (`emerald`=success, `amber`=warning, `rose`=danger). Tipografía = pila de fuentes de sistema, sin CDN.
 - Dos composiciones en `resources/css/app.css` `@layer components`: **`.glass`** (chrome flotante: nav,
-  modales, KPIs, toasts, selector de tema) y **`.surface`** (sólido/alto contraste: formularios, tablas,
-  web del chofer). No mezclar — la web del chofer y las tablas nunca llevan `.glass`.
+  KPIs, toasts, selector de tema, `x-dropdown`) y **`.surface`** (sólido/alto contraste: formularios,
+  tablas, web del chofer). No mezclar — la web del chofer y las tablas nunca llevan `.glass`.
+  - **El panel de `<x-modal>` y el desplegable de la campana** llevan `glass` (borde/sombra elevada)
+    **+ `bg-white dark:bg-slate-900` opaco encima** (las utilidades ganan al `bg-white/70` de `.glass`):
+    un panel a pantalla completa translúcido dejaba ver el contenido de detrás. El overlay del modal es
+    `bg-slate-950/70`.
 - Componentes reutilizables en `resources/views/components/ui/*` (`button`, `input`, `select`, `textarea`,
   `checkbox`, `badge`, `card`, `glass-panel`, `stat-card`, `table`, `theme-toggle`, `toast-container`,
   `drop-menu`). Los primitivos de Breeze (`x-text-input`, `x-primary-button`, `x-dropdown`, `x-modal`,

@@ -51,7 +51,7 @@ $maxWidth = [
 >
     <div
         x-show="show"
-        class="fixed inset-0 bg-slate-950/50 backdrop-blur-sm transform transition-all"
+        class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm transform transition-all"
         x-on:click="show = false"
         x-transition:enter="ease-out duration-300"
         x-transition:enter-start="opacity-0"
@@ -63,7 +63,8 @@ $maxWidth = [
 
     <div
         x-show="show"
-        class="glass relative mb-6 transform overflow-hidden rounded-2xl transition-all sm:mx-auto sm:w-full {{ $maxWidth }}"
+        {{-- glass da el borde/sombra elevada; el bg opaco encima evita que se vea el contenido de detrás --}}
+        class="glass relative mb-6 transform overflow-hidden rounded-2xl bg-white transition-all dark:bg-slate-900 sm:mx-auto sm:w-full {{ $maxWidth }}"
         x-transition:enter="ease-[cubic-bezier(0.34,1.56,0.64,1)] duration-300"
         x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
