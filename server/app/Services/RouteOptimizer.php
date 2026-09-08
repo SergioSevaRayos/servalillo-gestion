@@ -13,8 +13,11 @@ use Illuminate\Support\Facades\Http;
 /**
  * "Ruta eficiente" (Bloque 13): reordena las paradas PENDIENTES de una ruta para
  * acortar el recorrido. Ancla la primera parada pendiente (no se mueve) y optimiza
- * el resto. Intenta el servicio OSRM /trip (TSP real por carretera); si no responde,
- * usa una heurística local (vecino más cercano + 2-opt sobre distancia haversine).
+ * el orden del resto como un camino abierto (vecino más cercano + mejora 2-opt).
+ *
+ * La matriz de distancias es la real por carretera (OSRM /table); si OSRM no
+ * responde, se usa la distancia en línea recta (haversine). Nunca deja la ruta peor
+ * que como estaba: si el orden actual ya es igual o mejor, no se toca.
  *
  * Las paradas ya cerradas (completada/omitida/fallida) conservan su sitio; las
  * pendientes sin coordenadas se dejan al final. Persiste el nuevo `position` (solo
@@ -119,6 +122,7 @@ class RouteOptimizer
 
     /**
      * Orden óptimo de las paradas con coordenadas (lista de IDs; la primera queda fija).
+     * Nunca devuelve un orden peor que el actual.
      *
      * @param  Collection<int, RouteStop>  $stops
      * @return list<int>
@@ -127,48 +131,50 @@ class RouteOptimizer
     {
         $points = $this->points($stops);
         $ids = $stops->pluck('id')->all();
+        $n = count($points);
 
-        if (config('servalillo.routing.enabled')) {
-            $order = $this->solveWithOsrm($points);
+        $matrix = config('servalillo.routing.enabled') ? $this->osrmTable($points) : null;
+        $this->lastMethod = $matrix !== null ? 'osrm' : 'local';
 
-            if ($order !== null) {
-                $this->lastMethod = 'osrm';
+        $dist = $matrix !== null
+            ? fn (int $i, int $j): float => (float) $matrix[$i][$j]
+            : fn (int $i, int $j): float => Haversine::meters($points[$i][0], $points[$i][1], $points[$j][0], $points[$j][1]);
 
-                return array_map(fn (int $i) => $ids[$i], $order);
+        $cost = function (array $order) use ($dist): float {
+            $sum = 0.0;
+            for ($k = 1, $len = count($order); $k < $len; $k++) {
+                $sum += $dist($order[$k - 1], $order[$k]);
             }
-        }
 
-        $this->lastMethod = 'local';
+            return $sum;
+        };
 
-        return array_map(fn (int $i) => $ids[$i], $this->solveLocally($points));
+        $solved = $this->twoOpt($this->nearestNeighbour($n, $dist), $cost);
+        $current = range(0, $n - 1);
+
+        // Nunca empeorar: si el orden actual ya es igual o mejor, se deja como está.
+        $order = $cost($solved) + 1.0 < $cost($current) ? $solved : $current;
+
+        return array_map(fn (int $i) => $ids[$i], $order);
     }
 
     /**
-     * OSRM /trip: TSP por carretera. Devuelve una permutación de índices (0 fijo primero)
-     * o null si el servicio no responde / no es utilizable.
+     * Matriz N×N de distancias reales por carretera (metros) vía OSRM /table; null si el
+     * servicio no responde o algún par de puntos no es ruteable.
      *
      * @param  list<array{0: float, 1: float}>  $points  pares [lat, lon]
-     * @return ?list<int>
+     * @return list<list<float>>|null
      */
-    private function solveWithOsrm(array $points): ?array
+    private function osrmTable(array $points): ?array
     {
-        $coords = implode(';', array_map(
-            fn (array $p) => $p[1].','.$p[0], // OSRM quiere lon,lat
-            $points,
-        ));
-
-        $url = config('servalillo.routing.osrm_url')."/trip/v1/driving/{$coords}";
+        $n = count($points);
+        $coords = implode(';', array_map(fn (array $p) => $p[1].','.$p[0], $points)); // OSRM: lon,lat
 
         try {
             $response = Http::connectTimeout((int) config('servalillo.routing.connect_timeout'))
                 ->timeout((int) config('servalillo.routing.timeout'))
                 ->acceptJson()
-                ->get($url, [
-                    'source' => 'first',
-                    'roundtrip' => 'true',
-                    'overview' => 'false',
-                    'annotations' => 'false',
-                ]);
+                ->get(config('servalillo.routing.osrm_url')."/table/v1/driving/{$coords}", ['annotations' => 'distance']);
         } catch (\Throwable) {
             return null;
         }
@@ -177,77 +183,63 @@ class RouteOptimizer
             return null;
         }
 
-        $waypoints = $response->json('waypoints');
+        $distances = $response->json('distances');
 
-        if (! is_array($waypoints) || count($waypoints) !== count($points)) {
+        if (! is_array($distances) || count($distances) !== $n) {
             return null;
         }
 
-        // waypoints[i].waypoint_index = posición óptima del punto de entrada i.
-        $order = array_fill(0, count($points), null);
-
-        foreach ($waypoints as $inputIndex => $waypoint) {
-            $slot = $waypoint['waypoint_index'] ?? null;
-
-            if (! is_int($slot) || $slot < 0 || $slot >= count($points) || $order[$slot] !== null) {
+        foreach ($distances as $row) {
+            if (! is_array($row) || count($row) !== $n || in_array(null, $row, true)) {
                 return null;
             }
-
-            $order[$slot] = $inputIndex;
         }
 
-        if (in_array(null, $order, true) || $order[0] !== 0) {
-            return null;
-        }
-
-        return array_values($order);
+        return $distances;
     }
 
     /**
-     * Heurística local: vecino más cercano desde el índice 0, luego mejora 2-opt.
-     * El índice 0 nunca se mueve.
+     * Vecino más cercano desde el índice 0 (que nunca se mueve).
      *
-     * @param  list<array{0: float, 1: float}>  $points  pares [lat, lon]
      * @return list<int>
      */
-    private function solveLocally(array $points): array
+    private function nearestNeighbour(int $n, callable $dist): array
     {
-        $n = count($points);
         $remaining = range(1, $n - 1);
         $order = [0];
 
         while ($remaining !== []) {
-            $last = $points[end($order)];
-            $best = null;
+            $last = end($order);
+            $bestKey = 0;
             $bestDist = INF;
 
             foreach ($remaining as $key => $idx) {
-                $d = Haversine::meters($last[0], $last[1], $points[$idx][0], $points[$idx][1]);
+                $d = $dist($last, $idx);
 
                 if ($d < $bestDist) {
                     $bestDist = $d;
-                    $best = $key;
+                    $bestKey = $key;
                 }
             }
 
-            $order[] = $remaining[$best];
-            unset($remaining[$best]);
+            $order[] = $remaining[$bestKey];
+            unset($remaining[$bestKey]);
             $remaining = array_values($remaining);
         }
 
-        return $this->twoOpt($order, $points);
+        return $order;
     }
 
     /**
+     * Mejora 2-opt: invierte segmentos mientras acorten el camino. El índice 0 no se mueve.
+     *
      * @param  list<int>  $order
-     * @param  list<array{0: float, 1: float}>  $points
      * @return list<int>
      */
-    private function twoOpt(array $order, array $points): array
+    private function twoOpt(array $order, callable $cost): array
     {
         $n = count($order);
-        $length = fn (array $o) => Haversine::pathLength(array_map(fn (int $i) => $points[$i], $o));
-        $best = $length($order);
+        $best = $cost($order);
 
         for ($pass = 0; $pass < 20; $pass++) {
             $improved = false;
@@ -258,11 +250,11 @@ class RouteOptimizer
                     $segment = array_reverse(array_slice($candidate, $i, $j - $i + 1));
                     array_splice($candidate, $i, $j - $i + 1, $segment);
 
-                    $candidateLength = $length($candidate);
+                    $candidateCost = $cost($candidate);
 
-                    if ($candidateLength + 0.01 < $best) {
+                    if ($candidateCost + 0.01 < $best) {
                         $order = $candidate;
-                        $best = $candidateLength;
+                        $best = $candidateCost;
                         $improved = true;
                     }
                 }
@@ -284,15 +276,20 @@ class RouteOptimizer
     {
         $reordered = 0;
 
+        // $finalOrder mantiene cada parada cerrada en su hueco estructural, así que su `position`
+        // solo puede moverse para compactar la numeración (huecos por paradas borradas) — eso es
+        // inofensivo. Solo cuentan como "reordenadas" las pendientes.
         DB::transaction(function () use ($stopsById, $finalOrder, &$reordered) {
             foreach (array_values($finalOrder) as $index => $id) {
                 $stop = $stopsById[$id];
                 $newPosition = $index + 1;
 
                 if ($stop->position !== $newPosition) {
-                    abort_unless($stop->status === RouteStopStatus::Pending, 422, 'Solo se reordenan paradas pendientes.');
                     $stop->update(['position' => $newPosition]);
-                    $reordered++;
+
+                    if ($stop->status === RouteStopStatus::Pending) {
+                        $reordered++;
+                    }
                 }
             }
         });

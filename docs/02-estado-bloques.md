@@ -675,13 +675,18 @@ Detalle en `CLAUDE.md` (sección "Notificaciones y canal de soporte (Bloque 12)"
 acortar el recorrido. Dos entradas: cabecera de cada columna del tablero (`/rutas`) y bajo la lista
 de paradas del chofer (`/chofer/ruta`, "Organizar mi ruta"). Se intercaló por delante de 10/11.
 
-- **`App\Services\RouteOptimizer`** (`optimize(Route)` + `toast(array)`): motor **OSRM `/trip`**
-  (TSP por carretera, `config('servalillo.routing')`, `OSRM_URL` autoalojable, demo público sin API
-  key) con **fallback local obligatorio** (`App\Support\Haversine`, vecino más cercano + 2-opt). El
-  botón siempre da resultado.
-- Solo reordena `Pending`; las cerradas conservan su sitio; la **primera pendiente queda anclada**
-  (no se mueve — es "la próxima parada" del chofer). Las pendientes sin coordenadas se anexan al
-  final. Persiste `position` en transacción, solo filas que cambian.
+- **`App\Services\RouteOptimizer`** (`optimize(Route)` + `toast(array)`): pide a **OSRM `/table`** la
+  matriz de distancias reales por carretera y resuelve el camino abierto con **vecino más cercano +
+  2-opt** sobre esa matriz (`config('servalillo.routing')`, `OSRM_URL` autoalojable, demo público sin
+  API key). **Fallback obligatorio** al mismo algoritmo sobre distancia en línea recta
+  (`App\Support\Haversine`) si OSRM falla. **Nunca deja la ruta peor** que como estaba (compara con
+  el orden actual). (NO se usa `/trip` con `roundtrip=true`: optimiza un circuito, no un camino.)
+- Solo reordena `Pending`; las cerradas conservan su sitio (su `position` puede desplazarse al
+  compactar huecos, sin dar 422); la **primera pendiente queda anclada** (no se mueve — es "la
+  próxima parada" del chofer). Las pendientes sin coordenadas se anexan al final. Persiste `position`
+  en transacción, solo filas que cambian.
+- **`Board::reorderStops`** también deja de dar 422 cuando una parada cerrada solo cambia de
+  `position` al arrastrar una pendiente por delante (el 422 se reserva para reasignar de ruta).
 - Permiso nuevo `routes.optimize.own` (chofer + admin + mantenimiento); `RoutePolicy::optimizeOwn`
   (chofer, con propiedad) y `RoutePolicy::reorderStops` (oficina, ahora cableado desde el tablero).
 - Primer uso del `Http` facade. `phpunit.xml` fija `ROUTING_OSRM_ENABLED=false` (tests deterministas
@@ -694,8 +699,8 @@ por carretera** (OSRM `/route`, con distancia y duración; cae a línea recta si
 `<x-route-map-modal>` compartido. El botón "Organizar mi ruta" del chofer pasa a la parte superior.
 
 ### Tests
-`RouteOptimizerTest` (7), `RouteGeometryTest` (4) + añadidos a `RoutesBoardTest` (5),
-`ChoferTodayTest` (5), `RolesAndPoliciesTest`. **Suite total: 209 tests en verde.**
+`RouteOptimizerTest` (9), `RouteGeometryTest` (4) + añadidos a `RoutesBoardTest` (6),
+`ChoferTodayTest` (5), `RolesAndPoliciesTest`. **Suite total: 212 tests en verde.**
 
 Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
 

@@ -102,6 +102,24 @@ test('no se puede mover una parada completada', function () {
     expect($stop->fresh()->route_id)->toBeNull();
 });
 
+test('arrastrar una pendiente por delante de una completada intermedia no da error', function () {
+    $route = makeRoute('2026-09-10');
+    $a = RouteStop::factory()->create(['route_id' => $route->id, 'position' => 1]);
+    $done = RouteStop::factory()->create(['route_id' => $route->id, 'position' => 2, 'status' => RouteStopStatus::Completed]);
+    $b = RouteStop::factory()->create(['route_id' => $route->id, 'position' => 3]);
+
+    // El usuario sube $b al principio: nuevo orden [$b, $a, $done] — $done se desplaza a la 3.
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('reorderStops', $route->id, [$b->id, $a->id, $done->id], $route->id, [$b->id, $a->id, $done->id])
+        ->assertStatus(200);
+
+    expect($b->fresh()->position)->toBe(1)
+        ->and($a->fresh()->position)->toBe(2)
+        ->and($done->fresh()->position)->toBe(3)
+        ->and($done->fresh()->status)->toBe(RouteStopStatus::Completed);
+});
+
 test('reordenar una columna no toca las paradas completadas que ya estaban ahí', function () {
     $route = makeRoute('2026-09-10');
     $done = RouteStop::factory()->create(['route_id' => $route->id, 'position' => 1, 'status' => RouteStopStatus::Completed]);
@@ -165,10 +183,10 @@ test('una parada nueva hereda el tipo del filtro activo', function () {
 
 test('"Ruta eficiente": el administrador reordena una ruta y ve un toast', function () {
     config()->set('servalillo.routing.enabled', true);
-    Http::fake(['*/trip/*' => Http::response([
+    // Matriz: A-C barato, C-B barato => óptimo A, C, B
+    Http::fake(['*/table/*' => Http::response([
         'code' => 'Ok',
-        'waypoints' => [['waypoint_index' => 0], ['waypoint_index' => 2], ['waypoint_index' => 1]],
-        'trips' => [['distance' => 9000.0]],
+        'distances' => [[0, 900, 100], [900, 0, 100], [100, 100, 0]],
     ])]);
 
     $route = makeRoute('2026-09-10');

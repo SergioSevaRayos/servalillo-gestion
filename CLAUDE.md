@@ -611,21 +611,28 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `Board::optimizeRoute(int $routeId)`) y bajo la lista de paradas del chofer (`/chofer/ruta`,
   `Today::optimizeRoute()`, "Organizar mi ruta").
 - **`App\Services\RouteOptimizer` es el único punto.** `optimize(Route): array` + `toast(array): array`.
-  - Motor: **OSRM `/trip`** (TSP por carretera). Config `servalillo.routing` (`OSRM_URL` autoalojable,
-    demo público sin API key; `timeout`/`connect_timeout`). OSRM quiere **`lon,lat`**;
-    `?source=first&roundtrip=true&overview=false`; `waypoints[i].waypoint_index` = slot óptimo del
-    input `i`; se ignora la pierna de vuelta (no se añade parada).
-  - **Fallback local obligatorio** (`App\Support\Haversine`: NN desde el ancla + 2-opt): cualquier
-    fallo de OSRM (red, timeout, `code != Ok`, waypoint no ruteable, `enabled=false`) → heurística
-    local. El botón **siempre** da resultado.
-  - Solo reordena `Pending`; las cerradas conservan su slot (misma garantía que `reorderStops`). La
-    **primera parada pendiente** queda anclada (no se mueve). Las pendientes **sin `lat/lon`** se
-    anexan al final en su orden. `latitude/longitude` son `decimal:7` → **`(float)` antes de operar**.
+  - Motor: **OSRM `/table`** (`?annotations=distance`) → matriz N×N de distancias reales por carretera.
+    Sobre esa matriz, **vecino más cercano desde el ancla + 2-opt** (camino abierto). Config
+    `servalillo.routing` (`OSRM_URL` autoalojable, demo público sin API key; `timeout`/`connect_timeout`).
+    OSRM quiere **`lon,lat`**. **OJO**: NO usar `/trip` con `roundtrip=true` — optimiza un circuito
+    cerrado y con la pierna de vuelta descartada puede dejar el camino abierto *peor*.
+  - **Fallback obligatorio** (`App\Support\Haversine`, mismo algoritmo con distancia en línea recta):
+    cualquier fallo de OSRM (red, timeout, `code != Ok`, par no ruteable, `enabled=false`) → local.
+    El botón **siempre** da resultado (`method` = `osrm` | `local` | `none`).
+  - **Nunca empeora**: se compara el orden propuesto con el actual (misma métrica); si el actual ya es
+    igual o mejor, no se toca (`moved: false`, toast "ya estaba optimizada").
+  - Solo reordena `Pending`; las cerradas conservan su sitio (su `position` puede desplazarse solo
+    para compactar huecos). La **primera parada pendiente** queda anclada (índice 0, nunca se mueve).
+    Las pendientes **sin `lat/lon`** se anexan al final en su orden. `latitude/longitude` son
+    `decimal:7` → **`(float)` antes de operar**.
   - Persiste `position` en `DB::transaction`, solo filas que cambian. Coste: ~N filas de `audits`
-    por clic (una por `position` cambiada), igual que `reorderStops` — aceptado.
+    por clic, igual que `reorderStops` — aceptado.
   - **Gotcha resuelto**: NO usar una arrow-fn `fn () => array_shift($queue)` dentro de `map()` para
     drenar una cola — las arrow functions capturan **por valor** y `array_shift` no persiste entre
     iteraciones. Usar un `foreach` normal.
+- **`Board::reorderStops` y `RouteOptimizer` ya no abortan 422** cuando una parada **cerrada** solo
+  cambia de `position` (renumerado al reordenar las pendientes de alrededor). El 422 se reserva para
+  intentar **reasignar de ruta** una parada cerrada.
 - Permiso nuevo **`routes.optimize.own`** (chofer + admin + mantenimiento). `RoutePolicy::optimizeOwn`
   (chofer, con propiedad de la ruta) y `RoutePolicy::reorderStops` (oficina — **ahora cableado** desde
   `Board::optimizeRoute` con `$this->authorize('reorderStops', $route)`, antes estaba sin usar).

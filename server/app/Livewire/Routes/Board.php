@@ -137,17 +137,23 @@ class Board extends Component
         $stops = RouteStop::whereIn('id', $allIds)->get()->keyBy('id');
         abort_unless($stops->count() === count($allIds), 422, 'Alguna parada ya no existe.');
 
-        // Solo las paradas "pendientes" se pueden mover (ver <x-routes.stop-card>): el filtro de
-        // SortableJS ya lo impide en el cliente, pero nunca hay que confiar solo en eso.
+        // Una parada cerrada (completada/omitida/fallida) NO se puede reasignar a otra ruta ni
+        // sacar/meter en "Sin asignar" — el filtro de SortableJS ya lo impide en el cliente, pero
+        // nunca hay que confiar solo en eso. Su `position` SÍ puede desplazarse cuando se reordenan
+        // las paradas pendientes de alrededor (es solo orden de visualización).
         DB::transaction(function () use ($fromRouteId, $fromStopIds, $toRouteId, $toStopIds, $stops) {
             foreach (array_values($toStopIds) as $index => $stopId) {
                 $stop = $stops[$stopId];
                 $newPosition = $index + 1;
+                $changingRoute = $stop->route_id !== $toRouteId;
 
-                if ($stop->route_id !== $toRouteId || $stop->position !== $newPosition) {
-                    abort_unless($stop->status === RouteStopStatus::Pending, 422, 'Solo se pueden mover paradas pendientes.');
-                    $stop->update(['route_id' => $toRouteId, 'position' => $newPosition]);
+                if (! $changingRoute && $stop->position === $newPosition) {
+                    continue;
                 }
+
+                abort_if($changingRoute && $stop->status !== RouteStopStatus::Pending, 422, 'Solo se pueden mover paradas pendientes.');
+
+                $stop->update(['route_id' => $toRouteId, 'position' => $newPosition]);
             }
 
             if ($fromRouteId !== $toRouteId) {
@@ -156,7 +162,6 @@ class Board extends Component
                     $newPosition = $index + 1;
 
                     if ($stop->position !== $newPosition) {
-                        abort_unless($stop->status === RouteStopStatus::Pending, 422, 'Solo se pueden mover paradas pendientes.');
                         $stop->update(['position' => $newPosition]);
                     }
                 }

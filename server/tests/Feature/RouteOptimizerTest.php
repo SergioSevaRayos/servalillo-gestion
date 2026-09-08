@@ -34,28 +34,27 @@ function positionsOf(Route $route): array
     return $route->stops()->pluck('id')->all();
 }
 
-it('usa OSRM y reordena según waypoint_index', function () {
+it('usa la matriz de distancias reales de OSRM /table y reordena', function () {
     config()->set('servalillo.routing.enabled', true);
 
     // Orden actual: A(pos1), D(pos2), B(pos3), C(pos4)
     [$route, $s] = routeWithStops([
-        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1], // A (ancla)
-        ['lat' => 28.46, 'lng' => -16.46, 'pos' => 2], // D
-        ['lat' => 28.42, 'lng' => -16.42, 'pos' => 3], // B
-        ['lat' => 28.44, 'lng' => -16.44, 'pos' => 4], // C
+        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1], // A (ancla, índice 0)
+        ['lat' => 28.46, 'lng' => -16.46, 'pos' => 2], // D (índice 1)
+        ['lat' => 28.42, 'lng' => -16.42, 'pos' => 3], // B (índice 2)
+        ['lat' => 28.44, 'lng' => -16.44, 'pos' => 4], // C (índice 3)
     ]);
     [$a, $d, $b, $c] = $s;
 
-    // OSRM: input [A,D,B,C] -> slots [0,3,1,2] => orden óptimo A,B,C,D
-    Http::fake(['*/trip/*' => Http::response([
+    // Matriz por carretera (m): A-B, B-C, C-D baratos; el resto caro => óptimo A,B,C,D
+    Http::fake(['*/table/*' => Http::response([
         'code' => 'Ok',
-        'waypoints' => [
-            ['waypoint_index' => 0],
-            ['waypoint_index' => 3],
-            ['waypoint_index' => 1],
-            ['waypoint_index' => 2],
+        'distances' => [
+            [0, 900, 100, 500],
+            [900, 0, 500, 100],
+            [100, 500, 0, 100],
+            [500, 100, 100, 0],
         ],
-        'trips' => [['distance' => 12345.6]],
     ])]);
 
     $result = app(RouteOptimizer::class)->optimize($route);
@@ -64,9 +63,31 @@ it('usa OSRM y reordena según waypoint_index', function () {
         ->and($result['moved'])->toBeTrue()
         ->and(positionsOf($route))->toBe([$a->id, $b->id, $c->id, $d->id]);
 
-    Http::assertSent(fn ($req) => str_contains($req->url(), 'source=first')
-        && str_contains($req->url(), 'roundtrip=true')
+    Http::assertSent(fn ($req) => str_contains($req->url(), '/table/v1/driving/')
+        && str_contains($req->url(), 'annotations=distance')
         && str_contains($req->url(), '-16.4,28.4')); // lon,lat, no lat,lon
+});
+
+it('no reordena si con la matriz real el orden actual ya es igual o mejor', function () {
+    config()->set('servalillo.routing.enabled', true);
+
+    [$route, $s] = routeWithStops([
+        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1],
+        ['lat' => 28.42, 'lng' => -16.42, 'pos' => 2],
+        ['lat' => 28.44, 'lng' => -16.44, 'pos' => 3],
+    ]);
+    $original = positionsOf($route);
+
+    // El orden actual (0,1,2) ya es el más barato por carretera.
+    Http::fake(['*/table/*' => Http::response([
+        'code' => 'Ok',
+        'distances' => [[0, 100, 900], [100, 0, 100], [900, 100, 0]],
+    ])]);
+
+    $result = app(RouteOptimizer::class)->optimize($route);
+
+    expect($result['moved'])->toBeFalse()
+        ->and(positionsOf($route))->toBe($original);
 });
 
 it('cae a la heurística local si OSRM no responde, dejando fija la primera parada', function () {
@@ -158,6 +179,24 @@ it('respeta el sitio de las paradas ya cerradas', function () {
         ->and($order[1])->toBe($anchor->id)       // ancla pendiente: sigue segunda
         ->and($order)->toBe([$done->id, $anchor->id, $mid->id, $far->id]);
     expect($done->fresh()->position)->toBe(1);
+});
+
+it('optimiza una ruta con una completada intermedia y hueco de posiciones sin dar error', function () {
+    [$route, $s] = routeWithStops([
+        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1, 'status' => RouteStopStatus::Completed],
+        ['lat' => 28.46, 'lng' => -16.46, 'pos' => 2],
+        ['lat' => 28.42, 'lng' => -16.42, 'pos' => 5], // hueco (posición borrada en medio)
+        ['lat' => 28.44, 'lng' => -16.44, 'pos' => 8],
+    ]);
+    [$done] = $s;
+
+    $result = app(RouteOptimizer::class)->optimize($route);
+
+    // No lanza 422; la completada se queda primera y la numeración se compacta a 1..4.
+    expect($done->fresh()->position)->toBe(1)
+        ->and($done->fresh()->status)->toBe(RouteStopStatus::Completed)
+        ->and($route->stops()->pluck('position')->all())->toBe([1, 2, 3, 4])
+        ->and($result['moved'])->toBeTrue();
 });
 
 it('no revienta con lat/lon como string (cast decimal:7) y devuelve distancias float', function () {
