@@ -35,6 +35,11 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureUserIsActive::class,
         ]);
 
+        // Detrás de nginx (prod) o de un dev tunnel: hay que confiar en las cabeceras
+        // X-Forwarded-* para que Laravel sepa el host/esquema reales (si no, genera URLs
+        // http://localhost y los redirects/cookies fallan al abrir la web por el túnel).
+        $middleware->trustProxies(at: '*');
+
         // El tema también lo escribe JS directamente (document.cookie) para no depender
         // de un roundtrip al servidor: debe quedar sin cifrar en ambos sentidos.
         $middleware->encryptCookies(except: ['theme']);
