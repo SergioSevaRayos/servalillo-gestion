@@ -301,10 +301,17 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - **Exclusivo del rol `mantenimiento`** (no `administrador`). Grupo `maintenance.*` en `routes/web.php`
   con `role:mantenimiento`; enlace "Mantenimiento" en el nav solo si `auth()->user()->isMaintenance()`.
 - **`/home` redirige al rol `mantenimiento` a `/mantenimiento`** (no a `/dashboard`); ese usuario tiene
-  su propio panel de inicio (`App\Livewire\Maintenance\Overview`, pestaña **"Resumen"**, ampliado en
-  el Bloque 12): KPIs (incidencias de soporte abiertas, errores 5xx de 7 días, cambios auditados hoy,
-  notificaciones sin leer, nº de ficheros de log) + tarjetas con las últimas incidencias / errores /
-  auditorías / ficheros de log, cada una enlazando a su pestaña. `/dashboard` (panel estadístico de la
+  su propio **panel de estadísticas** (`App\Livewire\Maintenance\Overview`, pestaña **"Resumen"**,
+  Bloque 12) — el equivalente de `/dashboard` para el técnico. `App\Services\MaintenanceStatsService`
+  (mismo patrón de agregación en BD que `FleetStatsService`; `support_tickets` usa SoftDeletes → se
+  excluye `deleted_at`) alimenta: selector de rango (7/30/90 días), KPIs (incidencias abiertas / sin
+  responder / resueltas, errores del periodo y de 24 h, cambios auditados, notificaciones sin leer,
+  peso del log), 4 gráficos Chart.js (errores/día, incidencias abiertas vs resueltas, auditoría/día,
+  incidencias por categoría) vía `Alpine.data('maintenanceCharts')` (bloque `wire:ignore`, evento
+  `maint-stats-updated` — gemelo de `statsCharts`), barras "top excepciones" / "top modelos", y
+  **avisos accionables** (`MaintenanceStatsService::alerts()`, independientes del rango: incidencias
+  sin responder > 2 días, errores en 24 h, log > 5 MB, errores de > 30 días sin purgar). Más tarjetas
+  con las últimas incidencias / errores / auditorías / ficheros de log. `/dashboard` (panel de la
   empresa) sigue accesible desde el nav, pero ya no es su landing.
 - Sub-vistas con pestañas compartidas (`<x-maintenance.tabs>`) — **"Resumen"** (`maintenance.index`,
   antes un `Route::redirect`), "Auditoría", "Errores del sistema", "Log de la aplicación", "Soporte"

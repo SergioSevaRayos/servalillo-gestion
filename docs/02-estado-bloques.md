@@ -629,17 +629,25 @@ del nav.
 - Notificaciones (`App\Support\Notifications\SupportNotifier`): alta → mantenimiento; respuesta → el
   otro lado; cambio de estado → el creador.
 
-### Panel de inicio del rol mantenimiento
+### Panel de estadísticas del rol mantenimiento
 - `/home` redirige a `mantenimiento` a **`/mantenimiento`** (antes iba a `/dashboard`). Nueva pestaña
-  **"Resumen"** (`App\Livewire\Maintenance\Overview`, sustituye al viejo `Route::redirect`): KPIs
-  (incidencias abiertas, errores 5xx de 7 días, cambios auditados hoy, notificaciones sin leer,
-  ficheros de log) + tarjetas con las últimas incidencias / errores / auditorías / ficheros de log,
-  cada una enlazando a su pestaña. El panel estadístico de la empresa (`/dashboard`) sigue accesible
-  desde el nav.
+  **"Resumen"** (`App\Livewire\Maintenance\Overview`, sustituye al viejo `Route::redirect`) — un
+  `/dashboard` dedicado al técnico, con `App\Services\MaintenanceStatsService`:
+  - Selector de rango 7/30/90 días.
+  - KPIs: incidencias abiertas (y sin responder), resueltas del periodo, errores del periodo y de las
+    últimas 24 h, cambios auditados, notificaciones sin leer, peso del log.
+  - 4 gráficos Chart.js (`Alpine.data('maintenanceCharts')`, mismo patrón que el panel de la empresa):
+    errores por día, incidencias abiertas vs resueltas, actividad de auditoría por día, incidencias
+    por categoría.
+  - Barras "excepciones más frecuentes" y "modelos más modificados".
+  - **Avisos accionables** (`alerts()`, sin rango): incidencias sin respuesta > 2 días, errores en
+    24 h, log > 5 MB, errores de > 30 días sin purgar.
+  - Tarjetas con las últimas incidencias / errores / auditorías / ficheros de log.
+- El panel estadístico de la empresa (`/dashboard`) sigue accesible desde el nav.
 
 ### Tests
 `NotificationBellTest`, `ChoferRouteNotificationsTest`, `SupportChannelAdminTest`,
-`SupportChannelMaintenanceTest`, `MaintenanceOverviewTest` (~31 casos nuevos). **Suite total: 186
+`SupportChannelMaintenanceTest`, `MaintenanceOverviewTest` (~33 casos nuevos). **Suite total: 188
 tests en verde.**
 
 Detalle en `CLAUDE.md` (sección "Notificaciones y canal de soporte (Bloque 12)").

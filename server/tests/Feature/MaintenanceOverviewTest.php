@@ -25,7 +25,7 @@ it('el chofer sigue yendo a su ruta desde /home', function () {
     $this->actingAs($user)->get('/home')->assertRedirect(route('chofer.today'));
 });
 
-it('el panel de mantenimiento muestra incidencias, errores y actividad', function () {
+it('el panel de mantenimiento muestra KPIs, incidencias, errores y actividad', function () {
     $maint = makeUser('mantenimiento');
     $admin = makeUser('administrador');
 
@@ -39,11 +39,35 @@ it('el panel de mantenimiento muestra incidencias, errores y actividad', functio
     Livewire::actingAs($maint)->test(Overview::class)
         ->assertOk()
         ->assertSee('Incidencias abiertas')
-        ->assertSee('Errores (7 días)')
+        ->assertSee('Errores (periodo)')
+        ->assertSee('Errores por día')          // gráfico
         ->assertSee('Incidencia visible')
         ->assertDontSee('Ya resuelta')
         ->assertSee('RuntimeException')
-        ->assertSee('Resumen'); // pestaña
+        ->assertSee('Resumen');                 // pestaña
+});
+
+it('el selector de rango recalcula las estadísticas y reemite los gráficos', function () {
+    $maint = makeUser('mantenimiento');
+
+    Livewire::actingAs($maint)->test(Overview::class)
+        ->assertSet('range', '30d')
+        ->call('setRange', '7d')
+        ->assertSet('range', '7d')
+        ->assertDispatched('maint-stats-updated');
+});
+
+it('el panel avisa de incidencias sin responder de más de 2 días', function () {
+    $maint = makeUser('mantenimiento');
+    $admin = makeUser('administrador');
+
+    SupportTicket::factory()->create([
+        'user_id' => $admin->id, 'subject' => 'Vieja sin respuesta', 'status' => 'abierto',
+        'created_at' => now()->subDays(4),
+    ]);
+
+    Livewire::actingAs($maint)->test(Overview::class)
+        ->assertSee('sin responder');
 });
 
 it('un administrador no accede al panel de mantenimiento', function () {

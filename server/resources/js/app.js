@@ -488,3 +488,104 @@ window.statsCharts = function (initial) {
         },
     };
 };
+
+/*
+| Panel de inicio de Mantenimiento (Bloque 12). Mismo patrón que statsCharts: los <canvas>
+| viven en un bloque wire:ignore; el componente Livewire emite `maint-stats-updated` con los
+| datasets nuevos al cambiar de rango y aquí solo hacemos chart.update().
+*/
+const AMBER = '#f59e0b';
+const SLATE = '#64748b';
+
+window.maintenanceCharts = function (initial) {
+    return {
+        _cleanup: null,
+
+        init() {
+            const charts = {};
+
+            charts.errors = new Chart(this.$refs.errors, {
+                type: 'line',
+                data: {
+                    labels: initial.errorsDaily.labels,
+                    datasets: [{ label: 'Errores', data: initial.errorsDaily.data, borderColor: ROSE, backgroundColor: 'rgba(244,63,94,0.12)', fill: true, tension: 0.3, pointRadius: 0 }],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                    plugins: { legend: { display: false } },
+                },
+            });
+
+            charts.tickets = new Chart(this.$refs.tickets, {
+                type: 'bar',
+                data: {
+                    labels: initial.ticketsDaily.labels,
+                    datasets: [
+                        { label: 'Abiertas', data: initial.ticketsDaily.opened, backgroundColor: AMBER },
+                        { label: 'Resueltas', data: initial.ticketsDaily.resolved, backgroundColor: TEAL },
+                    ],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                    plugins: { legend: { position: 'bottom' } },
+                },
+            });
+
+            charts.audits = new Chart(this.$refs.audits, {
+                type: 'bar',
+                data: {
+                    labels: initial.auditsDaily.labels,
+                    datasets: [{ label: 'Cambios', data: initial.auditsDaily.data, backgroundColor: 'rgba(100,116,139,0.55)' }],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                    plugins: { legend: { display: false } },
+                },
+            });
+
+            charts.category = new Chart(this.$refs.category, {
+                type: 'doughnut',
+                data: {
+                    labels: initial.ticketsByCategory.labels,
+                    datasets: [{ data: initial.ticketsByCategory.data, backgroundColor: [ROSE, AMBER, SLATE], borderWidth: 0 }],
+                },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'bottom' } } },
+            });
+
+            const onUpdate = (e) => {
+                const d = e.detail.charts;
+
+                charts.errors.data.labels = d.errorsDaily.labels;
+                charts.errors.data.datasets[0].data = d.errorsDaily.data;
+                charts.errors.update();
+
+                charts.tickets.data.labels = d.ticketsDaily.labels;
+                charts.tickets.data.datasets[0].data = d.ticketsDaily.opened;
+                charts.tickets.data.datasets[1].data = d.ticketsDaily.resolved;
+                charts.tickets.update();
+
+                charts.audits.data.labels = d.auditsDaily.labels;
+                charts.audits.data.datasets[0].data = d.auditsDaily.data;
+                charts.audits.update();
+
+                charts.category.data.datasets[0].data = d.ticketsByCategory.data;
+                charts.category.update();
+            };
+
+            window.addEventListener('maint-stats-updated', onUpdate);
+
+            this._cleanup = () => {
+                window.removeEventListener('maint-stats-updated', onUpdate);
+                Object.values(charts).forEach((c) => c.destroy());
+            };
+        },
+
+        destroy() {
+            this._cleanup?.();
+        },
+    };
+};
