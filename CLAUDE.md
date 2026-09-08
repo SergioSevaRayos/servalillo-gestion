@@ -654,6 +654,10 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `runOptimize('base'|<stopId>)`, que resuelve el `$origin` `[lat, lon]` y llama a `optimize()`.
   Los dos componentes exponen `runOptimize(string $from)` con la misma firma para que el modal sirva
   para ambos.
+- **Chofer — "Ir a la base a repostar"**: botón aparte (`Today::optimizeFromBase()`, atajo de
+  `runOptimize('base')`, con `wire:confirm`) para cuando el camión tiene que volver a la nave a
+  rellenar. Un toque = reordena las pendientes saliendo de la base **sin** pasar por el modal; las
+  completadas se quedan en su sitio. Visible si `operable() && ! finished && pendingCount > 1`.
 - **`App\Services\RouteOptimizer` es el único punto.** `optimize(Route, ?array $origin = null): array`
   + `toast(array): array` + `baseOrigin(): array`.
   - Motor: **OSRM `/table`** (`?annotations=distance`) → matriz N×N de distancias reales por carretera.

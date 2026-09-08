@@ -690,6 +690,9 @@ de paradas del chofer (`/chofer/ruta`, "Organizar mi ruta"). Se intercaló por d
   `BASE_LATITUDE`/`BASE_LONGITUDE`) o **"Desde un cliente"** (lista de las paradas pendientes con
   ubicación de la ruta). Ese punto se ancla como primera parada y el resto se optimiza desde ahí. Si
   se llama sin origen (directo / tests) se toma la última parada cerrada, o libre si no hay ninguna.
+- **Chofer — "Ir a la base a repostar"**: botón aparte (`Today::optimizeFromBase()`, `wire:confirm`)
+  para cuando el camión tiene que volver a la nave a rellenar: un toque reordena las pendientes
+  saliendo de la base, sin modal; las completadas no se mueven.
 - Solo reordena `Pending`; las **cerradas quedan FIJAS en su hueco** (relativo al flujo de pendientes;
   su `position` solo se renumera al compactar). Las pendientes sin coordenadas se anexan al final.
   Persiste `position` en transacción, solo filas que cambian.
@@ -709,8 +712,8 @@ por carretera** (OSRM `/route`, con distancia y duración; cae a línea recta si
 `<x-route-map-modal>` compartido. El botón "Organizar mi ruta" del chofer pasa a la parte superior.
 
 ### Tests
-`RouteOptimizerTest` (12), `RouteGeometryTest` (4) + añadidos a `RoutesBoardTest` (7),
-`ChoferTodayTest` (6), `RolesAndPoliciesTest`. **Suite total: 217 tests en verde.**
+`RouteOptimizerTest` (12), `RouteGeometryTest` (4) + añadidos a `RoutesBoardTest`, `ChoferTodayTest`,
+`RolesAndPoliciesTest`. **Suite total: 223 tests en verde.**
 
 Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
 
@@ -727,7 +730,8 @@ Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
 5. En una columna con una parada **completada**, arrastrar una pendiente por encima o por debajo → la
    completada vuelve a su sitio (no se puede mover).
 6. `pedro@servalillo.test` → "Organizar mi ruta" (arriba) → mismo modal (base / cliente) → se
-   reordenan las pendientes por el camino más corto.
+   reordenan las pendientes por el camino más corto. "Ir a la base a repostar" hace lo mismo desde
+   la base de un toque (sin modal); las paradas ya completadas no se mueven.
 7. "Ver recorrido" (chofer o cualquier columna del tablero) → mapa con las paradas numeradas y el
    trazado por carretera + "~X km · ~Y min". `OSRM_URL` basura → cae a línea recta.
 8. `/rutas` como chofer → 403 (ya lo era); el chofer no tiene el botón "Ruta eficiente" del tablero.

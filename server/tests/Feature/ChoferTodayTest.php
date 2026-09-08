@@ -531,6 +531,35 @@ it('el chofer organiza su ruta desde la base', function () {
     expect($route->stops()->pluck('id')->all())->toBe([$a->id, $near->id, $far->id]);
 });
 
+it('"Ir a la base a repostar" reordena las pendientes desde la base sin tocar las completadas', function () {
+    config()->set('servalillo.routing.enabled', false);
+    config()->set('servalillo.base', ['latitude' => 28.39, 'longitude' => -16.39]);
+
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    // El camión ya hizo la parada 1 (lejos de la base).
+    $done = RouteStop::factory()->for($route)->create(['position' => 1, 'status' => RouteStopStatus::Completed, 'latitude' => 28.50, 'longitude' => -16.50, 'planned_quantity' => 1000]);
+    $far = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46, 'planned_quantity' => 1000]);
+    $near = RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.41, 'longitude' => -16.41, 'planned_quantity' => 1000]);
+    $mid = RouteStop::factory()->for($route)->create(['position' => 4, 'latitude' => 28.44, 'longitude' => -16.44, 'planned_quantity' => 1000]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('optimizeFromBase')
+        ->assertDispatched('toast');
+
+    // La completada se queda la primera; las pendientes salen desde la base: cerca -> media -> lejos.
+    expect($route->stops()->pluck('id')->all())->toBe([$done->id, $near->id, $mid->id, $far->id])
+        ->and($done->fresh()->position)->toBe(1)
+        ->and($done->fresh()->status)->toBe(RouteStopStatus::Completed);
+});
+
+it('no se puede ir a la base a repostar con la jornada terminada', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::Completed, 'started_at' => now(), 'completed_at' => now()], stops: 3);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('optimizeFromBase')
+        ->assertStatus(403);
+});
+
 it('no se puede organizar una ruta ya terminada', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::Completed, 'started_at' => now(), 'completed_at' => now()], stops: 3);
 

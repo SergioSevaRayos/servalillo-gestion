@@ -344,6 +344,15 @@ class Today extends Component
         $this->dispatch('toast', ...$optimizer->toast($result));
     }
 
+    /**
+     * "Ir a la base a repostar": atajo de un toque que reordena las paradas pendientes por el
+     * camino más corto saliendo de la base (las completadas no se tocan). Sin modal.
+     */
+    public function optimizeFromBase(): void
+    {
+        $this->runOptimize('base');
+    }
+
     /** Paradas pendientes con ubicación de la ruta (para elegir el punto de partida en el modal). */
     #[Computed]
     public function optimizingStops()
