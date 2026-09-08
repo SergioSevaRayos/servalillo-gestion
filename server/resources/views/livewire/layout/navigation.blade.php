@@ -75,6 +75,26 @@ new class extends Component
         </div>
 
         <div class="flex items-center gap-3">
+            @auth
+                @if (auth()->user()->isManager())
+                    <livewire:notifications.bell />
+                @endif
+                @if (auth()->user()->hasRole('administrador'))
+                    <a href="{{ route('support.index') }}" wire:navigate
+                        title="{{ __('Soporte / incidencias') }}" aria-label="{{ __('Soporte / incidencias') }}"
+                        @class([
+                            'grid h-9 w-9 place-items-center rounded-full transition',
+                            'bg-primary-500/10 text-primary-700 dark:text-primary-300' => request()->routeIs('support.*'),
+                            'text-slate-600 hover:bg-slate-900/5 dark:text-slate-300 dark:hover:bg-white/10' => ! request()->routeIs('support.*'),
+                        ])>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="h-5 w-5">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M21.75 6.75a4.5 4.5 0 0 1-4.884 4.484c-1.076-.091-2.264.071-2.95.904l-7.152 8.684a2.548 2.548 0 1 1-3.586-3.586l8.684-7.152c.833-.686.995-1.874.904-2.95a4.5 4.5 0 0 1 6.336-4.486l-3.276 3.276a3.004 3.004 0 0 0 2.25 2.25l3.276-3.276c.256.565.398 1.192.398 1.852Z" />
+                        </svg>
+                    </a>
+                @endif
+            @endauth
+
             <div class="hidden sm:block">
                 <x-ui.theme-toggle />
             </div>
@@ -144,6 +164,11 @@ new class extends Component
                 @if (auth()->user()->isMaintenance())
                     <x-responsive-nav-link :href="route('maintenance.index')" :active="request()->routeIs('maintenance.*')" wire:navigate>
                         {{ __('Mantenimiento') }}
+                    </x-responsive-nav-link>
+                @endif
+                @if (auth()->user()->hasRole('administrador'))
+                    <x-responsive-nav-link :href="route('support.index')" :active="request()->routeIs('support.*')" wire:navigate>
+                        {{ __('Soporte / incidencias') }}
                     </x-responsive-nav-link>
                 @endif
                 <x-responsive-nav-link :href="route('style-guide')" :active="request()->routeIs('style-guide')" wire:navigate>

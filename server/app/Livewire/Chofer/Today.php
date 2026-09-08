@@ -11,6 +11,7 @@ use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
+use App\Support\Notifications\RouteChangeNotifier;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
@@ -63,7 +64,7 @@ class Today extends Component
         }
 
         return Route::query()
-            ->with(['truck', 'stops.deliveryType', 'odometerReadings'])
+            ->with(['truck', 'stops.deliveryType', 'odometerReadings', 'driver.user'])
             ->where('driver_id', $driver->id)
             ->whereDate('route_date', $this->date)
             ->orderByDesc('id')
@@ -183,7 +184,11 @@ class Today extends Component
 
         $rescheduled = $this->form->outcome !== 'completed' && filled($this->form->reschedule_on);
 
-        $this->form->apply(app(DeliveryTypeSchemaValidator::class), app(DeliveryNoteService::class));
+        $this->form->apply(
+            app(DeliveryTypeSchemaValidator::class),
+            app(DeliveryNoteService::class),
+            app(RouteChangeNotifier::class),
+        );
 
         unset($this->route);
         $this->dispatch('close-modal', 'stop-action');
@@ -235,7 +240,7 @@ class Today extends Component
 
         $route = $this->route;
 
-        RouteStop::create([
+        $stop = RouteStop::create([
             'route_id' => $route->id,
             'position' => ($route->stops()->max('position') ?? 0) + 1,
             'service_kind' => $client->service_kind->value,
@@ -251,6 +256,9 @@ class Today extends Component
             'planned_quantity' => $client->typical_quantity,
             'data' => [],
         ]);
+        $stop->setRelation('route', $route);
+
+        app(RouteChangeNotifier::class)->clientAdded($stop);
 
         $this->clientSearch = '';
         unset($this->route);
@@ -315,6 +323,8 @@ class Today extends Component
         $this->authorizeRoute();
         $this->resetValidation();
 
+        $route = $this->route;
+
         $meter = $this->validateMeter('meterEnd', min: $this->route->liter_meter_start, minMessage: 'La lectura de fin no puede ser menor que la de inicio (:min).');
 
         $discrepancy = ($meter - ($this->route->liter_meter_start ?? $meter)) - $this->route->deliveredLiters();
@@ -335,6 +345,10 @@ class Today extends Component
             'liter_discrepancy_note' => $adjusted ? trim($this->meterNote) : null,
         ]);
         $this->route->truck?->update(['liter_meter' => $meter]);
+
+        if ($adjusted) {
+            app(RouteChangeNotifier::class)->meterDiscrepancy($route, $discrepancy, trim((string) $this->meterNote));
+        }
 
         unset($this->route);
         $this->meterEnd = null;

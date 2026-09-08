@@ -25,6 +25,7 @@ class RolePermissionSeeder extends Seeder
         'users.manage', 'roles.manage',
         'devices.manage',
         'audits.view', 'system_logs.view',
+        'support.create', 'support.manage',
     ];
 
     public const CHOFER_PERMISSIONS = [
@@ -50,8 +51,8 @@ class RolePermissionSeeder extends Seeder
             $maintenance = Role::findOrCreate('mantenimiento', 'web');
             $driver = Role::findOrCreate('chofer', 'web');
 
-            // Administrador: todo salvo los paneles de soporte técnico.
-            $admin->syncPermissions(array_diff(self::PERMISSIONS, ['audits.view', 'system_logs.view']));
+            // Administrador: todo salvo los paneles de soporte técnico y la gestión de incidencias.
+            $admin->syncPermissions(array_diff(self::PERMISSIONS, ['audits.view', 'system_logs.view', 'support.manage']));
 
             // Mantenimiento: acceso total (además tiene Gate::before, esto lo hace explícito).
             $maintenance->syncPermissions(self::PERMISSIONS);

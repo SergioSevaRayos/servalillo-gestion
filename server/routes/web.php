@@ -10,9 +10,12 @@ use App\Livewire\DeliveryNotes\Index as DeliveryNotesIndex;
 use App\Livewire\Drivers\Index as DriversIndex;
 use App\Livewire\Maintenance\Audits as MaintenanceAudits;
 use App\Livewire\Maintenance\Errors as MaintenanceErrors;
+use App\Livewire\Maintenance\Overview as MaintenanceOverview;
+use App\Livewire\Maintenance\Support as MaintenanceSupport;
 use App\Livewire\Maintenance\SystemLog as MaintenanceSystemLog;
 use App\Livewire\Routes\Board as RoutesBoard;
 use App\Livewire\Routes\Index as RoutesIndex;
+use App\Livewire\Support\Index as SupportIndex;
 use App\Livewire\Trucks\Index as TrucksIndex;
 use App\Livewire\Users\Index as UsersIndex;
 use Illuminate\Support\Facades\Auth;
@@ -35,7 +38,13 @@ Route::post('theme', [ThemeController::class, 'update'])->name('theme.update');
 | Redirección post-login según el rol.
 */
 Route::get('home', function () {
-    return redirect(Auth::user()->isDriver() ? route('chofer.today') : route('dashboard'));
+    $user = Auth::user();
+
+    return redirect(match (true) {
+        $user->isDriver() => route('chofer.today'),
+        $user->isMaintenance() => route('maintenance.index'),
+        default => route('dashboard'),
+    });
 })->middleware('auth')->name('home');
 
 /*
@@ -61,6 +70,9 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
     Route::get('rutas/listado', RoutesIndex::class)->name('routes.index');
 
     Route::get('albaranes', DeliveryNotesIndex::class)->middleware('permission:delivery_notes.view')->name('delivery-notes.index');
+
+    // Canal de soporte: el administrador abre incidencias hacia mantenimiento (Bloque 12).
+    Route::get('soporte', SupportIndex::class)->middleware('permission:support.create')->name('support.index');
 });
 
 /*
@@ -75,10 +87,11 @@ Route::get('albaranes/{note}/pdf', [DeliveryNoteController::class, 'pdf'])
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'role:mantenimiento'])->prefix('mantenimiento')->name('maintenance.')->group(function () {
-    Route::redirect('/', '/mantenimiento/auditoria')->name('index');
+    Route::get('/', MaintenanceOverview::class)->name('index');
     Route::get('auditoria', MaintenanceAudits::class)->middleware('permission:audits.view')->name('audits');
     Route::get('errores', MaintenanceErrors::class)->middleware('permission:system_logs.view')->name('errors');
     Route::get('log', MaintenanceSystemLog::class)->middleware('permission:system_logs.view')->name('logs');
+    Route::get('soporte', MaintenanceSupport::class)->middleware('permission:support.manage')->name('support');
 });
 
 /*

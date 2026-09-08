@@ -8,6 +8,8 @@ use App\Enums\OdometerKind;
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
+use App\Enums\SupportCategory;
+use App\Enums\SupportStatus;
 use App\Models\Client;
 use App\Models\DeliveryNote;
 use App\Models\DeliveryType;
@@ -17,9 +19,12 @@ use App\Models\ErrorLog;
 use App\Models\OdometerReading;
 use App\Models\Route;
 use App\Models\RouteStop;
+use App\Models\SupportTicket;
 use App\Models\Truck;
 use App\Models\TruckAssignment;
 use App\Models\User;
+use App\Notifications\ChoferRouteChanged;
+use App\Notifications\SupportTicketOpened;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -142,6 +147,9 @@ class DatabaseSeeder extends Seeder
 
         // --- Auditoría + errores (para el panel de Mantenimiento del Bloque 6) ---
         $this->seedMaintenanceData($admin, $maintenance);
+
+        // --- Canal de soporte + notificaciones (Bloque 12) ---------------
+        $this->seedSupportChannel($admin, $maintenance);
 
         // --- Albaranes (Bloque 8) ------------------------------------------
         $this->seedDeliveryNotes($admin);
@@ -402,6 +410,63 @@ class DatabaseSeeder extends Seeder
                 'occurred_at' => $when,
             ]);
         }
+    }
+
+    /**
+     * Canal de soporte + notificaciones de ejemplo (Bloque 12). Unos cuantos tickets del
+     * administrador con hilos de distinta madurez y un par de notificaciones para que la
+     * campana tenga contenido al abrir la app.
+     */
+    private function seedSupportChannel(User $admin, User $maintenance): void
+    {
+        if (SupportTicket::query()->exists()) {
+            return;
+        }
+
+        // Notificaciones de ejemplo para la campana (Bloque 12).
+        $admin->notify(new ChoferRouteChanged('stop_failed', 'Pedro Ramírez', today()->toDateString(), 'Bar Central'));
+        $admin->notify(new ChoferRouteChanged('meter_discrepancy', 'Lucía Gómez', today()->subDay()->toDateString(), null, '+6 L · manguera con fuga'));
+        $admin->notify(new ChoferRouteChanged('client_added', 'Pedro Ramírez', today()->toDateString(), 'Cafetería La Plaza'));
+        $admin->unreadNotifications()->latest()->first()?->markAsRead();
+
+        $abierto = SupportTicket::factory()->create([
+            'user_id' => $admin->id,
+            'subject' => 'El PDF del albarán sale con el pie cortado',
+            'category' => SupportCategory::Fallo->value,
+            'status' => SupportStatus::Abierto->value,
+            'body' => 'En los albaranes de canal físico, la última línea de la tabla queda pegada al borde y no se lee bien al imprimir.',
+        ]);
+
+        $enCurso = SupportTicket::factory()->create([
+            'user_id' => $admin->id,
+            'subject' => 'Necesitamos un filtro por zona en el tablero de rutas',
+            'category' => SupportCategory::Necesidad->value,
+            'status' => SupportStatus::EnCurso->value,
+            'body' => 'Cuando hay muchas paradas sin asignar cuesta encontrar las de una zona concreta. ¿Se puede añadir un filtro?',
+        ]);
+        $enCurso->replies()->create(['user_id' => $maintenance->id, 'body' => 'Lo vemos viable. ¿La zona sería el municipio o algo más fino (barrio/código postal)?']);
+        $last = $enCurso->replies()->create(['user_id' => $admin->id, 'body' => 'Con el municipio nos vale de sobra.']);
+        $enCurso->forceFill(['last_reply_at' => $last->created_at])->save();
+
+        $resuelto = SupportTicket::factory()->create([
+            'user_id' => $admin->id,
+            'subject' => 'No me llegaban las notificaciones de reprogramación',
+            'category' => SupportCategory::Consulta->value,
+            'status' => SupportStatus::Resuelto->value,
+            'body' => 'Ayer Pedro reprogramó dos paradas y no vi ningún aviso.',
+        ]);
+        $r = $resuelto->replies()->create(['user_id' => $maintenance->id, 'body' => 'Estaba desactivado el refresco automático en tu navegador. Ya debería verse la campana al instante.']);
+        $resuelto->forceFill(['last_reply_at' => $r->created_at])->save();
+
+        SupportTicket::factory()->create([
+            'user_id' => $admin->id,
+            'subject' => 'Añadir el teléfono del contacto en la tarjeta de parada',
+            'category' => SupportCategory::Necesidad->value,
+            'status' => SupportStatus::Abierto->value,
+            'body' => 'Al chofer le vendría bien ver el teléfono sin abrir la parada.',
+        ]);
+
+        $maintenance->notify(new SupportTicketOpened($abierto));
     }
 
     /**

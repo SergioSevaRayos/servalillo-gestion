@@ -1,8 +1,10 @@
 @php
     $tabs = [
+        'maintenance.index' => __('Resumen'),
         'maintenance.audits' => __('Auditoría'),
         'maintenance.errors' => __('Errores del sistema'),
         'maintenance.logs' => __('Log de la aplicación'),
+        'maintenance.support' => __('Soporte'),
     ];
 @endphp
 

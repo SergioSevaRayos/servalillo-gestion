@@ -300,7 +300,15 @@ Backed enums con `->label()` en español; casteados en los modelos.
 ### Panel de Mantenimiento (Bloque 6)
 - **Exclusivo del rol `mantenimiento`** (no `administrador`). Grupo `maintenance.*` en `routes/web.php`
   con `role:mantenimiento`; enlace "Mantenimiento" en el nav solo si `auth()->user()->isMaintenance()`.
-- 3 sub-vistas con pestañas compartidas (`<x-maintenance.tabs>`):
+- **`/home` redirige al rol `mantenimiento` a `/mantenimiento`** (no a `/dashboard`); ese usuario tiene
+  su propio panel de inicio (`App\Livewire\Maintenance\Overview`, pestaña **"Resumen"**, ampliado en
+  el Bloque 12): KPIs (incidencias de soporte abiertas, errores 5xx de 7 días, cambios auditados hoy,
+  notificaciones sin leer, nº de ficheros de log) + tarjetas con las últimas incidencias / errores /
+  auditorías / ficheros de log, cada una enlazando a su pestaña. `/dashboard` (panel estadístico de la
+  empresa) sigue accesible desde el nav, pero ya no es su landing.
+- Sub-vistas con pestañas compartidas (`<x-maintenance.tabs>`) — **"Resumen"** (`maintenance.index`,
+  antes un `Route::redirect`), "Auditoría", "Errores del sistema", "Log de la aplicación", "Soporte"
+  (Bloque 12):
   - **`/mantenimiento/auditoria`** (`App\Livewire\Maintenance\Audits`) — lista de `OwenIt\Auditing\
     Models\Audit` con filtros (búsqueda por usuario/modelo, tipo de modelo, evento, rango de fechas).
     Modal de detalle con `$audit->getModified()` (campo / antes / después) + url/ip/user-agent.
@@ -539,6 +547,51 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - Al arrastrar en el tablero no se cambia el `kind` (ambas caras del filtro son del mismo tipo, así que
   origen y destino ya coinciden). Si algún día "Viajes" necesita su propio flujo/campos, este enum es
   el punto por el que ramificar.
+
+### Notificaciones y canal de soporte (Bloque 12)
+- **Notificaciones = sistema nativo de Laravel**, tabla `notifications` (`php artisan notifications:table`,
+  editada: `data` es **`jsonb`**, PK `uuid` **intacta** — `Illuminate\Notifications\DatabaseNotification`
+  la exige, no crear modelo propio). Canal **`database` únicamente** (sin mail, sin broadcast), envío
+  **síncrono** (las clases usan `Queueable` pero **no** `ShouldQueue`). `User` ya tiene `Notifiable`.
+- **4 clases en `app/Notifications/`** (`ChoferRouteChanged`, `SupportTicketOpened`,
+  `SupportTicketReplied`, `SupportTicketStatusChanged`). Todas devuelven en `toArray()` el **mismo
+  esquema** para que la campana pinte cualquiera: `type`, `title`, `body`, `url`, `icon`
+  (`route|wrench|chat|flag` → `<svg>` inline en `bell.blade.php`). El deep link de soporte lo resuelve
+  el trait `Concerns\LinksToTicket` según el rol del `$notifiable` (admin → `/soporte`, resto →
+  `/mantenimiento/soporte`).
+- **Campana** = `App\Livewire\Notifications\Bell` (componente de **clase**, no Volt) **anidado dentro
+  del componente Volt de navegación** (`livewire/layout/navigation.blade.php`, cluster derecho). Se
+  monta solo para `isManager()`. `wire:poll.30s` (coherente con chofer 15s / tablero 45s). Su vista
+  tiene raíz única `<div wire:poll.30s>`; el nav persiste entre `wire:navigate` (vive fuera de `$slot`)
+  así que la campana y su poll sobreviven. `markRead($id)` marca leída y `$this->redirect(url, navigate:
+  true)`.
+- **Disparo de las notificaciones del chofer = dispatch explícito, NUNCA observer.** Los 4 tipos
+  (`stop_failed`, `stop_skipped`, `stop_rescheduled`, `client_added`, `meter_discrepancy`) no se
+  distinguen de un `updated`/`created` genérico y un observer se dispararía también para el tablero de
+  oficina. `App\Support\Notifications\RouteChangeNotifier` se llama desde `StopActionForm::apply()`
+  (rama failed/skipped, tras el `->update()`), `Today::addClientStop()` y `Today::endDay()` (solo rama
+  `$adjusted`). Guard: `! auth()->user()?->isDriver()` → seeders/comandos/tablero no disparan nada.
+  **Entrega completada normal y empezar/terminar jornada sin incidencia NO notifican.**
+  `StopActionForm::apply()` recibe ahora un 3er argumento `RouteChangeNotifier` (el único llamador,
+  `Today::saveStop`, lo pasa a mano con `app(...)`).
+- **Canal de soporte** = tickets con hilo. `support_tickets` (asunto + `category` enum `SupportCategory`
+  fallo/necesidad/consulta + `status` enum `SupportStatus` abierto→en_curso→resuelto + `body` +
+  `last_reply_at`, softDeletes) + `support_ticket_replies` (cascade). `SupportTicket` **NO es
+  `Auditable`** a propósito. Enums en `app/Enums/Support*.php`; `SupportStatus::badgeVariant()`.
+- **Permisos**: `support.create` (admin + mantenimiento), `support.manage` (solo mantenimiento — se
+  quita de la exclusión del admin en `RolePermissionSeeder`). `SupportTicketPolicy` fina: `update`/
+  `delete` del creador **solo mientras el otro lado no haya respondido**
+  (`replies()->where('user_id','!=',$user->id)->exists()`); mantenimiento pasa siempre por
+  `support.manage` (+ `Gate::before`).
+- **Lado admin**: `App\Livewire\Support\Index` en `/soporte` (`permission:support.create`) — lista de
+  **sus** incidencias + modal de alta + panel de hilo con respuestas y editar/borrar el propio mensaje.
+  **Lado mantenimiento**: `App\Livewire\Maintenance\Support` en `/mantenimiento/soporte` (4ª pestaña,
+  `permission:support.manage`) — todas las incidencias, filtros, modal de hilo, `setStatus()`, borrar.
+  Añadir la pestaña = una línea en `resources/views/components/maintenance/tabs.blade.php`.
+- **Notificaciones del soporte** vía `App\Support\Notifications\SupportNotifier`: alta → mantenimiento;
+  respuesta → el otro lado; cambio de estado → el creador. Sin guard de consola (solo se llama desde
+  acciones Livewire reales; el seeder usa `->notify()` directo).
+- Push instantáneo con Reverb = mejora futura (la infra existe pero Echo no está cableado).
 
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.

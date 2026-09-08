@@ -14,6 +14,9 @@
 | 9 | Gestión de clientes (CRUD + ficha + histórico + import Access) | ✅ Hecho |
 | 10 | API Flutter (Sanctum) | ⬜ Siguiente |
 | 11 | App Flutter de tracking | ⬜ |
+| 12 | Notificaciones in-app + canal de soporte administración ↔ mantenimiento | ✅ Hecho |
+
+> El Bloque 12 se construyó por delante de 10/11 a petición del usuario (igual que se hizo con el 9).
 
 > El Bloque 9 original era "API Flutter (Sanctum)"; el usuario intercaló la gestión de clientes
 > por delante, así que la API pasa a ser el Bloque 10 y el tracking el 11.
@@ -590,6 +593,70 @@ modal de edición para completar) o **Descartar** (borrado permanente, `forceDel
 - **Sincronización automática admin ↔ chofer** vía `wire:poll` (chofer 15 s, tablero 45 s): lo que
   cambia uno le aparece al otro solo, sin recargar. (Push instantáneo con Reverb = mejora futura.)
 - Detalle en `CLAUDE.md` (sección "Pre-clientes / valoración" y la de clientes).
+
+---
+
+## Bloque 12 — lo que se ha construido
+
+**Notificaciones in-app + canal de soporte administración ↔ mantenimiento.** Comparten la campana
+del nav.
+
+### Notificaciones
+- Tabla `notifications` **nativa** de Laravel (migración `2026_09_08_000001_...`; `data` como `jsonb`,
+  PK `uuid` sin tocar). Canal **`database`** únicamente, envío **síncrono** (sin `ShouldQueue`).
+- 4 clases en `app/Notifications/`: `ChoferRouteChanged`, `SupportTicketOpened`,
+  `SupportTicketReplied`, `SupportTicketStatusChanged`. Esquema `toArray()` común
+  (`type/title/body/url/icon`) para que la campana pinte cualquiera.
+- **Campana** = `App\Livewire\Notifications\Bell` anidada en el nav Volt, `wire:poll.30s`, montada
+  para `isManager()`. Contador de no leídas + desplegable; al pulsar una notificación se marca leída
+  y navega a su `url`.
+- **Disparadores del chofer** (solo desviaciones del plan, vía `App\Support\Notifications\
+  RouteChangeNotifier` — dispatch explícito, no observers): parada **fallida**/**omitida**,
+  **reprogramada** a otro día, **cliente añadido** sobre la marcha, **jornada cerrada con descuadre**
+  de litros. Entrega normal y empezar/terminar jornada sin incidencia → no notifican. Destinatario:
+  los **administradores**.
+
+### Canal de soporte
+- `support_tickets` (asunto + categoría `SupportCategory` + estado `SupportStatus` + primer mensaje,
+  softDeletes) + `support_ticket_replies` (migraciones `2026_09_08_000002/3_...`). No auditado.
+- Permisos `support.create` (admin + mantenimiento) y `support.manage` (solo mantenimiento).
+  `SupportTicketPolicy`: el creador edita/borra su mensaje **solo mientras el otro lado no responde**.
+- **Admin**: botón llave inglesa en el nav → `/soporte` (`App\Livewire\Support\Index`) — sus
+  incidencias, alta, hilo, responder, editar/borrar lo propio.
+- **Mantenimiento**: 4ª pestaña de `/mantenimiento` → `/mantenimiento/soporte`
+  (`App\Livewire\Maintenance\Support`) — todas las incidencias, filtros (estado/categoría/búsqueda/
+  fechas), hilo en modal, cambiar estado, borrar.
+- Notificaciones (`App\Support\Notifications\SupportNotifier`): alta → mantenimiento; respuesta → el
+  otro lado; cambio de estado → el creador.
+
+### Panel de inicio del rol mantenimiento
+- `/home` redirige a `mantenimiento` a **`/mantenimiento`** (antes iba a `/dashboard`). Nueva pestaña
+  **"Resumen"** (`App\Livewire\Maintenance\Overview`, sustituye al viejo `Route::redirect`): KPIs
+  (incidencias abiertas, errores 5xx de 7 días, cambios auditados hoy, notificaciones sin leer,
+  ficheros de log) + tarjetas con las últimas incidencias / errores / auditorías / ficheros de log,
+  cada una enlazando a su pestaña. El panel estadístico de la empresa (`/dashboard`) sigue accesible
+  desde el nav.
+
+### Tests
+`NotificationBellTest`, `ChoferRouteNotificationsTest`, `SupportChannelAdminTest`,
+`SupportChannelMaintenanceTest`, `MaintenanceOverviewTest` (~31 casos nuevos). **Suite total: 186
+tests en verde.**
+
+Detalle en `CLAUDE.md` (sección "Notificaciones y canal de soporte (Bloque 12)").
+
+### Cómo probar el Bloque 12
+1. `admin@servalillo.test` → la campana muestra un contador; abrir → notificaciones de ejemplo; pulsar
+   una → marca leída y navega al tablero/incidencia.
+2. Botón llave inglesa → `/soporte` → "Nueva incidencia" → enviar. Abrir el hilo, responder.
+3. `soporte@servalillo.test` → aterriza en **`/mantenimiento`** (pestaña "Resumen" con KPIs +
+   incidencias/errores/auditoría/logs) → campana con "Nueva incidencia de soporte" → pestaña
+   **Soporte** → ver, filtrar, responder, cambiar estado.
+4. El admin recibe "Respuesta en una incidencia" y "Estado de incidencia actualizado"; ya no puede
+   editar su primer mensaje.
+5. `pedro@servalillo.test` → `/chofer/ruta` → marcar una parada **Fallida** / reprogramarla / "Añadir
+   cliente (ha llamado)" / cerrar jornada con lectura descuadrada. El admin recibe una notificación
+   por cada acción (no por una entrega normal).
+6. `/soporte` como chofer → 403; `/mantenimiento/soporte` como admin → 403.
 
 ---
 

@@ -36,7 +36,7 @@ describe('acceso', function () {
         $this->get('/mantenimiento/auditoria')->assertOk();
         $this->get('/mantenimiento/errores')->assertOk();
         $this->get('/mantenimiento/log')->assertOk();
-        $this->get('/mantenimiento')->assertRedirect('/mantenimiento/auditoria');
+        $this->get('/mantenimiento')->assertOk()->assertSee('Resumen');
     });
 
     it('bloquea a administrador y chofer', function () {

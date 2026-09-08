@@ -7,6 +7,7 @@ use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
+use App\Support\Notifications\RouteChangeNotifier;
 use Illuminate\Support\Carbon;
 use Livewire\Form;
 
@@ -103,7 +104,7 @@ class StopActionForm extends Form
         return app(DeliveryNoteService::class)->channelRequiresSignature($this->channel);
     }
 
-    public function apply(DeliveryTypeSchemaValidator $schemaValidator, DeliveryNoteService $notes): void
+    public function apply(DeliveryTypeSchemaValidator $schemaValidator, DeliveryNoteService $notes, RouteChangeNotifier $notifier): void
     {
         $validated = $this->validate();
         $stop = $this->stop;
@@ -143,6 +144,15 @@ class StopActionForm extends Form
                 'failure_reason' => $reason,
                 'completed_at' => null,
             ]);
+
+            // Aviso a administración: el chofer se ha desviado del plan (Bloque 12).
+            if (! empty($validated['reschedule_on'])) {
+                $notifier->stopRescheduled($stop, $validated['reschedule_on']);
+            } elseif ($validated['outcome'] === 'failed') {
+                $notifier->stopFailed($stop);
+            } else {
+                $notifier->stopSkipped($stop);
+            }
         }
 
         $this->reset();
