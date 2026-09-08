@@ -13,12 +13,12 @@ new class extends Component
     }
 }; ?>
 
-<nav class="sticky top-0 z-30 px-4 pt-4 max-md:px-0 max-md:pt-0">
-    {{-- En móvil la barra va a ancho completo, pegada arriba y sólida (sin pill flotante ni
-         backdrop-filter): el `pt-4`/`px-4` + esquinas redondeadas dejaban ver el contenido colarse
-         por los huecos al hacer scroll. La regla `nav.sticky > .glass` en app.css la fija a su
-         propia capa (translateZ) y le quita el backdrop-filter, que "vibra" en móvil. --}}
-    <div class="glass mx-auto flex h-16 max-w-7xl items-center justify-between rounded-2xl px-4 max-md:rounded-none max-md:border-x-0 max-md:border-t-0 max-md:border-b-slate-200 max-md:bg-white dark:max-md:border-b-slate-800 dark:max-md:bg-slate-900 sm:px-6">
+<nav class="sticky top-0 z-30 px-4 pt-4">
+    {{-- Pill flotante (padding + esquinas redondeadas). En móvil se hace OPACO
+         (`max-md:bg-white` en vez de `bg-white/70`): así el contenido no translucía por detrás al
+         hacer scroll (parecía que la barra se movía). El `backdrop-filter` se anula en móvil desde
+         app.css (`nav.sticky > .glass`): aunque no se vea, "vibra" al repintarse cada frame. --}}
+    <div class="glass mx-auto flex h-16 max-w-7xl items-center justify-between rounded-2xl px-4 max-md:bg-white dark:max-md:bg-slate-900 sm:px-6">
         <div class="flex items-center gap-8">
             <a href="{{ route('home') }}" wire:navigate class="flex shrink-0 items-center gap-2 text-primary-700 dark:text-primary-300">
                 <x-application-logo class="h-7 w-7" />

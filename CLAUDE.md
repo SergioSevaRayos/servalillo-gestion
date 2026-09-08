@@ -162,14 +162,14 @@ Backed enums con `->label()` en español; casteados en los modelos.
     siendo la única raíz del componente Livewire — no se puede envolver en un `<div>`: eso "atrapa" el
     sticky en una caja de la altura de la barra; y `display: contents` en el padre **rompe** el sticky
     en Chromium.)
-  - **En móvil (`max-width: 767px`) la nav va a ancho completo, pegada arriba y OPACA**
-    (`max-md:rounded-none max-md:bg-white dark:max-md:bg-slate-900 max-md:border-b-slate-200 …` +
-    `max-md:px-0 max-md:pt-0` en el `<nav>`): el pill flotante con `pt-4`/`px-4` dejaba ver el
-    contenido colarse por los huecos, y `bg-white/95` lo dejaba translucir. La regla
-    `nav.sticky > .glass, .drop-menu-fab` en `app.css` quita cualquier `backdrop-filter` residual
-    (`none !important`, con y sin prefijo `-webkit-` — PostCSS descartaba la versión sin prefijo): un
-    `backdrop-filter`, aunque sea identidad, en un `sticky`/`fixed` se repinta cada frame de scroll y
-    "vibra".
+  - **La nav sigue siendo el "pill" flotante** (`pt-4`/`px-4` en el `<nav>`, `rounded-2xl` en el
+    `.glass`) también en móvil — decisión de diseño confirmada. PERO en móvil se hace **OPACA**
+    (`max-md:bg-white dark:max-md:bg-slate-900`, no `bg-white/70`): con `/95` el contenido translucía
+    por detrás al hacer scroll y parecía que la barra se movía. La regla
+    `nav.sticky > .glass, .drop-menu-fab` en `app.css` anula además cualquier `backdrop-filter`
+    residual (`none !important`, con y sin prefijo `-webkit-` — PostCSS descartaba la versión sin
+    prefijo): un `backdrop-filter`, aunque sea identidad y no se vea sobre fondo opaco, en un
+    `sticky`/`fixed` se repinta cada frame de scroll y "vibra".
 - **Regla de modales: en escritorio el modal NO debe forzar scroll evitable.** Antes de dejar un
   `<x-modal>` con formulario, primero **aprovecha el ancho, no el alto**:
   - Modal ancho (`max-width="3xl"`/`4xl`) + rejilla `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`,

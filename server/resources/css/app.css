@@ -237,9 +237,10 @@
 }
 
 /*
-| Móvil: un backdrop-filter (aunque sea identidad) en un elemento sticky/fixed se repinta en
-| cada frame de scroll y hace "vibrar" la barra. Se quita del todo; la barra de nav ya es
-| sólida y a ancho completo, y el FAB del menú se teletransporta fuera del <nav> sticky.
+| Móvil: un backdrop-filter (aunque sea identidad y no se vea, la barra es opaca) en un elemento
+| sticky/fixed se repinta en cada frame de scroll y lo hace "vibrar". Se anula del todo. El FAB
+| del menú además se teletransporta fuera del <nav> sticky (position:fixed dentro de sticky va
+| mal en Safari iOS).
 */
 @media (max-width: 767px) {
     nav.sticky > .glass,
