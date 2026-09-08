@@ -187,12 +187,13 @@
             @endforelse
         </div>
 
-        {{-- Añadir un cliente que ha llamado como parada nueva (al final de la ruta) --}}
-        @if ($this->operable() && ! $this->finished)
+        {{-- Añadir un cliente que ha llamado como parada nueva (al final de la ruta). Si la jornada
+             ya está terminada, añadirlo la reabre (ver Today::addClientStop). --}}
+        @if ($this->operable())
             <button type="button" wire:click="openAddStop"
                 class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 py-3 text-sm font-medium text-slate-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-primary-500 dark:hover:text-primary-300">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                {{ __('Añadir cliente (ha llamado)') }}
+                {{ $this->finished ? __('Añadir cliente (reabre la jornada)') : __('Añadir cliente (ha llamado)') }}
             </button>
         @endif
     @endif
@@ -336,7 +337,7 @@
 
                 {{-- Selector de resultado --}}
                 <div class="mt-4 grid grid-cols-3 gap-2">
-                    @foreach (['completed' => __('Entregada'), 'failed' => __('Fallida'), 'skipped' => __('Omitida')] as $value => $label)
+                    @foreach (['completed' => __('Entregada'), 'failed' => __('Fallida'), 'skipped' => __('Cancelada')] as $value => $label)
                         <button
                             type="button"
                             wire:click="$set('form.outcome', '{{ $value }}')"
@@ -426,7 +427,7 @@
                             @endif
                         @endif
                     @else
-                        <x-ui.textarea name="form.reason" label="{{ $this->form->outcome === 'failed' ? __('Motivo del fallo') : __('Motivo para omitir') }}" wire:model="form.reason" rows="3" />
+                        <x-ui.textarea name="form.reason" label="{{ $this->form->outcome === 'failed' ? __('Motivo del fallo') : __('Motivo de la cancelación') }}" wire:model="form.reason" rows="3" />
 
                         <div>
                             <x-ui.date-input name="form.reschedule_on" wire:model="form.reschedule_on"

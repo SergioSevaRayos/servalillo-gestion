@@ -237,10 +237,26 @@ class Today extends Component
     public function addClientStop(Client $client): void
     {
         $this->authorizeRoute();
-        abort_if($this->finished, 403, 'La jornada ya está cerrada.');
         abort_if($client->isProspect(), 422, 'Ese registro es un pre-cliente sin valorar.');
 
         $route = $this->route;
+
+        // Un cliente llama después de que el chofer haya terminado la jornada: se reabre para
+        // poder hacer el reparto extra y volver a cerrarla con la lectura correcta del contador.
+        $reopened = $this->finished;
+
+        if ($reopened) {
+            $route->update([
+                'status' => RouteStatus::InProgress,
+                'completed_at' => null,
+                'liter_meter_end' => null,
+                'liter_discrepancy_note' => null,
+            ]);
+
+            if ($route->liter_meter_start !== null) {
+                $route->truck?->update(['liter_meter' => $route->liter_meter_start]);
+            }
+        }
 
         $stop = RouteStop::create([
             'route_id' => $route->id,
@@ -265,7 +281,12 @@ class Today extends Component
         $this->clientSearch = '';
         unset($this->route);
         $this->dispatch('close-modal', 'add-stop');
-        $this->dispatch('toast', message: "{$client->name} añadido a la ruta.", variant: 'success');
+        $this->dispatch('toast',
+            message: $reopened
+                ? "Jornada reabierta: {$client->name} añadido a la ruta."
+                : "{$client->name} añadido a la ruta.",
+            variant: 'success',
+        );
     }
 
     /** "Ver recorrido": abre el mapa con las paradas de la ruta y su trazado. */

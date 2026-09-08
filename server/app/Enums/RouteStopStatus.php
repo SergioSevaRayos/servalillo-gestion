@@ -14,7 +14,7 @@ enum RouteStopStatus: string
         return match ($this) {
             self::Pending => 'Pendiente',
             self::Completed => 'Completada',
-            self::Skipped => 'Omitida',
+            self::Skipped => 'Cancelada',
             self::Failed => 'Fallida',
         };
     }

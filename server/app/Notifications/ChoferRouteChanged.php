@@ -46,7 +46,7 @@ class ChoferRouteChanged extends Notification
     {
         return match ($this->kind) {
             'stop_failed' => 'Parada fallida',
-            'stop_skipped' => 'Parada omitida',
+            'stop_skipped' => 'Parada cancelada',
             'stop_rescheduled' => 'Parada reprogramada',
             'client_added' => 'Cliente añadido a una ruta',
             'meter_discrepancy' => 'Contador de litros descuadrado',
@@ -61,7 +61,7 @@ class ChoferRouteChanged extends Notification
 
         return match ($this->kind) {
             'stop_failed' => "{$who} marcó fallida la parada de {$cliente}.",
-            'stop_skipped' => "{$who} omitió la parada de {$cliente}.",
+            'stop_skipped' => "{$who} canceló la parada de {$cliente}.",
             'stop_rescheduled' => "{$who} reprogramó la parada de {$cliente} para el {$this->detail}.",
             'client_added' => "{$who} añadió a {$cliente} a su ruta del {$this->routeDate}.",
             'meter_discrepancy' => "{$who} cerró la jornada del {$this->routeDate} con un descuadre: {$this->detail}.",

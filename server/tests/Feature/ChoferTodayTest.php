@@ -137,6 +137,30 @@ it('el chofer busca un cliente que ha llamado y lo añade a su ruta', function (
         ->and($stop->status)->toBe(RouteStopStatus::Pending);
 });
 
+it('añadir un cliente tras terminar la jornada la reabre', function () {
+    [$user, $driver, $route, $truck] = chofer([
+        'status' => RouteStatus::Completed,
+        'started_at' => now()->subHours(5),
+        'completed_at' => now()->subHour(),
+        'liter_meter_start' => 500000,
+        'liter_meter_end' => 502000,
+    ], stops: 2);
+    $truck->update(['liter_meter' => 502000]);
+    $client = Client::factory()->create(['name' => 'Bar Tardío', 'typical_quantity' => 300, 'is_active' => true]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openAddStop')
+        ->call('addClientStop', $client->id)
+        ->assertDispatched('toast');
+
+    $route->refresh();
+    expect($route->status)->toBe(RouteStatus::InProgress)
+        ->and($route->completed_at)->toBeNull()
+        ->and($route->liter_meter_end)->toBeNull()
+        ->and((int) $route->truck->liter_meter)->toBe(500000) // el contador del camión vuelve a la lectura de inicio
+        ->and(RouteStop::where('route_id', $route->id)->where('customer_name', 'Bar Tardío')->exists())->toBeTrue();
+});
+
 it('el buscador de cliente no muestra nada con menos de 2 caracteres', function () {
     [$user] = chofer(['status' => RouteStatus::InProgress]);
     Client::factory()->create(['name' => 'Cliente Buscable', 'is_active' => true]);

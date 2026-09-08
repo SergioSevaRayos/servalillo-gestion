@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 use Livewire\Form;
 
 /**
- * Cierre operativo de una parada por parte del chofer: entregada, fallida u omitida.
+ * Cierre operativo de una parada por parte del chofer: entregada, fallida o cancelada.
  * Al entregar se crea el albarán y se encola su PDF/envío (ver DeliveryNoteService).
  */
 class StopActionForm extends Form

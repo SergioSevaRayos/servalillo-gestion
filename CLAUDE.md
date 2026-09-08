@@ -408,9 +408,11 @@ Backed enums con `->label()` en español; casteados en los modelos.
     = esa lectura.
   - `validateMeter()` valida: entero ≥ 0, inicio ≥ `trucks.liter_meter`, fin ≥ inicio.
 - **Cierre de parada** (`App\Livewire\Forms\StopActionForm`): resultado = `completed` / `failed` /
-  `skipped`. `completed` pide litros entregados + renderiza los campos del `field_schema` del tipo de
-  reparto (mismo patrón que el editor del Kanban) y los valida con `DeliveryTypeSchemaValidator`.
-  `failed`/`skipped` piden motivo (va a `failure_reason`). Se puede "Reabrir" una parada cerrada.
+  `skipped` (el enum `RouteStopStatus::Skipped` conserva el valor `'skipped'` en BD pero se
+  **etiqueta "Cancelada"** en toda la UI). `completed` pide litros entregados + renderiza los campos
+  del `field_schema` del tipo de reparto (mismo patrón que el editor del Kanban) y los valida con
+  `DeliveryTypeSchemaValidator`. `failed`/`skipped` piden motivo (va a `failure_reason`). Se puede
+  "Reabrir" una parada cerrada.
   **NO toca `delivery_notes`** — el albarán (registro, firma, PDF, envío) es entero del Bloque 8.
   `completed_at` solo se rellena en `completed` (coherente con el seeder y `FleetStatsService`).
   - **Reprogramar** (`failed`/`skipped` + campo `reschedule_on`, fecha futura): la parada actual
@@ -430,11 +432,16 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - `<x-chofer.stop-card>` es la tarjeta táctil del chofer (grande, sin drag), distinta de
   `<x-routes.stop-card>` (Kanban del admin).
 - **Añadir cliente sobre la marcha** (un cliente llama al chofer): botón "Añadir cliente (ha llamado)"
-  **al final de la lista de paradas** (visible si `operable() && ! finished`) → modal `add-stop` con
-  buscador (`clientMatches`, `Client::scopeSearch`, mín. 2 caracteres) → `addClientStop(Client)` crea
-  una `RouteStop` `Pending` al final de la ruta con los datos del cliente (mismo copiado que
-  `Clients\Show::planDelivery`, incl. `service_kind`). Autorización: `authorizeRoute()` (= `RoutePolicy::
-  operate` + `operable()`); no hace falta permiso nuevo, el chofer ya tiene `routes.view.own`.
+  **al final de la lista de paradas** (visible si `operable()`, es decir hoy o ruta `InProgress`) →
+  modal `add-stop` con buscador (`clientMatches`, `Client::scopeSearch`, mín. 2 caracteres) →
+  `addClientStop(Client)` crea una `RouteStop` `Pending` al final de la ruta con los datos del cliente
+  (mismo copiado que `Clients\Show::planDelivery`, incl. `service_kind`). Autorización:
+  `authorizeRoute()` (= `RoutePolicy::operate` + `operable()`); no hace falta permiso nuevo, el chofer
+  ya tiene `routes.view.own`.
+  - **Si la jornada ya está terminada** (`finished`), añadir un cliente **la reabre**: `route`
+    vuelve a `InProgress`, se limpian `completed_at` / `liter_meter_end` / `liter_discrepancy_note` y
+    `trucks.liter_meter` se revierte a `liter_meter_start`, para que el chofer haga el reparto extra
+    y vuelva a cerrar la jornada con la lectura correcta del contador.
 - **Contador de litros / cuadre:** es un contador de litros *dispensados* (como el cuentakilómetros,
   pero de litros), **independiente de la cisterna** (el camión puede rellenar o no durante el día).
   `trucks.liter_meter` guarda la última lectura conocida; `routes.liter_meter_start` /

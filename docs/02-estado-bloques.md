@@ -430,8 +430,9 @@ columna de paradas. Mobile-first, `.surface` siempre, nunca `.glass`.
     ruta a `Completed`. Muestra resumen inicio / fin / km.
   - `App\Services\OdometerService` valida no-negativo, inicio ≥ odómetro del camión, fin ≥ inicio.
 - **Cierre de parada** (`App\Livewire\Forms\StopActionForm`): Entregada (litros + campos del
-  `field_schema`, validados por `DeliveryTypeSchemaValidator`) / Fallida / Omitida (con motivo →
-  `failure_reason`). Se puede reabrir una parada cerrada. **No toca `delivery_notes`** (Bloque 8).
+  `field_schema`, validados por `DeliveryTypeSchemaValidator`) / Fallida / Cancelada (con motivo →
+  `failure_reason`; el estado se guarda como `skipped` pero se etiqueta "Cancelada"). Se puede
+  reabrir una parada cerrada. **No toca `delivery_notes`** (Bloque 8).
 - `<x-chofer.stop-card>` = tarjeta táctil grande (sin drag), distinta de la del Kanban.
 - 13 tests nuevos (`tests/Feature/ChoferTodayTest.php`). **Suite total: 99 passed.**
 
@@ -439,7 +440,7 @@ columna de paradas. Mobile-first, `.surface` siempre, nunca `.glass`.
 
 1. Entra como `lucia@servalillo.test` → su ruta de hoy sale como "Publicada", sin empezar.
 2. "Empezar jornada" → introduce un contador ≥ el del camión → la ruta pasa a "En curso".
-3. Toca una parada → "Entregada" (ajusta litros y campos) / "Fallida" / "Omitida" con motivo.
+3. Toca una parada → "Entregada" (ajusta litros y campos) / "Fallida" / "Cancelada" con motivo.
 4. `pedro@servalillo.test` ya tiene la jornada empezada (1 parada hecha, 3 pendientes).
 5. "Terminar jornada" → contador de fin → comprueba que el odómetro del camión se actualiza.
 6. `carlos@servalillo.test` no tiene ruta hoy → estado vacío.
@@ -588,7 +589,7 @@ modal de edición para completar) o **Descartar** (borrado permanente, `forceDel
   automáticamente** en el tablero para el día que toca (`App\Services\RecurringStopService`,
   `route_stops.scheduled_for`; comando `rutas:generar-recurrentes`, scheduler diario). El producto
   siempre es agua → se eliminó `clients.default_delivery_type_id`.
-- **El chofer reprograma paradas**: al marcar una parada **Fallida** u **Omitida** puede elegir una
+- **El chofer reprograma paradas**: al marcar una parada **Fallida** o **Cancelada** puede elegir una
   fecha futura; se cierra la actual y nace una parada pendiente para ese día (en su ruta de ese día
   si tiene, o en "Sin asignar"). El chofer la ve ese día en "Reprogramadas para este día".
 - **Sincronización automática admin ↔ chofer** vía `wire:poll` (chofer 15 s, tablero 45 s): lo que
@@ -612,7 +613,7 @@ del nav.
   para `isManager()`. Contador de no leídas + desplegable; al pulsar una notificación se marca leída
   y navega a su `url`.
 - **Disparadores del chofer** (solo desviaciones del plan, vía `App\Support\Notifications\
-  RouteChangeNotifier` — dispatch explícito, no observers): parada **fallida**/**omitida**,
+  RouteChangeNotifier` — dispatch explícito, no observers): parada **fallida**/**cancelada**,
   **reprogramada** a otro día, **cliente añadido** sobre la marcha, **jornada cerrada con descuadre**
   de litros. Entrega normal y empezar/terminar jornada sin incidencia → no notifican. Destinatario:
   los **administradores**.
