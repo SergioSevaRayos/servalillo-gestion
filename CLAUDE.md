@@ -182,6 +182,9 @@ Backed enums con `->label()` en español; casteados en los modelos.
 ### Panel Administrador (Bloque 3)
 - 4 módulos: `/chofers`, `/camiones`, `/usuarios` (exclusivo administrador/mantenimiento), y la ficha de
   rutas en `/rutas/listado`. Todos con búsqueda+filtro+orden+paginación.
+- **`routes.code`** = `{R|V}-{YYYYMMDD}-{código camión}` (`V-` si `service_kind` es viaje). Lo genera
+  `RouteForm::buildCode()` **tanto al crear como al editar** — si cambias fecha, camión o tipo de
+  servicio en la ficha, el código se rehace para no quedar desincronizado con el tablero.
 - **Chofers vs Usuarios**: un chofer es un `User` (rol `chofer`) + `Driver`. Se crea/edita **solo** desde
   `/chofers` (transacción User+Driver en `DriverForm::save()`). `/usuarios` gestiona exclusivamente
   `administrador`/`mantenimiento` y nunca lista ni toca chofers — evita dos pantallas escribiendo la

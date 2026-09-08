@@ -72,14 +72,17 @@ class RouteForm extends Form
     {
         $validated = $this->validate();
 
+        // El código depende de fecha + camión + tipo de servicio; se regenera también al editar
+        // para que no quede desincronizado con el tablero si cambia alguno de esos tres.
+        $code = $this->buildCode($validated);
+
         if ($this->editing) {
-            $this->editing->update($validated);
+            $this->editing->update([...$validated, 'code' => $code]);
             $route = $this->editing;
         } else {
-            $truckCode = Truck::find($validated['truck_id'])->code;
             $route = Route::create([
                 ...$validated,
-                'code' => 'R-'.str_replace('-', '', $validated['route_date']).'-'.$truckCode,
+                'code' => $code,
                 'created_by' => Auth::id(),
             ]);
         }
@@ -87,5 +90,14 @@ class RouteForm extends Form
         $this->reset();
 
         return $route;
+    }
+
+    /** @param  array<string, mixed>  $validated */
+    private function buildCode(array $validated): string
+    {
+        $prefix = $validated['service_kind'] === ServiceKind::Viaje->value ? 'V-' : 'R-';
+        $truckCode = Truck::findOrFail($validated['truck_id'])->code;
+
+        return $prefix.str_replace('-', '', $validated['route_date']).'-'.$truckCode;
     }
 }
