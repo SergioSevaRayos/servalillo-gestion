@@ -1,8 +1,10 @@
 <?php
 
+use App\Enums\RouteStopStatus;
 use App\Livewire\Routes\Index;
 use App\Models\Driver;
 use App\Models\Route;
+use App\Models\RouteStop;
 use App\Models\Truck;
 use App\Models\User;
 use Livewire\Livewire;
@@ -59,6 +61,23 @@ test('editar la fecha, el camión o el tipo de servicio regenera el código de l
         ->assertHasNoErrors();
 
     expect($route->fresh()->code)->toBe('V-20260911-C-09');
+});
+
+test('eliminar una ruta manda sus paradas pendientes a "Sin asignar"', function () {
+    $route = Route::factory()->create();
+    $pendingA = RouteStop::factory()->for($route)->create(['position' => 1, 'status' => RouteStopStatus::Pending]);
+    $pendingB = RouteStop::factory()->for($route)->create(['position' => 2, 'status' => RouteStopStatus::Pending]);
+    $done = RouteStop::factory()->for($route)->create(['position' => 3, 'status' => RouteStopStatus::Completed]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('delete', $route)
+        ->assertHasNoErrors();
+
+    expect($route->fresh()->trashed())->toBeTrue()
+        ->and($pendingA->fresh()->route_id)->toBeNull()
+        ->and($pendingB->fresh()->route_id)->toBeNull()
+        ->and($done->fresh()->route_id)->toBe($route->id); // las cerradas se quedan con la ruta
 });
 
 test('un chofer no puede acceder al listado de rutas', function () {

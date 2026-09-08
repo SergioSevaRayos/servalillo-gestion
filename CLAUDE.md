@@ -206,8 +206,12 @@ Backed enums con `->label()` en español; casteados en los modelos.
   (`route_stops.route_id IS NULL`, backlog global sin filtrar por fecha). Tarjetas = `route_stops`,
   vía `<x-routes.stop-card>`. La ficha CRUD del Bloque 3 sigue viva en `/rutas/listado` (`routes.index`).
 - `route_stops.route_id` es **nullable** desde la migración `2026_09_06_090000_...` (antes era
-  obligatorio) y su FK es `nullOnDelete()` (antes `cascadeOnDelete()`): borrar una ruta ya no borra sus
-  paradas, las deja en "Sin asignar".
+  obligatorio) y su FK es `nullOnDelete()` (antes `cascadeOnDelete()`).
+- **`Route` es `SoftDeletes`**, así que el FK `nullOnDelete` NO se dispara al borrar desde la UI.
+  `Routes\Index::delete()` lo compensa a mano: saca las paradas **pendientes** de la ruta a "Sin
+  asignar" (`route_id = null`, reencoladas al final del backlog) antes del `->delete()`; las paradas
+  **cerradas** se van con la ruta (se recuperarían si se restaura). Sin esto, borrar una ruta dejaba
+  sus paradas huérfanas (`route_id` → ruta con `deleted_at`, invisibles en todas las vistas).
 - Crear/editar una parada (`App\Livewire\Forms\RouteStopForm`) es el primer sitio de la app que **usa de
   verdad** el modelo flexible de repartos: al elegir un `delivery_type_id` se renderizan dinámicamente
   los campos de su `field_schema` y se validan con `DeliveryTypeSchemaValidator` antes de guardarlos en

@@ -60,7 +60,7 @@
                                 <x-ui.button
                                     variant="ghost" size="sm"
                                     wire:click="delete({{ $route->id }})"
-                                    wire:confirm="{{ __('¿Eliminar la ruta :code? Esta acción no se puede deshacer.', ['code' => $route->code]) }}"
+                                    wire:confirm="{{ __('¿Eliminar la ruta :code? Sus paradas pendientes volverán a “Sin asignar”.', ['code' => $route->code]) }}"
                                     class="!text-rose-600 hover:!bg-rose-50 dark:!text-rose-400 dark:hover:!bg-rose-500/10"
                                 >{{ __('Eliminar') }}</x-ui.button>
                             @endcan

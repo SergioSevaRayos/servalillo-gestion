@@ -3,9 +3,11 @@
 namespace App\Livewire\Routes;
 
 use App\Enums\RouteStatus;
+use App\Enums\RouteStopStatus;
 use App\Livewire\Forms\RouteForm;
 use App\Models\Driver;
 use App\Models\Route;
+use App\Models\RouteStop;
 use App\Models\Truck;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -90,9 +92,27 @@ class Index extends Component
     {
         $this->authorize('delete', $route);
 
+        // La ruta es SoftDeletes, así que el FK nullOnDelete no se dispara: hay que sacar a mano
+        // las paradas pendientes a "Sin asignar" para que no queden huérfanas (invisibles). Las
+        // cerradas se van con la ruta (se recuperarían al restaurarla).
+        $pending = $route->stops()->where('status', RouteStopStatus::Pending)->orderBy('position')->get();
+
+        if ($pending->isNotEmpty()) {
+            $nextPosition = (int) RouteStop::whereNull('route_id')->max('position');
+
+            foreach ($pending as $stop) {
+                $stop->update(['route_id' => null, 'position' => ++$nextPosition]);
+            }
+        }
+
         $route->delete();
 
-        $this->dispatch('toast', message: 'Ruta eliminada.', variant: 'success');
+        $this->dispatch('toast',
+            message: $pending->isEmpty()
+                ? 'Ruta eliminada.'
+                : 'Ruta eliminada. Sus paradas pendientes han vuelto a "Sin asignar".',
+            variant: 'success',
+        );
     }
 
     public function editing(): bool

@@ -254,8 +254,11 @@ se movió a `GET /rutas/listado` (`routes.index`); ambas vistas se enlazan entre
 
 ### Modelo de datos
 - Migración `2026_09_06_090000_make_route_stops_route_id_nullable`: `route_stops.route_id` ahora es
-  **nullable**, con `nullOnDelete()` en vez de `cascadeOnDelete()` (si se borra una ruta, sus paradas
-  pasan a "Sin asignar" en vez de desaparecer). `RouteStop::scopeUnassigned()` = `whereNull('route_id')`.
+  **nullable**, con `nullOnDelete()` en vez de `cascadeOnDelete()`. `RouteStop::scopeUnassigned()` =
+  `whereNull('route_id')`.
+- `Route` usa `SoftDeletes`, así que el FK `nullOnDelete` no salta al borrar. `Routes\Index::delete()`
+  saca a mano las paradas **pendientes** a "Sin asignar" antes del `->delete()` (las cerradas se van
+  con la ruta). Sin esto quedaban huérfanas e invisibles.
 - La columna "Sin asignar" es un **backlog global, no filtrado por fecha** (una parada sin ruta no tiene
   fecha propia hasta que se le asigna una ruta que sí la tiene).
 
