@@ -225,6 +225,35 @@ it('optimiza una ruta con una completada intermedia y hueco de posiciones sin da
         ->and($result['moved'])->toBeTrue();
 });
 
+it('optimiza desde un origen explícito (base o parada elegida)', function () {
+    [$route, $s] = routeWithStops([
+        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1], // A
+        ['lat' => 28.48, 'lng' => -16.48, 'pos' => 2], // Z
+        ['lat' => 28.44, 'lng' => -16.44, 'pos' => 3], // M (en medio)
+    ]);
+    [$a, $z, $m] = $s;
+
+    // Origen pegado a Z: el recorrido más corto sale de Z -> M -> A.
+    app(RouteOptimizer::class)->optimize($route, [28.485, -16.485]);
+
+    expect(positionsOf($route))->toBe([$z->id, $m->id, $a->id]);
+});
+
+it('el origen explícito manda sobre la última parada cerrada', function () {
+    [$route, $s] = routeWithStops([
+        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1, 'status' => RouteStopStatus::Completed], // cerrada al oeste
+        ['lat' => 28.44, 'lng' => -16.44, 'pos' => 2],
+        ['lat' => 28.48, 'lng' => -16.48, 'pos' => 3],
+    ]);
+    [$done, $mid, $east] = $s;
+
+    // Aunque haya una cerrada, se pasa un origen al este: la primera pendiente será la del este.
+    app(RouteOptimizer::class)->optimize($route, [28.49, -16.49]);
+
+    expect(positionsOf($route))->toBe([$done->id, $east->id, $mid->id])
+        ->and($done->fresh()->position)->toBe(1);
+});
+
 it('no revienta con lat/lon como string (cast decimal:7) y devuelve distancias float', function () {
     [$route] = routeWithStops([
         ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1],

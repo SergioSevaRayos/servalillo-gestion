@@ -681,16 +681,18 @@ de paradas del chofer (`/chofer/ruta`, "Organizar mi ruta"). Se intercaló por d
   API key). **Fallback obligatorio** al mismo algoritmo sobre distancia en línea recta
   (`App\Support\Haversine`) si OSRM falla. **Nunca deja la ruta peor** que como estaba (compara con
   el orden actual). (NO se usa `/trip` con `roundtrip=true`: optimiza un circuito, no un camino.)
-- **Punto de partida:** si la ruta tiene alguna parada **cerrada**, el recorrido se optimiza **desde
-  la última cerrada** (donde está el camión) y la primera pendiente pasa a ser la más cercana a ese
-  punto. Si **no hay ninguna cerrada**, la optimización es **libre**: se prueba el vecino más cercano
-  desde cada inicio y se elige el camino más corto (la primera parada puede cambiar — es lo que
-  "organizar" significa cuando aún no has salido).
-- Solo reordena `Pending`; las cerradas conservan su sitio (su `position` puede desplazarse al
-  compactar huecos, sin dar 422). Las pendientes sin coordenadas se anexan al final. Persiste
-  `position` en transacción, solo filas que cambian.
-- **`Board::reorderStops`** también deja de dar 422 cuando una parada cerrada solo cambia de
-  `position` al arrastrar una pendiente por delante (el 422 se reserva para reasignar de ruta).
+- **Punto de partida:** al pulsar el botón, un modal (`<x-route-optimize-modal>`, compartido tablero +
+  chofer) pregunta **"¿Desde dónde sale el camión?"** → **"Desde la base"** (`config('servalillo.base')`,
+  `BASE_LATITUDE`/`BASE_LONGITUDE`) o **"Desde un cliente"** (lista de las paradas pendientes con
+  ubicación de la ruta). Ese punto se ancla como primera parada y el resto se optimiza desde ahí. Si
+  se llama sin origen (directo / tests) se toma la última parada cerrada, o libre si no hay ninguna.
+- Solo reordena `Pending`; las **cerradas quedan FIJAS en su hueco** (relativo al flujo de pendientes;
+  su `position` solo se renumera al compactar). Las pendientes sin coordenadas se anexan al final.
+  Persiste `position` en transacción, solo filas que cambian.
+- **`Board::reorderStops`** (arrastre en el tablero): las paradas **cerradas ya no se pueden mover** —
+  aunque SortableJS las desplace al soltar otra tarjeta cerca, `reindexColumn()` las devuelve a su
+  hueco y recoloca las pendientes alrededor (mismo criterio que `RouteOptimizer`). El 422 se reserva
+  para intentar reasignar de ruta una parada cerrada.
 - Permiso nuevo `routes.optimize.own` (chofer + admin + mantenimiento); `RoutePolicy::optimizeOwn`
   (chofer, con propiedad) y `RoutePolicy::reorderStops` (oficina, ahora cableado desde el tablero).
 - Primer uso del `Http` facade. `phpunit.xml` fija `ROUTING_OSRM_ENABLED=false` (tests deterministas
@@ -703,25 +705,28 @@ por carretera** (OSRM `/route`, con distancia y duración; cae a línea recta si
 `<x-route-map-modal>` compartido. El botón "Organizar mi ruta" del chofer pasa a la parte superior.
 
 ### Tests
-`RouteOptimizerTest` (10), `RouteGeometryTest` (4) + añadidos a `RoutesBoardTest` (6),
-`ChoferTodayTest` (5), `RolesAndPoliciesTest`. **Suite total: 213 tests en verde.**
+`RouteOptimizerTest` (12), `RouteGeometryTest` (4) + añadidos a `RoutesBoardTest` (7),
+`ChoferTodayTest` (6), `RolesAndPoliciesTest`. **Suite total: 217 tests en verde.**
 
 Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
 
 ### Cómo probar el Bloque 13
 1. `admin@servalillo.test` → `/rutas` con una ruta de varias paradas → "Ruta eficiente" en la
-   cabecera de la columna → toast "Ruta reordenada: N paradas · ~X km menos"; cambia el orden de las
-   tarjetas. Pulsar otra vez → "ya estaba en el orden más eficiente".
-2. `OSRM_URL=http://127.0.0.1:1` (basura) + `php artisan config:clear` → "Ruta eficiente" → toast
+   cabecera de la columna → modal "¿Desde dónde sale el camión?" → "Desde la base" → toast "Ruta
+   reordenada: N paradas · ~X km menos"; cambia el orden de las tarjetas. Pulsar otra vez → "ya
+   estaba en el orden más eficiente".
+2. "Ruta eficiente" → "Desde un cliente" → elegir una parada → esa parada queda la primera y el
+   resto se ordena desde ella.
+3. `OSRM_URL=http://127.0.0.1:1` (basura) + `php artisan config:clear` → "Ruta eficiente" → toast
    "(Estimación local: el servicio de rutas no respondió.)"; sigue reordenando.
-3. Parada creada desde "+ Añadir parada" (sin coords) → tras optimizar queda al final; el toast lo dice.
-4. `pedro@servalillo.test` → "Organizar mi ruta" (arriba) → confirmar → se reordenan las pendientes
-   por el camino más corto. Tras "Empezar jornada" y cerrar alguna parada, reorganizar toma como
-   origen la última cerrada (la próxima parada será la más cercana a donde está). Con la jornada
-   terminada el botón no aparece pero "Ver recorrido" sí.
-5. "Ver recorrido" (chofer o cualquier columna del tablero) → mapa con las paradas numeradas y el
+4. Parada creada desde "+ Añadir parada" (sin coords) → tras optimizar queda al final; el toast lo dice.
+5. En una columna con una parada **completada**, arrastrar una pendiente por encima o por debajo → la
+   completada vuelve a su sitio (no se puede mover).
+6. `pedro@servalillo.test` → "Organizar mi ruta" (arriba) → mismo modal (base / cliente) → se
+   reordenan las pendientes por el camino más corto.
+7. "Ver recorrido" (chofer o cualquier columna del tablero) → mapa con las paradas numeradas y el
    trazado por carretera + "~X km · ~Y min". `OSRM_URL` basura → cae a línea recta.
-6. `/rutas` como chofer → 403 (ya lo era); el chofer no tiene el botón "Ruta eficiente" del tablero.
+8. `/rutas` como chofer → 403 (ya lo era); el chofer no tiene el botón "Ruta eficiente" del tablero.
 
 ---
 

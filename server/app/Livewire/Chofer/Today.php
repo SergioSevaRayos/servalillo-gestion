@@ -277,18 +277,62 @@ class Today extends Component
         $this->dispatch('open-route-map', ...app(RouteGeometry::class)->payloadFor($this->route));
     }
 
-    /** "Organizar mi ruta": reordena las paradas pendientes por cercanía (deja fija la próxima). */
-    public function optimizeRoute(): void
+    /** Paso 1 de "Organizar mi ruta": abre el modal para elegir el punto de partida. */
+    public function startOptimize(): void
+    {
+        $this->authorizeRoute();
+        $this->authorize('optimizeOwn', $this->route);
+        abort_if($this->finished, 403, 'La jornada ya está cerrada.');
+
+        $this->dispatch('open-modal', 'route-optimize');
+    }
+
+    /**
+     * Paso 2: reordena las paradas pendientes desde el origen elegido. $from = 'base' o el id
+     * de una parada pendiente de la ruta.
+     */
+    public function runOptimize(string $from): void
     {
         $this->authorizeRoute();
         $this->authorize('optimizeOwn', $this->route);
         abort_if($this->finished, 403, 'La jornada ya está cerrada.');
 
         $optimizer = app(RouteOptimizer::class);
-        $result = $optimizer->optimize($this->route);
+
+        if ($from === 'base') {
+            $origin = $optimizer->baseOrigin();
+        } else {
+            $stop = $this->route->stops->firstWhere('id', (int) $from);
+
+            abort_unless(
+                $stop !== null
+                    && $stop->status === RouteStopStatus::Pending
+                    && $stop->latitude !== null
+                    && $stop->longitude !== null,
+                422,
+                'Esa parada no sirve como punto de partida.',
+            );
+
+            $origin = [(float) $stop->latitude, (float) $stop->longitude];
+        }
+
+        $result = $optimizer->optimize($this->route, $origin);
 
         unset($this->route);
+        $this->dispatch('close-modal', 'route-optimize');
         $this->dispatch('toast', ...$optimizer->toast($result));
+    }
+
+    /** Paradas pendientes con ubicación de la ruta (para elegir el punto de partida en el modal). */
+    #[Computed]
+    public function optimizingStops()
+    {
+        return $this->route
+            ? $this->route->stops
+                ->where('status', RouteStopStatus::Pending)
+                ->filter(fn (RouteStop $s) => $s->latitude !== null && $s->longitude !== null)
+                ->values()
+            : collect();
     }
 
     public function openStartDay(): void

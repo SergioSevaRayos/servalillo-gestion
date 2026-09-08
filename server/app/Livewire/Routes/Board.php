@@ -13,6 +13,7 @@ use App\Services\RecurringStopService;
 use App\Services\RouteGeometry;
 use App\Services\RouteOptimizer;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -30,6 +31,9 @@ class Board extends Component
     /** Filtro de la vista: 'reparto' (por defecto) o 'viaje'. */
     #[Url(history: true)]
     public string $kind = 'reparto';
+
+    /** Ruta que se está reordenando con "Ruta eficiente" (mientras se elige el origen). */
+    public ?int $optimizingRouteId = null;
 
     public function mount(): void
     {
@@ -137,46 +141,147 @@ class Board extends Component
         $stops = RouteStop::whereIn('id', $allIds)->get()->keyBy('id');
         abort_unless($stops->count() === count($allIds), 422, 'Alguna parada ya no existe.');
 
-        // Una parada cerrada (completada/omitida/fallida) NO se puede reasignar a otra ruta ni
+        // Una parada CERRADA (completada/omitida/fallida) no se puede reasignar de ruta ni
         // sacar/meter en "Sin asignar" — el filtro de SortableJS ya lo impide en el cliente, pero
-        // nunca hay que confiar solo en eso. Su `position` SÍ puede desplazarse cuando se reordenan
-        // las paradas pendientes de alrededor (es solo orden de visualización).
+        // nunca hay que confiar solo en eso. Y tampoco se mueve dentro de su columna: conserva su
+        // hueco y las pendientes se recolocan alrededor (lo hace reindexColumn()).
+        foreach ($toStopIds as $stopId) {
+            $stop = $stops[$stopId];
+
+            abort_if(
+                $stop->route_id !== $toRouteId && $stop->status !== RouteStopStatus::Pending,
+                422,
+                'Solo se pueden mover paradas pendientes.',
+            );
+        }
+
         DB::transaction(function () use ($fromRouteId, $fromStopIds, $toRouteId, $toStopIds, $stops) {
-            foreach (array_values($toStopIds) as $index => $stopId) {
-                $stop = $stops[$stopId];
-                $newPosition = $index + 1;
-                $changingRoute = $stop->route_id !== $toRouteId;
-
-                if (! $changingRoute && $stop->position === $newPosition) {
-                    continue;
-                }
-
-                abort_if($changingRoute && $stop->status !== RouteStopStatus::Pending, 422, 'Solo se pueden mover paradas pendientes.');
-
-                $stop->update(['route_id' => $toRouteId, 'position' => $newPosition]);
-            }
+            $this->reindexColumn($toRouteId, $toStopIds, $stops);
 
             if ($fromRouteId !== $toRouteId) {
-                foreach (array_values($fromStopIds) as $index => $stopId) {
-                    $stop = $stops[$stopId];
-                    $newPosition = $index + 1;
-
-                    if ($stop->position !== $newPosition) {
-                        $stop->update(['position' => $newPosition]);
-                    }
-                }
+                $this->reindexColumn($fromRouteId, $fromStopIds, $stops);
             }
         });
     }
 
-    /** "Ruta eficiente": reordena las paradas pendientes de una ruta para acortar el recorrido. */
-    public function optimizeRoute(int $routeId): void
+    /**
+     * Recoloca las paradas de una columna tras un arrastre. Las paradas cerradas conservan su
+     * hueco relativo al flujo de pendientes (no se mueven); las pendientes se reparten en el
+     * orden en que se han soltado. $routeId null = "Sin asignar".
+     *
+     * @param  array<int, int|string>  $droppedOrder
+     * @param  Collection<int, RouteStop>  $stops
+     */
+    private function reindexColumn(?int $routeId, array $droppedOrder, $stops): void
+    {
+        // Orden PREVIO de la columna (por `position`): fuente de verdad de dónde van las cerradas.
+        $previousOrder = $stops
+            ->filter(fn (RouteStop $s) => $s->route_id === $routeId)
+            ->sortBy('position')
+            ->values();
+
+        // Pendientes en el orden en que las dejó el arrastre.
+        $pendingQueue = collect($droppedOrder)
+            ->map(fn ($id) => $stops[$id] ?? null)
+            ->filter(fn (?RouteStop $s) => $s !== null && $s->status === RouteStopStatus::Pending)
+            ->pluck('id')
+            ->all();
+
+        $finalOrder = [];
+
+        foreach ($previousOrder as $stop) {
+            if ($stop->status !== RouteStopStatus::Pending) {
+                $finalOrder[] = $stop->id;                  // cerrada: se queda en su hueco
+            } elseif ($pendingQueue !== []) {
+                $finalOrder[] = array_shift($pendingQueue);  // pendiente: siguiente del arrastre
+            }
+            // si una pendiente se fue a otra columna, su hueco simplemente desaparece
+        }
+
+        foreach ($pendingQueue as $id) {
+            $finalOrder[] = $id;                             // pendiente que llega de otra columna
+        }
+
+        foreach ($finalOrder as $index => $id) {
+            $stop = $stops[$id];
+            $position = $index + 1;
+
+            if ($stop->route_id !== $routeId || $stop->position !== $position) {
+                $stop->update(['route_id' => $routeId, 'position' => $position]);
+            }
+        }
+    }
+
+    /** Paso 1 de "Ruta eficiente": abre el modal para elegir el punto de partida. */
+    public function startOptimize(int $routeId): void
     {
         $route = Route::findOrFail($routeId);
         $this->authorize('reorderStops', $route);
 
+        $this->optimizingRouteId = $routeId;
+        $this->dispatch('open-modal', 'route-optimize');
+    }
+
+    /**
+     * Paso 2: reordena la ruta desde el origen elegido. $from = 'base' o el id de una parada
+     * pendiente de la ruta.
+     */
+    public function runOptimize(string $from): void
+    {
+        abort_unless($this->optimizingRouteId !== null, 400);
+
+        $route = Route::with('stops')->findOrFail($this->optimizingRouteId);
+        $this->authorize('reorderStops', $route);
+
         $optimizer = app(RouteOptimizer::class);
-        $this->dispatch('toast', ...$optimizer->toast($optimizer->optimize($route)));
+        $origin = $this->resolveOptimizeOrigin($route, $from, $optimizer);
+
+        $result = $optimizer->optimize($route, $origin);
+
+        $this->optimizingRouteId = null;
+        $this->dispatch('close-modal', 'route-optimize');
+        $this->dispatch('toast', ...$optimizer->toast($result));
+    }
+
+    /**
+     * @param  'base'|string  $from
+     * @return array{0: float, 1: float}
+     */
+    private function resolveOptimizeOrigin(Route $route, string $from, RouteOptimizer $optimizer): array
+    {
+        if ($from === 'base') {
+            return $optimizer->baseOrigin();
+        }
+
+        $stop = $route->stops->firstWhere('id', (int) $from);
+
+        abort_unless(
+            $stop !== null
+                && $stop->status === RouteStopStatus::Pending
+                && $stop->latitude !== null
+                && $stop->longitude !== null,
+            422,
+            'Esa parada no sirve como punto de partida.',
+        );
+
+        return [(float) $stop->latitude, (float) $stop->longitude];
+    }
+
+    /** Paradas pendientes con ubicación de la ruta que se está reordenando (para el modal). */
+    #[Computed]
+    public function optimizingStops()
+    {
+        if ($this->optimizingRouteId === null) {
+            return collect();
+        }
+
+        return RouteStop::query()
+            ->where('route_id', $this->optimizingRouteId)
+            ->where('status', RouteStopStatus::Pending)
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->orderBy('position')
+            ->get();
     }
 
     /** "Ver recorrido": abre el mapa con las paradas de la ruta y su trazado. */

@@ -38,16 +38,29 @@ return [
     |--------------------------------------------------------------------------
     | Optimización de rutas ("Ruta eficiente", Bloque 13)
     |--------------------------------------------------------------------------
-    | Motor de reordenación de paradas: servicio OSRM /trip (TSP). El servidor
-    | demo público no necesita API key; se puede autoalojar cambiando OSRM_URL.
-    | Si OSRM falla / hace timeout / no responde, App\Services\RouteOptimizer
-    | cae a una heurística local (vecino más cercano + 2-opt sobre haversine).
+    | Motor de reordenación de paradas: matriz de distancias reales por
+    | carretera de OSRM /table + vecino más cercano y 2-opt. El servidor demo
+    | público no necesita API key; se puede autoalojar cambiando OSRM_URL. Si
+    | OSRM falla / hace timeout / no responde, App\Services\RouteOptimizer cae
+    | a una heurística local (mismo algoritmo sobre distancia haversine).
     */
     'routing' => [
         'enabled' => (bool) env('ROUTING_OSRM_ENABLED', true),
         'osrm_url' => rtrim((string) env('OSRM_URL', 'https://router.project-osrm.org'), '/'),
         'timeout' => (int) env('OSRM_TIMEOUT', 4),
         'connect_timeout' => (int) env('OSRM_CONNECT_TIMEOUT', 2),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Base de la flota
+    |--------------------------------------------------------------------------
+    | Ubicación desde la que salen los camiones. "Ruta eficiente" la ofrece
+    | como punto de partida ("Desde la base") al reordenar una ruta.
+    */
+    'base' => [
+        'latitude' => (float) env('BASE_LATITUDE', 36.876880),
+        'longitude' => (float) env('BASE_LONGITUDE', -2.443087),
     ],
 
 ];

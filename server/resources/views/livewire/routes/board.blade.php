@@ -96,13 +96,13 @@
                             <span>{{ __('Ver recorrido') }}</span>
                         </button>
                         @can('reorderStops', $route)
-                            <button type="button" wire:click="optimizeRoute({{ $route->id }})"
-                                wire:target="optimizeRoute" wire:loading.attr="disabled"
+                            <button type="button" wire:click="startOptimize({{ $route->id }})"
+                                wire:target="startOptimize" wire:loading.attr="disabled"
                                 class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:opacity-50 dark:text-primary-400 dark:hover:bg-primary-500/10">
-                                <svg wire:loading.remove wire:target="optimizeRoute" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <svg wire:loading.remove wire:target="startOptimize" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                                     <path fill-rule="evenodd" d="M11.3 1.046a1 1 0 0 1 .7 1.19L10.42 8H15a1 1 0 0 1 .8 1.6l-7 9.333A1 1 0 0 1 7 18.333L8.58 12H4a1 1 0 0 1-.8-1.6l7-9.333a1 1 0 0 1 1.1-.021Z" clip-rule="evenodd" />
                                 </svg>
-                                <svg wire:loading wire:target="optimizeRoute" class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                <svg wire:loading wire:target="startOptimize" class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
                                 </svg>
@@ -234,4 +234,5 @@
     </x-modal>
 
     <x-route-map-modal />
+    <x-route-optimize-modal :stops="$this->optimizingStops" />
 </div>

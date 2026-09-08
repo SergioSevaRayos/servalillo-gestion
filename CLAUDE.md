@@ -104,7 +104,8 @@ Backed enums con `->label()` en español; casteados en los modelos.
 
 ### Config propia
 - `config/servalillo.php`: ventana de tracking GPS (pausa 22:00–05:00), intervalos, retención GPS 90 días;
-  bloque `routing` (OSRM para "Ruta eficiente", Bloque 13).
+  bloque `routing` (OSRM para "Ruta eficiente", Bloque 13); bloque `base` (ubicación de la nave, punto
+  de salida "Desde la base" de "Ruta eficiente").
 - `config/filesystems.php` disco `r2`: usa S3/R2 si hay `R2_ACCESS_KEY_ID`, si no cae a `local`
   (`storage/app/private/r2`). Firmas y PDFs van a este disco con nombres generados por el sistema.
 
@@ -228,9 +229,14 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - **Solo las paradas en estado `Pending` se pueden arrastrar** (no tiene sentido reasignar una ya
   completada/fallida). Doble barrera: `filter: '[data-draggable="false"]'` en SortableJS (cliente,
   `data-draggable` lo pone `<x-routes.stop-card>`) + comprobación real en `Board::reorderStops()`
-  (servidor: si la posición/ruta de una parada cambiaría y su estado no es `Pending`, aborta 422) —
-  nunca te fíes solo del filtro de cliente. Las tarjetas no arrastrables se pintan con un **tono
-  apagado** (fondo grisáceo + `grayscale-[0.3]`, sin candado ni icono) — decisión explícita del usuario.
+  (servidor: una parada cerrada que cambiaría de ruta → 422). Las tarjetas no arrastrables se pintan
+  con un **tono apagado** (fondo grisáceo + `grayscale-[0.3]`, sin candado ni icono) — decisión
+  explícita del usuario.
+  - **Las paradas cerradas quedan FIJAS en su hueco**, aunque SortableJS las desplace visualmente al
+    soltar otra tarjeta cerca. `Board::reindexColumn()` reconstruye la columna a partir del orden
+    PREVIO (`position`): cada cerrada conserva su sitio relativo al flujo de pendientes y las
+    pendientes se reparten alrededor en el orden del arrastre. Mismo criterio que
+    `RouteOptimizer::optimize()`. El servidor re-renderiza y el morph corrige la posición visual.
 - **`RouteStopStatus::InProgress` ("En curso") se eliminó del todo** (a valorar si se reintroduce más
   adelante). No confundir con `RouteStatus::InProgress`, que es el estado de la *ruta* completa y sigue
   existiendo — son enums distintos para conceptos distintos.
@@ -608,39 +614,43 @@ Backed enums con `->label()` en español; casteados en los modelos.
 ### Ruta eficiente (Bloque 13)
 - Botón **"Ruta eficiente"** que reordena automáticamente las paradas **pendientes** de una ruta
   para acortar el recorrido. Dos entradas: cabecera de cada columna de ruta del tablero (`/rutas`,
-  `Board::optimizeRoute(int $routeId)`) y bajo la lista de paradas del chofer (`/chofer/ruta`,
-  `Today::optimizeRoute()`, "Organizar mi ruta").
-- **`App\Services\RouteOptimizer` es el único punto.** `optimize(Route): array` + `toast(array): array`.
+  `Board::startOptimize`/`runOptimize`) y bajo la lista de paradas del chofer (`/chofer/ruta`,
+  `Today::startOptimize`/`runOptimize`, "Organizar mi ruta").
+- **Flujo en dos pasos**: `startOptimize` abre `<x-route-optimize-modal>` (compartido) que pregunta
+  **"¿Desde dónde sale el camión?"** → **"Desde la base"** (`config('servalillo.base')`, editable por
+  `BASE_LATITUDE`/`BASE_LONGITUDE`) o **"Desde un cliente"** (lista de paradas **pendientes con
+  ubicación** de la ruta, `#[Computed] optimizingStops`). El botón elegido llama a
+  `runOptimize('base'|<stopId>)`, que resuelve el `$origin` `[lat, lon]` y llama a `optimize()`.
+  Los dos componentes exponen `runOptimize(string $from)` con la misma firma para que el modal sirva
+  para ambos.
+- **`App\Services\RouteOptimizer` es el único punto.** `optimize(Route, ?array $origin = null): array`
+  + `toast(array): array` + `baseOrigin(): array`.
   - Motor: **OSRM `/table`** (`?annotations=distance`) → matriz N×N de distancias reales por carretera.
     Sobre esa matriz, **vecino más cercano + 2-opt** (camino abierto). Config `servalillo.routing`
     (`OSRM_URL` autoalojable, demo público sin API key; `timeout`/`connect_timeout`). OSRM quiere
     **`lon,lat`**. **OJO**: NO usar `/trip` con `roundtrip=true` — optimiza un circuito cerrado y con
     la pierna de vuelta descartada puede dejar el camino abierto *peor*.
-  - **Punto de partida**: si la ruta tiene alguna parada **cerrada**, el recorrido se optimiza **desde
-    la última cerrada** (`$origin`, donde está el camión) → se antepone como índice 0 fijo y la
-    primera pendiente pasa a ser la más cercana. Si **no hay ninguna cerrada**, la optimización es
-    **libre**: se prueba NN desde cada inicio y se elige el camino más corto (la primera parada
-    puede cambiar — es lo que "organizar" significa cuando aún no has salido).
+  - **Punto de partida (`$origin`)**: lo elige quien llama (base o parada del modal) → se antepone
+    como índice 0 fijo y la primera pendiente pasa a ser la más cercana. Si **no se pasa `$origin`**
+    (llamada directa / tests), se toma la **última parada cerrada** con coordenadas; si tampoco hay,
+    la optimización es **libre** (se prueba NN desde cada inicio y se elige el camino más corto).
   - **Fallback obligatorio** (`App\Support\Haversine`, mismo algoritmo con distancia en línea recta):
     cualquier fallo de OSRM (red, timeout, `code != Ok`, par no ruteable, `enabled=false`) → local.
     El botón **siempre** da resultado (`method` = `osrm` | `local` | `none`).
   - **Nunca empeora**: se compara el orden propuesto con el actual (misma métrica, con `$origin`
     delante si lo hay); si el actual ya es igual o mejor, no se toca (`moved: false`, toast "ya
     estaba optimizada").
-  - Solo reordena `Pending`; las cerradas conservan su sitio (su `position` puede desplazarse solo
-    para compactar huecos). Las pendientes **sin `lat/lon`** se anexan al final en su orden.
-    `latitude/longitude` son `decimal:7` → **`(float)` antes de operar**.
+  - Solo reordena `Pending`; las cerradas conservan su hueco relativo al flujo de pendientes (su
+    `position` puede renumerarse al compactar). Las pendientes **sin `lat/lon`** se anexan al final
+    en su orden. `latitude/longitude` son `decimal:7` → **`(float)` antes de operar**.
   - Persiste `position` en `DB::transaction`, solo filas que cambian. Coste: ~N filas de `audits`
     por clic, igual que `reorderStops` — aceptado.
   - **Gotcha resuelto**: NO usar una arrow-fn `fn () => array_shift($queue)` dentro de `map()` para
     drenar una cola — las arrow functions capturan **por valor** y `array_shift` no persiste entre
     iteraciones. Usar un `foreach` normal.
-- **`Board::reorderStops` y `RouteOptimizer` ya no abortan 422** cuando una parada **cerrada** solo
-  cambia de `position` (renumerado al reordenar las pendientes de alrededor). El 422 se reserva para
-  intentar **reasignar de ruta** una parada cerrada.
 - Permiso nuevo **`routes.optimize.own`** (chofer + admin + mantenimiento). `RoutePolicy::optimizeOwn`
   (chofer, con propiedad de la ruta) y `RoutePolicy::reorderStops` (oficina — **ahora cableado** desde
-  `Board::optimizeRoute` con `$this->authorize('reorderStops', $route)`, antes estaba sin usar).
+  `Board::startOptimize` con `$this->authorize('reorderStops', $route)`, antes estaba sin usar).
 - Primer uso del **`Http` facade** de la app. En tests: `phpunit.xml` fija `ROUTING_OSRM_ENABLED=false`
   (heurística local determinista, sin red); los tests de OSRM hacen `config()->set(...)` + `Http::fake()`.
 - **"Ver recorrido"** (mismo bloque): botón que abre un mapa **Leaflet** (`npm i leaflet`, mosaicos

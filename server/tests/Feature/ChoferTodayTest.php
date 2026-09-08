@@ -472,7 +472,7 @@ it('un chofer sin ruta no puede ver el recorrido (404)', function () {
         ->assertStatus(404);
 });
 
-it('el chofer organiza su ruta y se reordenan las paradas pendientes', function () {
+it('el chofer organiza su ruta desde una parada y se reordenan las pendientes', function () {
     config()->set('servalillo.routing.enabled', false);
 
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
@@ -481,9 +481,29 @@ it('el chofer organiza su ruta y se reordenan las paradas pendientes', function 
     $near = RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42, 'planned_quantity' => 1000]);
 
     Livewire::actingAs($user)->test(Today::class)
-        ->call('optimizeRoute')
+        ->call('startOptimize')
+        ->call('runOptimize', (string) $a->id)
         ->assertDispatched('toast');
 
+    // Sale desde $a: luego la más cercana ($near) y por último $far.
+    expect($route->stops()->pluck('id')->all())->toBe([$a->id, $near->id, $far->id]);
+});
+
+it('el chofer organiza su ruta desde la base', function () {
+    config()->set('servalillo.routing.enabled', false);
+    config()->set('servalillo.base', ['latitude' => 28.39, 'longitude' => -16.39]);
+
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    $a = RouteStop::factory()->for($route)->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40, 'planned_quantity' => 1000]);
+    $far = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46, 'planned_quantity' => 1000]);
+    $near = RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42, 'planned_quantity' => 1000]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('startOptimize')
+        ->call('runOptimize', 'base')
+        ->assertDispatched('toast');
+
+    // La base está junto a $a, así que el recorrido más corto es $a, $near, $far.
     expect($route->stops()->pluck('id')->all())->toBe([$a->id, $near->id, $far->id]);
 });
 
@@ -491,7 +511,7 @@ it('no se puede organizar una ruta ya terminada', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::Completed, 'started_at' => now(), 'completed_at' => now()], stops: 3);
 
     Livewire::actingAs($user)->test(Today::class)
-        ->call('optimizeRoute')
+        ->call('startOptimize')
         ->assertStatus(403);
 });
 
@@ -502,6 +522,6 @@ it('un chofer sin ruta hoy no puede organizar nada (404)', function () {
     makeRoute(today()->toDateString());
 
     Livewire::actingAs($user)->test(Today::class)
-        ->call('optimizeRoute')
+        ->call('startOptimize')
         ->assertStatus(404);
 });

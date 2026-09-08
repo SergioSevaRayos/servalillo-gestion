@@ -102,21 +102,22 @@ test('no se puede mover una parada completada', function () {
     expect($stop->fresh()->route_id)->toBeNull();
 });
 
-test('arrastrar una pendiente por delante de una completada intermedia no da error', function () {
+test('arrastrar una pendiente por delante de una completada intermedia no la mueve', function () {
     $route = makeRoute('2026-09-10');
     $a = RouteStop::factory()->create(['route_id' => $route->id, 'position' => 1]);
     $done = RouteStop::factory()->create(['route_id' => $route->id, 'position' => 2, 'status' => RouteStopStatus::Completed]);
     $b = RouteStop::factory()->create(['route_id' => $route->id, 'position' => 3]);
 
-    // El usuario sube $b al principio: nuevo orden [$b, $a, $done] — $done se desplaza a la 3.
+    // El usuario sube $b al principio: el arrastre deja [$b, $a, $done], pero la completada
+    // conserva su hueco (1 pendiente por delante) => resultado [$b, $done, $a].
     Livewire::actingAs(makeUser('administrador'))
         ->test(Board::class)->set('date', '2026-09-10')
         ->call('reorderStops', $route->id, [$b->id, $a->id, $done->id], $route->id, [$b->id, $a->id, $done->id])
         ->assertStatus(200);
 
     expect($b->fresh()->position)->toBe(1)
-        ->and($a->fresh()->position)->toBe(2)
-        ->and($done->fresh()->position)->toBe(3)
+        ->and($done->fresh()->position)->toBe(2)
+        ->and($a->fresh()->position)->toBe(3)
         ->and($done->fresh()->status)->toBe(RouteStopStatus::Completed);
 });
 
@@ -196,10 +197,30 @@ test('"Ruta eficiente": el administrador reordena una ruta y ve un toast', funct
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Board::class)->set('date', '2026-09-10')
-        ->call('optimizeRoute', $route->id)
+        ->call('startOptimize', $route->id)
+        ->call('runOptimize', 'base')
         ->assertDispatched('toast');
 
     expect($route->stops()->pluck('id')->all())->toBe([$a->id, $c->id, $b->id]);
+});
+
+test('"Ruta eficiente": se puede reordenar desde una parada concreta de la ruta', function () {
+    config()->set('servalillo.routing.enabled', false);
+
+    $route = makeRoute('2026-09-10');
+    // En línea; si se sale desde $c (la del medio) el camino más corto es c -> b -> a (o c -> a -> b).
+    $a = RouteStop::factory()->for($route)->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40]);
+    $b = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.50, 'longitude' => -16.50]);
+    $c = RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.44, 'longitude' => -16.44]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('startOptimize', $route->id)
+        ->call('runOptimize', (string) $c->id)
+        ->assertDispatched('toast');
+
+    // Sale desde $c: queda primera.
+    expect($route->stops()->pluck('id')->first())->toBe($c->id);
 });
 
 test('"Ver recorrido": emite el evento del mapa con las paradas de la ruta', function () {
@@ -222,7 +243,7 @@ test('"Ruta eficiente": un chofer recibe 403', function () {
 
     Livewire::actingAs(makeUser('chofer'))
         ->test(Board::class)->set('date', '2026-09-10')
-        ->call('optimizeRoute', $route->id)
+        ->call('startOptimize', $route->id)
         ->assertForbidden();
 });
 
@@ -234,7 +255,8 @@ test('"Ruta eficiente": la parada completada líder no se mueve', function () {
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Board::class)->set('date', '2026-09-10')
-        ->call('optimizeRoute', $route->id);
+        ->call('startOptimize', $route->id)
+        ->call('runOptimize', 'base');
 
     expect($done->fresh()->position)->toBe(1);
 });
@@ -246,7 +268,8 @@ test('"Ruta eficiente": sin paradas con coordenadas avisa y no cambia nada', fun
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Board::class)->set('date', '2026-09-10')
-        ->call('optimizeRoute', $route->id)
+        ->call('startOptimize', $route->id)
+        ->call('runOptimize', 'base')
         ->assertDispatched('toast', fn ($event, $params) => $params['variant'] === 'warning');
 
     expect($a->fresh()->position)->toBe(1)->and($b->fresh()->position)->toBe(2);

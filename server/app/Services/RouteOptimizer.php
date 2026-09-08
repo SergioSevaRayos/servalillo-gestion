@@ -15,11 +15,12 @@ use Illuminate\Support\Facades\Http;
  * acortar el recorrido (camino abierto: vecino más cercano probando cada inicio +
  * mejora 2-opt).
  *
- * - Si la ruta ya tiene paradas cerradas, el recorrido se optimiza **desde la última
- *   parada cerrada** (donde está / estará el camión); la primera pendiente pasa a ser
- *   la más cercana a ese punto.
- * - Si no hay ninguna cerrada, la optimización es **libre**: se busca el orden más
- *   corto, aunque cambie qué parada va primera.
+ * - El punto de partida (`$origin`) lo elige quien llama: la base de la flota o una
+ *   parada concreta ("¿Desde la base o desde un cliente?"). La primera pendiente pasa
+ *   a ser la más cercana a ese punto.
+ * - Si no se pasa origen, se toma la **última parada cerrada** con coordenadas (donde
+ *   está el camión); si tampoco hay, la optimización es **libre** (se busca el orden
+ *   más corto, aunque cambie qué parada va primera).
  *
  * La matriz de distancias es la real por carretera (OSRM /table); si OSRM no responde,
  * se usa la distancia en línea recta (haversine). Nunca deja la ruta peor que como
@@ -34,7 +35,18 @@ class RouteOptimizer
     /** @var 'osrm'|'local'|'none' */
     private string $lastMethod = 'none';
 
+    /** Coordenadas [lat, lon] de la base de la flota (config). */
+    public function baseOrigin(): array
+    {
+        return [
+            (float) config('servalillo.base.latitude'),
+            (float) config('servalillo.base.longitude'),
+        ];
+    }
+
     /**
+     * @param  array{0: float, 1: float}|null  $origin  punto de salida elegido (base o una
+     *                                                  parada); null = autodetectar
      * @return array{
      *     moved: bool,
      *     method: 'osrm'|'local'|'none',
@@ -45,7 +57,7 @@ class RouteOptimizer
      *     distance_after_m: ?float,
      * }
      */
-    public function optimize(Route $route): array
+    public function optimize(Route $route, ?array $origin = null): array
     {
         $this->lastMethod = 'none';
 
@@ -62,13 +74,15 @@ class RouteOptimizer
             return $this->result(false, 0, $withCoords->count(), $noCoords->count(), null, null);
         }
 
-        // Origen del recorrido: la última parada cerrada con coordenadas (donde está el
-        // camión). Si no hay, la optimización es libre.
-        $lastClosed = $stops->last(fn (RouteStop $s) => $s->status !== RouteStopStatus::Pending
-            && $s->latitude !== null && $s->longitude !== null);
-        $origin = $lastClosed
-            ? [(float) $lastClosed->latitude, (float) $lastClosed->longitude]
-            : null;
+        // Sin origen explícito: la última parada cerrada con coordenadas (donde está el
+        // camión). Si tampoco hay, la optimización es libre.
+        if ($origin === null) {
+            $lastClosed = $stops->last(fn (RouteStop $s) => $s->status !== RouteStopStatus::Pending
+                && $s->latitude !== null && $s->longitude !== null);
+            $origin = $lastClosed
+                ? [(float) $lastClosed->latitude, (float) $lastClosed->longitude]
+                : null;
+        }
 
         $optimizedIds = $this->solve($withCoords, $origin);
 
