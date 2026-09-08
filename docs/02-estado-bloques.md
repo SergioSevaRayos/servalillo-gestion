@@ -844,10 +844,17 @@ reordenar ▲/▼ con animación FLIP, nav pill opaca en móvil) + **Bloque 10**
 **APK ya compilada**: `mobile/build/app/outputs/flutter-apk/app-release.apk` (51 MB, firmada con la
 clave debug). Config real en `mobile/dart_define.json` (gitignored). Para reconstruir:
 `cd mobile && export JAVA_HOME=~/tools/jdk-17.0.20.1+1 && flutter build apk --release --dart-define-from-file=dart_define.json`.
-Falta probarla en un Android físico (el usuario lo hará).
 
-**Siguiente:** no hay bloque pendiente definido. Pendiente transversal: paginación Livewire en inglés
-(ver Bloque 6). Todo commiteado en `develop` (sin push).
+**Bloqueo en prueba de campo (pendiente):** el usuario instaló el APK en un Android físico y al pulsar
+"Abrir" **no pasa nada** — probable crash al inicio. El wizard de permisos tampoco pidió los 4
+permisos en orden (se concedieron a mano). Siguiente paso: `adb logcat` mientras se abre la app para
+ver la excepción (requiere Depuración USB en el móvil). Sospechosos: `main.dart` llama
+`FlutterForegroundTask.initCommunicationPort()` + `TrackerForegroundService.init()` antes de `runApp`;
+el `<service>` de `flutter_foreground_task` declarado a mano en el manifest sin `tools:replace`;
+permisos runtime en `StatusScreen._bootstrap()`.
+
+**Siguiente:** desbloquear la prueba de campo de la APK. Pendiente transversal: paginación Livewire en
+inglés (ver Bloque 6). Todo commiteado en `develop` (sin push).
 
 ---
 
