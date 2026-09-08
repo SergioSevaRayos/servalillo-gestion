@@ -5,6 +5,7 @@
         'maintenance.errors' => __('Errores del sistema'),
         'maintenance.logs' => __('Log de la aplicación'),
         'maintenance.support' => __('Soporte'),
+        'maintenance.devices' => __('Dispositivos'),
     ];
 @endphp
 

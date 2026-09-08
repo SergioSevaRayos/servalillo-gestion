@@ -118,8 +118,9 @@ jobs / failed_jobs (colas driver database)
 `id, truck_id FK, driver_id FK, valid_from (date), valid_until (date, null = vigente), timestamps`
 
 **devices** (móvil de empresa que hace el tracking)
-`id, truck_id (FK, unique), label, platform (android), install_identifier (string, unique), app_version, last_seen_at, is_active, timestamps`
-- Autenticación del dispositivo: **token Sanctum** propio (no el del chofer), con habilidad `gps:ingest`. Se emite una vez en el login inicial de la app.
+`id, driver_id (FK nullable, unique), label, platform (android), install_identifier (string, unique), app_version, last_seen_at, is_active, timestamps`
+- Autenticación del dispositivo: **token Sanctum** propio (no el del chofer), con habilidad `gps:ingest`, emitido en `POST /api/device/register` (secreto de enrolamiento en `.env`).
+- Bloque 10: se enrola "en blanco" (`driver_id` null) y el servicio técnico lo asigna a un chofer en `/mantenimiento/dispositivos`. (Antes era `truck_id` unique NOT NULL.)
 
 **routes**
 `id, code (generado, ej. R-20260904-03), route_date (date), truck_id FK, driver_id FK, status (enum: draft|published|in_progress|completed|cancelled), name, notes, started_at, completed_at, created_by (user_id), timestamps, soft_deletes`
@@ -156,7 +157,7 @@ jobs / failed_jobs (colas driver database)
 - Único `(route_id, kind)`. Al guardar `end`, se actualiza `trucks.odometer` vía Service.
 
 **gps_positions** (alto volumen)
-`id (bigint), truck_id FK, device_id FK, driver_id (null), route_id (null), latitude, longitude, accuracy_m, speed_mps, heading_deg, battery_level (smallint, null), recorded_at (timestamp del dispositivo), created_at`
+`id (bigint), truck_id FK (null — Bloque 10), device_id FK, driver_id (null), route_id (null), latitude, longitude, accuracy_m, speed_mps, heading_deg, battery_level (smallint, null), recorded_at (timestamp del dispositivo), created_at`
 - Índice `(truck_id, recorded_at desc)`. Sin `updated_at` (append-only).
 - Se emite por **Reverb** solo la última posición de cada camión (canal privado `map`), no todo el histórico.
 - Retención: job de limpieza (> 90 días) — configurable, a validar.
@@ -173,22 +174,21 @@ jobs / failed_jobs (colas driver database)
 
 ---
 
-## 4. Endpoints API (Sanctum) — contrato inicial
+## 4. Endpoints API (Sanctum)
 
-| Método | Ruta | Auth | Uso |
-|---|---|---|---|
-| POST | `/api/auth/login` | — (rate-limited 5/min) | Chofer y dispositivo. Devuelve token |
-| POST | `/api/auth/logout` | token | Revoca el token actual |
-| GET | `/api/me` | token | Perfil + rol |
-| GET | `/api/routes/today` | chofer | Su ruta del día + paradas ordenadas |
-| POST | `/api/stops/{stop}/start` | chofer | Marca parada en curso |
-| POST | `/api/stops/{stop}/complete` | chofer | qty entregada + data + canal albarán |
-| POST | `/api/stops/{stop}/signature` | chofer | Sube PNG de firma (MIME validado) |
-| POST | `/api/stops/{stop}/fail` | chofer | Marca parada fallida + motivo |
-| POST | `/api/routes/{route}/odometer` | chofer | Lectura inicio/fin |
-| POST | `/api/gps/batch` | dispositivo (`gps:ingest`) | Lote de posiciones (offline-friendly) |
+> **Actualizado (Bloque 10, 2026-09-08).** El contrato original planteaba una API completa del chofer
+> para una app Flutter. **Eso NO se construyó**: la web del chofer (Livewire) cubre toda esa operativa
+> y Flutter acabó siendo solo una APK "tracker" sin interfaz. Solo existe la API de GPS.
 
-Todo con **Form Requests** + **API Resources**. La web del chofer usa Livewire (sesión web), no esta API — la API es sobre todo para Flutter, pero el contrato queda disponible por si la web del chofer migra a SPA.
+| Método | Ruta | Auth | Uso | Estado |
+|---|---|---|---|---|
+| POST | `/api/device/register` | — (`throttle:device-register` 10/min por IP) | La APK envía `install_identifier` + secreto de `.env` → token Sanctum del dispositivo con habilidad `gps:ingest` + config de tracking | ✅ |
+| POST | `/api/gps/batch` | dispositivo (`gps:ingest`) | Lote de hasta 500 posiciones (offline-friendly) | ✅ |
+| — | `/api/auth/*`, `/api/routes/*`, `/api/stops/*`, `/api/routes/{route}/odometer` | — | Operativa del chofer | ❌ no construido — lo hace la web Livewire |
+
+Con **Form Requests** (`app/Http/Requests/Api/`). El dispositivo se enrola "en blanco" y el servicio
+técnico lo asigna a un chofer desde `/mantenimiento/dispositivos`; el camión y la ruta de cada
+posición GPS se deducen de la ruta de ese chofer.
 
 ---
 

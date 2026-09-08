@@ -12,8 +12,8 @@
 | 7 | Web operativa del Chofer | ✅ Hecho |
 | 8 | Albaranes (PDF + canales email/físico) + colas | ✅ Hecho |
 | 9 | Gestión de clientes (CRUD + ficha + histórico + import Access) | ✅ Hecho |
-| 10 | API Flutter (Sanctum) | ⬜ Siguiente |
-| 11 | App Flutter de tracking | ⬜ |
+| 10 | API de tracking GPS (Sanctum) | ✅ Hecho |
+| 11 | APK Flutter de tracking | ⬜ |
 | 12 | Notificaciones in-app + canal de soporte administración ↔ mantenimiento | ✅ Hecho |
 | 13 | Ruta eficiente (optimización de paradas, OSRM + fallback local) | ✅ Hecho |
 
@@ -21,6 +21,11 @@
 
 > El Bloque 9 original era "API Flutter (Sanctum)"; el usuario intercaló la gestión de clientes
 > por delante, así que la API pasa a ser el Bloque 10 y el tracking el 11.
+
+> **Re-alcance del Bloque 10 (2026-09-08):** la app Flutter NO es una app del chofer. Es una **APK
+> "tracker" sin interfaz** que el servicio técnico instala en el móvil de cada camión. Así que el
+> Bloque 10 quedó como **solo la API de ingesta GPS** + gestión de dispositivos en el panel. Toda la
+> operativa del chofer que planteaba `docs/01` §4 (rutas/paradas/albaranes) ya la cubre la web Livewire.
 
 ---
 
@@ -600,6 +605,44 @@ modal de edición para completar) o **Descartar** (borrado permanente, `forceDel
 - **Sincronización automática admin ↔ chofer** vía `wire:poll` (chofer 15 s, tablero 45 s): lo que
   cambia uno le aparece al otro solo, sin recargar. (Push instantáneo con Reverb = mejora futura.)
 - Detalle en `CLAUDE.md` (sección "Pre-clientes / valoración" y la de clientes).
+
+---
+
+## Bloque 10 — lo que se ha construido
+
+**API de ingesta GPS** para una APK "tracker" sin interfaz (ver el re-alcance arriba). La operativa
+del chofer sigue siendo la web Livewire.
+
+- **`POST /api/device/register`** (sin auth, `throttle:device-register` 10/min por IP): la APK envía
+  `install_identifier` + el secreto compartido (`DEVICE_ENROLMENT_SECRET`, `config('servalillo.device')`).
+  Se registra el `Device` "en blanco" (sin chofer), se emite un token Sanctum en el propio `Device`
+  con habilidad `gps:ingest` y se devuelve `{ token, device_id, tracking: {intervalo, distancia, pausa} }`.
+- **`POST /api/gps/batch`** (`auth:sanctum` + `abilities:gps:ingest`): lote de hasta 500 posiciones.
+  `App\Services\GpsIngestService` descarta las de fecha futura, resuelve chofer (del device) y
+  camión/ruta (de la ruta de ese chofer para la fecha de la posición — `null` si no procede) e inserta
+  en bloque. Bumpea `last_seen_at`.
+- **Esquema**: `devices.truck_id` → `devices.driver_id` (nullable, unique). `gps_positions.truck_id`
+  pasa a nullable.
+- **Panel `/mantenimiento/dispositivos`** (`App\Livewire\Maintenance\Devices`, permiso `devices.manage`):
+  lista de APKs enroladas (última señal, versión, nº posiciones, estado) + asignar/reasignar chofer,
+  revocar acceso, activar/desactivar, eliminar (con sus posiciones).
+- **`gps:purgar {--dias=}`** + schedule diario 04:00: retención `gps_retention_days` (90).
+- Los errores de la API se registran solos en `error_logs` (panel de Mantenimiento) — el
+  `bootstrap/app.php` ya lo hacía para `api/*`.
+
+### Cómo probar el Bloque 10
+1. `.env`: poner `DEVICE_ENROLMENT_SECRET` a algo. `php artisan config:clear`.
+2. `curl -sX POST localhost:8000/api/device/register -H 'Accept: application/json'
+   -d 'install_identifier=phone-1&secret=<secreto>&platform=android&app_version=1.0.0'` → token.
+3. `curl -sX POST localhost:8000/api/gps/batch -H "Authorization: Bearer <token>" -H 'Accept: application/json'
+   -H 'Content-Type: application/json' -d '{"positions":[{"lat":28.46,"lng":-16.25,"recorded_at":"2026-09-08T10:00:00Z","battery_level":88}]}'` → `{"accepted":1}`.
+4. `soporte@servalillo.test` → Mantenimiento → **Dispositivos** → asignar el dispositivo a un chofer →
+   volver a enviar un lote → la posición ya trae `driver_id`/`truck_id`/`route_id`.
+5. `php artisan gps:purgar` (sin datos viejos no borra nada).
+
+### Tests
+`tests/Feature/Api/{DeviceRegisterTest (5), GpsBatchTest (11)}.php`, `PurgeGpsPositionsTest (2)`,
+`MaintenanceDevicesTest (9)`. **Suite total: 253 tests en verde.**
 
 ---
 

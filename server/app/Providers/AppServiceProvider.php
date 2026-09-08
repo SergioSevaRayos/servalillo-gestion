@@ -4,7 +4,10 @@ namespace App\Providers;
 
 use App\Policies\AuditPolicy;
 use App\Support\DeliveryChannels\DeliveryChannelManager;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use OwenIt\Auditing\Models\Audit;
@@ -32,5 +35,8 @@ class AppServiceProvider extends ServiceProvider
 
             return $this->app->isProduction() ? $rule->uncompromised() : $rule;
         });
+
+        // Enrolamiento de la APK tracker (Bloque 10): limitado por IP.
+        RateLimiter::for('device-register', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
     }
 }

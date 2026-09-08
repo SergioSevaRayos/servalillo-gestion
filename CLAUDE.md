@@ -105,7 +105,8 @@ Backed enums con `->label()` en español; casteados en los modelos.
 ### Config propia
 - `config/servalillo.php`: ventana de tracking GPS (pausa 22:00–05:00), intervalos, retención GPS 90 días;
   bloque `routing` (OSRM para "Ruta eficiente", Bloque 13); bloque `base` (ubicación de la nave, punto
-  de salida "Desde la base" de "Ruta eficiente").
+  de salida "Desde la base" de "Ruta eficiente"); bloque `device` (`DEVICE_ENROLMENT_SECRET`, secreto
+  de enrolamiento de la APK tracker, Bloque 10).
 - `config/filesystems.php` disco `r2`: usa S3/R2 si hay `R2_ACCESS_KEY_ID`, si no cae a `local`
   (`storage/app/private/r2`). Firmas y PDFs van a este disco con nombres generados por el sistema.
 
@@ -725,6 +726,45 @@ Backed enums con `->label()` en español; casteados en los modelos.
     mosaicos → override `.leaflet-container img { max-width: none }` en `app.css`; (2) el icono de
     marcador por defecto se rompe con Vite → se usa `L.divIcon` con HTML (`.route-map-pin`
     numerada); (3) el `<div>` del mapa lleva `wire:ignore`.
+
+### API de tracking GPS (Bloque 10)
+- **La única API de la app** (`routes/api.php`). El "Bloque 10 — API Flutter" del contrato original de
+  `docs/01` §4 (rutas/paradas/albaranes del chofer) **NO se construyó**: la web del chofer (Livewire)
+  cubre esa operativa. Flutter es solo una **APK "tracker" sin interfaz** que el servicio técnico
+  instala en el móvil de cada camión.
+- **`POST /api/device/register`** (sin auth, `throttle:device-register` = 10/min por IP): la APK envía
+  `{ install_identifier, secret, platform?, app_version? }`. `secret` se compara con
+  `config('servalillo.device.enrolment_secret')` vía `hash_equals` (secreto vacío → 403). Upsert del
+  `Device` por `install_identifier` (**no se toca `driver_id`** — enrolamiento "en blanco"); revoca
+  tokens anteriores; emite un token Sanctum en el **`Device`** (`HasApiTokens`) con habilidad
+  `gps:ingest`. Devuelve `{ token, device_id, tracking: {ping_interval_seconds, ping_distance_meters,
+  pause_start, pause_end} }`.
+- **`POST /api/gps/batch`** (`auth:sanctum` + `abilities:gps:ingest` — aliases añadidos en
+  `bootstrap/app.php`): `{ positions: [{lat, lng, recorded_at, accuracy_m?, speed_mps?, heading_deg?,
+  battery_level?}] }`, máx **500** por lote. `StoreGpsBatchRequest` + `App\Services\GpsIngestService`:
+  descarta posiciones con `recorded_at > now()+1h`; por cada fecha resuelve
+  `$route = Route::forDate($d)->where('driver_id', $device->driver_id)->first()` → `driver_id` (del
+  device), `truck_id`/`route_id` (de la ruta, **null si el device no tiene chofer o el chofer no tiene
+  ruta ese día**); `GpsPosition::insert()` en bloque (sin eventos, no auditada); bumpea
+  `device.last_seen_at`. `abort_unless($device instanceof Device, 403)` en el controlador (un token de
+  usuario nunca tiene `gps:ingest` en prod, pero se blinda).
+- **Esquema**: `devices.truck_id` (unique, NOT NULL) → **`devices.driver_id`** (nullable, unique,
+  `nullOnDelete`). `gps_positions.truck_id` → **nullable**. `Truck::device()` eliminado.
+- **Panel** `/mantenimiento/dispositivos` (`App\Livewire\Maintenance\Devices`, tab, permiso
+  `devices.manage` que ya tienen `mantenimiento` y `administrador`): lista de APKs enroladas (última
+  señal, versión, nº posiciones, estado), `<select>` para **asignar/reasignar chofer** (`assign()` —
+  avisa si el chofer ya tiene otro dispositivo, el `driver_id` es unique), **revocar** acceso
+  (`$device->tokens()->delete()`), **activar/desactivar**, **eliminar** (borra sus `gps_positions` por
+  cascade).
+- **`gps:purgar {--dias=}`** (`App\Console\Commands\PurgeGpsPositions`, schedule diario 04:00): borra
+  `gps_positions` anteriores a `config('servalillo.gps_retention_days')` en lotes de 5000.
+- `bootstrap/app.php` ya devuelve JSON en `api/*` y loguea toda excepción a `error_logs` → los errores
+  de la API salen solos en el panel de Mantenimiento. El grupo `api` de Laravel aquí es solo
+  `SubstituteBindings` (sin `throttle:api`).
+- Tests: `tests/Feature/Api/{DeviceRegisterTest,GpsBatchTest}.php`, `PurgeGpsPositionsTest.php`,
+  `MaintenanceDevicesTest.php`. Token de device en tests: `Sanctum::actingAs($device, ['gps:ingest'])`
+  o `$device->createToken('t', ['gps:ingest'])->plainTextToken` + `->withToken(...)`. `phpunit.xml` fija
+  `DEVICE_ENROLMENT_SECRET=test-enrolment-secret`.
 
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.

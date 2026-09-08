@@ -36,6 +36,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Dispositivo de tracking (APK, Bloque 10)
+    |--------------------------------------------------------------------------
+    | La APK "tracker" (sin interfaz) se enrola contra POST /api/device/register
+    | enviando este secreto compartido. Se emite un token Sanctum con habilidad
+    | `gps:ingest`. El servicio técnico asigna luego el dispositivo a un chofer
+    | desde el panel de Mantenimiento.
+    */
+    'device' => [
+        'enrolment_secret' => (string) env('DEVICE_ENROLMENT_SECRET', ''),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Optimización de rutas ("Ruta eficiente", Bloque 13)
     |--------------------------------------------------------------------------
     | Motor de reordenación de paradas: matriz de distancias reales por

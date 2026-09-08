@@ -1,10 +1,13 @@
 <?php
 
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Support\ErrorLogger;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\Http\Middleware\CheckAbilities;
+use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
@@ -22,11 +25,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
-            'active' => \App\Http\Middleware\EnsureUserIsActive::class,
+            'active' => EnsureUserIsActive::class,
+            // Sanctum no registra estos aliases por sí solo en Laravel 11+.
+            'abilities' => CheckAbilities::class,
+            'ability' => CheckForAnyAbility::class,
         ]);
 
         $middleware->web(append: [
-            \App\Http\Middleware\EnsureUserIsActive::class,
+            EnsureUserIsActive::class,
         ]);
 
         // El tema también lo escribe JS directamente (document.cookie) para no depender
@@ -39,7 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         // Persistir excepciones en la tabla error_logs para el panel de Mantenimiento.
-        $exceptions->report(function (\Throwable $e) {
+        $exceptions->report(function (Throwable $e) {
             ErrorLogger::record($e);
         });
     })->create();

@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Paradas de clientes con calendario fijo (L·X·V…): se generan cada madrugada.
 Schedule::command('rutas:generar-recurrentes')->dailyAt('05:30');
+
+// Retención de posiciones GPS (Bloque 10): purga las anteriores a gps_retention_days.
+Schedule::command('gps:purgar')->dailyAt('04:00');

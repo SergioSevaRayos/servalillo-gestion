@@ -41,11 +41,6 @@ class Truck extends Model implements Auditable
         return $this->hasMany(TruckAssignment::class);
     }
 
-    public function device(): HasOne
-    {
-        return $this->hasOne(Device::class);
-    }
-
     public function currentAssignment(): HasOne
     {
         return $this->hasOne(TruckAssignment::class)
