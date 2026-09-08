@@ -10,6 +10,7 @@ use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryTypeSchemaValidator;
 use App\Services\RecurringStopService;
+use App\Services\RouteOptimizer;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
@@ -160,6 +161,16 @@ class Board extends Component
                 }
             }
         });
+    }
+
+    /** "Ruta eficiente": reordena las paradas pendientes de una ruta para acortar el recorrido. */
+    public function optimizeRoute(int $routeId): void
+    {
+        $route = Route::findOrFail($routeId);
+        $this->authorize('reorderStops', $route);
+
+        $optimizer = app(RouteOptimizer::class);
+        $this->dispatch('toast', ...$optimizer->toast($optimizer->optimize($route)));
     }
 
     #[Computed]

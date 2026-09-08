@@ -17,7 +17,7 @@ class RolePermissionSeeder extends Seeder
         'trucks.view', 'trucks.create', 'trucks.update', 'trucks.delete',
         'delivery_types.view', 'delivery_types.create', 'delivery_types.update', 'delivery_types.delete',
         'routes.view', 'routes.create', 'routes.update', 'routes.delete', 'routes.reorder_stops',
-        'routes.view.own',
+        'routes.view.own', 'routes.optimize.own',
         'deliveries.complete', 'deliveries.record_signature',
         'odometer.record',
         'delivery_notes.view', 'delivery_notes.regenerate', 'delivery_notes.mark_delivered',
@@ -30,6 +30,7 @@ class RolePermissionSeeder extends Seeder
 
     public const CHOFER_PERMISSIONS = [
         'routes.view.own',
+        'routes.optimize.own',
         'deliveries.complete',
         'deliveries.record_signature',
         'odometer.record',

@@ -15,8 +15,9 @@
 | 10 | API Flutter (Sanctum) | ⬜ Siguiente |
 | 11 | App Flutter de tracking | ⬜ |
 | 12 | Notificaciones in-app + canal de soporte administración ↔ mantenimiento | ✅ Hecho |
+| 13 | Ruta eficiente (optimización de paradas, OSRM + fallback local) | ✅ Hecho |
 
-> El Bloque 12 se construyó por delante de 10/11 a petición del usuario (igual que se hizo con el 9).
+> Los Bloques 12 y 13 se construyeron por delante de 10/11 a petición del usuario (igual que el 9).
 
 > El Bloque 9 original era "API Flutter (Sanctum)"; el usuario intercaló la gestión de clientes
 > por delante, así que la API pasa a ser el Bloque 10 y el tracking el 11.
@@ -665,6 +666,43 @@ Detalle en `CLAUDE.md` (sección "Notificaciones y canal de soporte (Bloque 12)"
    cliente (ha llamado)" / cerrar jornada con lectura descuadrada. El admin recibe una notificación
    por cada acción (no por una entrega normal).
 6. `/soporte` como chofer → 403; `/mantenimiento/soporte` como admin → 403.
+
+---
+
+## Bloque 13 — lo que se ha construido
+
+**Botón "Ruta eficiente"** que reordena automáticamente las paradas pendientes de una ruta para
+acortar el recorrido. Dos entradas: cabecera de cada columna del tablero (`/rutas`) y bajo la lista
+de paradas del chofer (`/chofer/ruta`, "Organizar mi ruta"). Se intercaló por delante de 10/11.
+
+- **`App\Services\RouteOptimizer`** (`optimize(Route)` + `toast(array)`): motor **OSRM `/trip`**
+  (TSP por carretera, `config('servalillo.routing')`, `OSRM_URL` autoalojable, demo público sin API
+  key) con **fallback local obligatorio** (`App\Support\Haversine`, vecino más cercano + 2-opt). El
+  botón siempre da resultado.
+- Solo reordena `Pending`; las cerradas conservan su sitio; la **primera pendiente queda anclada**
+  (no se mueve — es "la próxima parada" del chofer). Las pendientes sin coordenadas se anexan al
+  final. Persiste `position` en transacción, solo filas que cambian.
+- Permiso nuevo `routes.optimize.own` (chofer + admin + mantenimiento); `RoutePolicy::optimizeOwn`
+  (chofer, con propiedad) y `RoutePolicy::reorderStops` (oficina, ahora cableado desde el tablero).
+- Primer uso del `Http` facade. `phpunit.xml` fija `ROUTING_OSRM_ENABLED=false` (tests deterministas
+  con la heurística local); los tests de OSRM hacen `Http::fake()`.
+
+### Tests
+`RouteOptimizerTest` (7) + añadidos a `RoutesBoardTest` (4), `ChoferTodayTest` (3),
+`RolesAndPoliciesTest`. **Suite total: 202 tests en verde.**
+
+Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
+
+### Cómo probar el Bloque 13
+1. `admin@servalillo.test` → `/rutas` con una ruta de varias paradas → "Ruta eficiente" en la
+   cabecera de la columna → toast "Ruta reordenada: N paradas · ~X km menos"; cambia el orden de las
+   tarjetas. Pulsar otra vez → "ya estaba en el orden más eficiente".
+2. `OSRM_URL=http://127.0.0.1:1` (basura) + `php artisan config:clear` → "Ruta eficiente" → toast
+   "(Estimación local: el servicio de rutas no respondió.)"; sigue reordenando.
+3. Parada creada desde "+ Añadir parada" (sin coords) → tras optimizar queda al final; el toast lo dice.
+4. `pedro@servalillo.test` → "Empezar jornada" → "Organizar mi ruta" → confirmar → se reordenan las
+   pendientes; la que era "siguiente" sigue primera. Con la jornada terminada el botón no aparece.
+5. `/rutas` como chofer → 403 (ya lo era); el chofer no tiene el botón del tablero.
 
 ---
 

@@ -36,6 +36,12 @@ class RoutePolicy
         return $user->can('routes.reorder_stops');
     }
 
+    /** El chofer puede pedir "organizar mi ruta" solo sobre una ruta suya. */
+    public function optimizeOwn(User $user, Route $route): bool
+    {
+        return $user->can('routes.optimize.own') && $this->owns($user, $route);
+    }
+
     public function delete(User $user, Route $route): bool
     {
         return $user->can('routes.delete');

@@ -3,7 +3,6 @@
 use App\Models\Driver;
 use App\Models\Route;
 use App\Models\Truck;
-use App\Models\User;
 
 // makeUser() está definido globalmente en tests/Pest.php
 
@@ -34,7 +33,11 @@ test('chofer solo puede operar su propia ruta', function () {
 
     expect($ownUser->can('operate', $route))->toBeTrue()
         ->and($otherUser->can('operate', $route))->toBeFalse()
-        ->and($ownUser->can('trucks.create'))->toBeFalse();
+        ->and($ownUser->can('trucks.create'))->toBeFalse()
+        ->and($ownUser->can('routes.optimize.own'))->toBeTrue()
+        ->and($ownUser->can('optimizeOwn', $route))->toBeTrue()
+        ->and($otherUser->can('optimizeOwn', $route))->toBeFalse()
+        ->and($ownUser->can('routes.reorder_stops'))->toBeFalse();
 });
 
 test('la web de gestion rechaza al chofer', function () {

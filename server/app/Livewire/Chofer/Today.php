@@ -11,6 +11,7 @@ use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
+use App\Services\RouteOptimizer;
 use App\Support\Notifications\RouteChangeNotifier;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -264,6 +265,20 @@ class Today extends Component
         unset($this->route);
         $this->dispatch('close-modal', 'add-stop');
         $this->dispatch('toast', message: "{$client->name} añadido a la ruta.", variant: 'success');
+    }
+
+    /** "Organizar mi ruta": reordena las paradas pendientes por cercanía (deja fija la próxima). */
+    public function optimizeRoute(): void
+    {
+        $this->authorizeRoute();
+        $this->authorize('optimizeOwn', $this->route);
+        abort_if($this->finished, 403, 'La jornada ya está cerrada.');
+
+        $optimizer = app(RouteOptimizer::class);
+        $result = $optimizer->optimize($this->route);
+
+        unset($this->route);
+        $this->dispatch('toast', ...$optimizer->toast($result));
     }
 
     public function openStartDay(): void

@@ -449,3 +449,37 @@ it('rechaza una lectura de fin menor que la de inicio', function () {
 it('un gestor no accede a la web del chofer', function () {
     $this->actingAs(makeUser('administrador'))->get('/chofer/ruta')->assertForbidden();
 });
+
+it('el chofer organiza su ruta y se reordenan las paradas pendientes', function () {
+    config()->set('servalillo.routing.enabled', false);
+
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    $a = RouteStop::factory()->for($route)->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40, 'planned_quantity' => 1000]);
+    $far = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46, 'planned_quantity' => 1000]);
+    $near = RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42, 'planned_quantity' => 1000]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('optimizeRoute')
+        ->assertDispatched('toast');
+
+    expect($route->stops()->pluck('id')->all())->toBe([$a->id, $near->id, $far->id]);
+});
+
+it('no se puede organizar una ruta ya terminada', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::Completed, 'started_at' => now(), 'completed_at' => now()], stops: 3);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('optimizeRoute')
+        ->assertStatus(403);
+});
+
+it('un chofer sin ruta hoy no puede organizar nada (404)', function () {
+    $user = makeUser('chofer');
+    Driver::factory()->create(['user_id' => $user->id]);
+    // La ruta de hoy es de otro chofer.
+    makeRoute(today()->toDateString());
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('optimizeRoute')
+        ->assertStatus(404);
+});

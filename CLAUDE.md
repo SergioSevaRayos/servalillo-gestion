@@ -103,7 +103,8 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - Broadcasting de posiciones GPS y mapa Vue: Bloques 3/9.
 
 ### Config propia
-- `config/servalillo.php`: ventana de tracking GPS (pausa 22:00–05:00), intervalos, retención GPS 90 días.
+- `config/servalillo.php`: ventana de tracking GPS (pausa 22:00–05:00), intervalos, retención GPS 90 días;
+  bloque `routing` (OSRM para "Ruta eficiente", Bloque 13).
 - `config/filesystems.php` disco `r2`: usa S3/R2 si hay `R2_ACCESS_KEY_ID`, si no cae a `local`
   (`storage/app/private/r2`). Firmas y PDFs van a este disco con nombres generados por el sistema.
 
@@ -603,6 +604,33 @@ Backed enums con `->label()` en español; casteados en los modelos.
   respuesta → el otro lado; cambio de estado → el creador. Sin guard de consola (solo se llama desde
   acciones Livewire reales; el seeder usa `->notify()` directo).
 - Push instantáneo con Reverb = mejora futura (la infra existe pero Echo no está cableado).
+
+### Ruta eficiente (Bloque 13)
+- Botón **"Ruta eficiente"** que reordena automáticamente las paradas **pendientes** de una ruta
+  para acortar el recorrido. Dos entradas: cabecera de cada columna de ruta del tablero (`/rutas`,
+  `Board::optimizeRoute(int $routeId)`) y bajo la lista de paradas del chofer (`/chofer/ruta`,
+  `Today::optimizeRoute()`, "Organizar mi ruta").
+- **`App\Services\RouteOptimizer` es el único punto.** `optimize(Route): array` + `toast(array): array`.
+  - Motor: **OSRM `/trip`** (TSP por carretera). Config `servalillo.routing` (`OSRM_URL` autoalojable,
+    demo público sin API key; `timeout`/`connect_timeout`). OSRM quiere **`lon,lat`**;
+    `?source=first&roundtrip=true&overview=false`; `waypoints[i].waypoint_index` = slot óptimo del
+    input `i`; se ignora la pierna de vuelta (no se añade parada).
+  - **Fallback local obligatorio** (`App\Support\Haversine`: NN desde el ancla + 2-opt): cualquier
+    fallo de OSRM (red, timeout, `code != Ok`, waypoint no ruteable, `enabled=false`) → heurística
+    local. El botón **siempre** da resultado.
+  - Solo reordena `Pending`; las cerradas conservan su slot (misma garantía que `reorderStops`). La
+    **primera parada pendiente** queda anclada (no se mueve). Las pendientes **sin `lat/lon`** se
+    anexan al final en su orden. `latitude/longitude` son `decimal:7` → **`(float)` antes de operar**.
+  - Persiste `position` en `DB::transaction`, solo filas que cambian. Coste: ~N filas de `audits`
+    por clic (una por `position` cambiada), igual que `reorderStops` — aceptado.
+  - **Gotcha resuelto**: NO usar una arrow-fn `fn () => array_shift($queue)` dentro de `map()` para
+    drenar una cola — las arrow functions capturan **por valor** y `array_shift` no persiste entre
+    iteraciones. Usar un `foreach` normal.
+- Permiso nuevo **`routes.optimize.own`** (chofer + admin + mantenimiento). `RoutePolicy::optimizeOwn`
+  (chofer, con propiedad de la ruta) y `RoutePolicy::reorderStops` (oficina — **ahora cableado** desde
+  `Board::optimizeRoute` con `$this->authorize('reorderStops', $route)`, antes estaba sin usar).
+- Primer uso del **`Http` facade** de la app. En tests: `phpunit.xml` fija `ROUTING_OSRM_ENABLED=false`
+  (heurística local determinista, sin red); los tests de OSRM hacen `config()->set(...)` + `Http::fake()`.
 
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.

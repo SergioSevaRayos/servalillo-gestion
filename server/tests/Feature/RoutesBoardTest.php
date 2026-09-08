@@ -5,6 +5,7 @@ use App\Enums\ServiceKind;
 use App\Livewire\Routes\Board;
 use App\Models\Route;
 use App\Models\RouteStop;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
 // makeRoute() está definido globalmente en tests/Pest.php
@@ -160,4 +161,61 @@ test('una parada nueva hereda el tipo del filtro activo', function () {
 
     expect(RouteStop::firstWhere('customer_name', 'Viaje Suelto')->service_kind)
         ->toBe(ServiceKind::Viaje);
+});
+
+test('"Ruta eficiente": el administrador reordena una ruta y ve un toast', function () {
+    config()->set('servalillo.routing.enabled', true);
+    Http::fake(['*/trip/*' => Http::response([
+        'code' => 'Ok',
+        'waypoints' => [['waypoint_index' => 0], ['waypoint_index' => 2], ['waypoint_index' => 1]],
+        'trips' => [['distance' => 9000.0]],
+    ])]);
+
+    $route = makeRoute('2026-09-10');
+    $a = RouteStop::factory()->for($route)->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40]);
+    $b = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46]);
+    $c = RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('optimizeRoute', $route->id)
+        ->assertDispatched('toast');
+
+    expect($route->stops()->pluck('id')->all())->toBe([$a->id, $c->id, $b->id]);
+});
+
+test('"Ruta eficiente": un chofer recibe 403', function () {
+    $route = makeRoute('2026-09-10');
+    RouteStop::factory()->for($route)->count(2)->create();
+
+    Livewire::actingAs(makeUser('chofer'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('optimizeRoute', $route->id)
+        ->assertForbidden();
+});
+
+test('"Ruta eficiente": la parada completada líder no se mueve', function () {
+    $route = makeRoute('2026-09-10');
+    $done = RouteStop::factory()->for($route)->create(['position' => 1, 'status' => RouteStopStatus::Completed, 'latitude' => 28.40, 'longitude' => -16.40]);
+    RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46]);
+    RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('optimizeRoute', $route->id);
+
+    expect($done->fresh()->position)->toBe(1);
+});
+
+test('"Ruta eficiente": sin paradas con coordenadas avisa y no cambia nada', function () {
+    $route = makeRoute('2026-09-10');
+    $a = RouteStop::factory()->for($route)->create(['position' => 1, 'latitude' => null, 'longitude' => null]);
+    $b = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => null, 'longitude' => null]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('optimizeRoute', $route->id)
+        ->assertDispatched('toast', fn ($event, $params) => $params['variant'] === 'warning');
+
+    expect($a->fresh()->position)->toBe(1)->and($b->fresh()->position)->toBe(2);
 });

@@ -82,6 +82,20 @@
                         <x-ui.badge :variant="$route->status->badgeVariant()">{{ $route->status->label() }}</x-ui.badge>
                     </div>
                     <p class="text-xs text-slate-400">{{ __(':n paradas', ['n' => $route->stops->count()]) }}</p>
+                    @can('reorderStops', $route)
+                        <button type="button" wire:click="optimizeRoute({{ $route->id }})"
+                            wire:target="optimizeRoute" wire:loading.attr="disabled"
+                            class="mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:opacity-50 dark:text-primary-400 dark:hover:bg-primary-500/10">
+                            <svg wire:loading.remove wire:target="optimizeRoute" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M11.3 1.046a1 1 0 0 1 .7 1.19L10.42 8H15a1 1 0 0 1 .8 1.6l-7 9.333A1 1 0 0 1 7 18.333L8.58 12H4a1 1 0 0 1-.8-1.6l7-9.333a1 1 0 0 1 1.1-.021Z" clip-rule="evenodd" />
+                            </svg>
+                            <svg wire:loading wire:target="optimizeRoute" class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                            </svg>
+                            <span>{{ __('Ruta eficiente') }}</span>
+                        </button>
+                    @endcan
                     @if ($route->liter_discrepancy_note)
                         <p class="mt-1 flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400" title="{{ $route->liter_discrepancy_note }}">
                             <svg class="mt-px h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" /></svg>

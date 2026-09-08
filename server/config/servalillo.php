@@ -34,4 +34,20 @@ return [
     */
     'liter_meter_tolerance' => (int) env('LITER_METER_TOLERANCE', 0),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Optimización de rutas ("Ruta eficiente", Bloque 13)
+    |--------------------------------------------------------------------------
+    | Motor de reordenación de paradas: servicio OSRM /trip (TSP). El servidor
+    | demo público no necesita API key; se puede autoalojar cambiando OSRM_URL.
+    | Si OSRM falla / hace timeout / no responde, App\Services\RouteOptimizer
+    | cae a una heurística local (vecino más cercano + 2-opt sobre haversine).
+    */
+    'routing' => [
+        'enabled' => (bool) env('ROUTING_OSRM_ENABLED', true),
+        'osrm_url' => rtrim((string) env('OSRM_URL', 'https://router.project-osrm.org'), '/'),
+        'timeout' => (int) env('OSRM_TIMEOUT', 4),
+        'connect_timeout' => (int) env('OSRM_CONNECT_TIMEOUT', 2),
+    ],
+
 ];
