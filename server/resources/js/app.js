@@ -98,6 +98,13 @@ function initKanbanColumns(root) {
             // click de una tarjeta filtrada siga abriendo el modal de edición (wire:click).
             filter: '[data-draggable="false"]',
             preventOnFilter: false,
+            // Una parada cerrada es un muro: además de no poder cogerla, tampoco se aparta
+            // para "hacer hueco" a otra. Sin esto SortableJS la anima desplazándose y, aunque
+            // el servidor la devuelva a su sitio, se veía el salto. onMove:false cancela el
+            // reordenado cuando el vecino afectado es una tarjeta no arrastrable.
+            onMove(evt) {
+                return evt.related?.dataset.draggable !== 'false';
+            },
             onEnd(evt) {
                 const toIds = Array.from(evt.to.children).map((el) => el.dataset.stopId);
                 const fromIds = evt.from === evt.to

@@ -232,11 +232,13 @@ Backed enums con `->label()` en español; casteados en los modelos.
   (servidor: una parada cerrada que cambiaría de ruta → 422). Las tarjetas no arrastrables se pintan
   con un **tono apagado** (fondo grisáceo + `grayscale-[0.3]`, sin candado ni icono) — decisión
   explícita del usuario.
-  - **Las paradas cerradas quedan FIJAS en su hueco**, aunque SortableJS las desplace visualmente al
-    soltar otra tarjeta cerca. `Board::reindexColumn()` reconstruye la columna a partir del orden
-    PREVIO (`position`): cada cerrada conserva su sitio relativo al flujo de pendientes y las
-    pendientes se reparten alrededor en el orden del arrastre. Mismo criterio que
-    `RouteOptimizer::optimize()`. El servidor re-renderiza y el morph corrige la posición visual.
+  - **Las paradas cerradas quedan FIJAS: ni se cogen ni se desplazan.** `onMove` de Sortable devuelve
+    `false` cuando el vecino afectado (`evt.related`) es `[data-draggable="false"]` → la tarjeta
+    cerrada actúa como muro y no se anima apartándose para hacer hueco (antes se veía el salto).
+    Segunda barrera en servidor: `Board::reindexColumn()` reconstruye la columna a partir del orden
+    PREVIO (`position`) — cada cerrada conserva su sitio relativo al flujo de pendientes, las
+    pendientes se reparten alrededor en el orden del arrastre (mismo criterio que
+    `RouteOptimizer::optimize()`).
 - **`RouteStopStatus::InProgress` ("En curso") se eliminó del todo** (a valorar si se reintroduce más
   adelante). No confundir con `RouteStatus::InProgress`, que es el estado de la *ruta* completa y sigue
   existiendo — son enums distintos para conceptos distintos.
