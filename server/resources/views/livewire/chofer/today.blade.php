@@ -192,13 +192,40 @@
         @endif
 
         {{-- Paradas --}}
+        @php $pendingIds = $route->stops->where('status', \App\Enums\RouteStopStatus::Pending)->pluck('id')->values(); @endphp
         <div class="mt-4 space-y-3">
             @forelse ($route->stops as $stop)
-                <x-chofer.stop-card
-                    :stop="$stop"
-                    :index="$loop->iteration"
-                    :disabled="! $this->operable() || ! $this->started || $this->finished"
-                />
+                @php
+                    $rank = $pendingIds->search($stop->id);
+                    $canReorder = $rank !== false && $this->operable() && ! $this->finished && $pendingIds->count() > 1;
+                @endphp
+                <div class="flex items-stretch gap-2" wire:key="stop-row-{{ $stop->id }}" data-stop-row>
+                    <div class="min-w-0 flex-1">
+                        <x-chofer.stop-card
+                            :stop="$stop"
+                            :index="$loop->iteration"
+                            :disabled="! $this->operable() || ! $this->started || $this->finished"
+                        />
+                    </div>
+
+                    @if ($canReorder)
+                        {{-- El chofer sube/baja una parada pendiente a mano si le cambian el orden --}}
+                        <div class="flex shrink-0 flex-col justify-center gap-1" wire:key="move-{{ $stop->id }}">
+                            <button type="button" wire:click="moveStop({{ $stop->id }}, 'up')"
+                                wire:target="moveStop" wire:loading.attr="disabled" @disabled($rank === 0)
+                                aria-label="{{ __('Subir esta parada') }}"
+                                class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-primary-500">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" /></svg>
+                            </button>
+                            <button type="button" wire:click="moveStop({{ $stop->id }}, 'down')"
+                                wire:target="moveStop" wire:loading.attr="disabled" @disabled($rank === $pendingIds->count() - 1)
+                                aria-label="{{ __('Bajar esta parada') }}"
+                                class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-primary-500">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+                            </button>
+                        </div>
+                    @endif
+                </div>
             @empty
                 <x-ui.card><x-ui.empty-state title="{{ __('Esta ruta no tiene paradas') }}" /></x-ui.card>
             @endforelse

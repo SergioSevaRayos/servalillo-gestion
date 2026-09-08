@@ -15,6 +15,7 @@ use App\Services\RouteGeometry;
 use App\Services\RouteOptimizer;
 use App\Support\Notifications\RouteChangeNotifier;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -351,6 +352,49 @@ class Today extends Component
     public function optimizeFromBase(): void
     {
         $this->runOptimize('base');
+    }
+
+    /**
+     * Sube o baja una parada PENDIENTE una posición (el chofer necesita cambiar el orden a mano).
+     * Las paradas cerradas conservan su hueco; solo se intercambian dos pendientes contiguas.
+     */
+    public function moveStop(RouteStop $stop, string $direction): void
+    {
+        $this->authorizeRoute();
+        abort_if($this->finished, 403, 'La jornada ya está cerrada.');
+        abort_unless($stop->route_id === $this->route->id, 404);
+        abort_unless($stop->status === RouteStopStatus::Pending, 422, 'Solo se pueden mover las paradas pendientes.');
+        abort_unless(in_array($direction, ['up', 'down'], true), 422);
+
+        $stops = $this->route->stops;
+        $pendingIds = $stops->where('status', RouteStopStatus::Pending)->pluck('id')->values();
+        $from = $pendingIds->search($stop->id);
+        $to = $direction === 'up' ? $from - 1 : $from + 1;
+
+        if ($to < 0 || $to >= $pendingIds->count()) {
+            return; // ya está en un extremo
+        }
+
+        $order = $pendingIds->all();
+        [$order[$from], $order[$to]] = [$order[$to], $order[$from]];
+
+        // Reconstruye el orden global (cada hueco de cerrada se respeta) y renumera 1..n.
+        DB::transaction(function () use ($stops, $order) {
+            $position = 0;
+
+            foreach ($stops as $s) {
+                $position++;
+                $id = $s->status === RouteStopStatus::Pending ? array_shift($order) : $s->id;
+                $target = $stops->firstWhere('id', $id);
+
+                if ($target->position !== $position) {
+                    $target->update(['position' => $position]);
+                }
+            }
+        });
+
+        unset($this->route);
+        $this->dispatch('toast', message: 'Orden de la ruta actualizado.', variant: 'success');
     }
 
     /** Paradas pendientes con ubicación de la ruta (para elegir el punto de partida en el modal). */

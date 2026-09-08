@@ -128,6 +128,43 @@ document.addEventListener('DOMContentLoaded', () => initKanbanColumns(document))
 document.addEventListener('livewire:navigated', () => initKanbanColumns(document));
 document.addEventListener('livewire:init', () => {
     Livewire.hook('morph.updated', ({ el }) => initKanbanColumns(el));
+
+    /*
+    | FLIP: cuando el chofer sube/baja una parada (Today::moveStop), Livewire reordena los nodos
+    | `[data-stop-row]` (wire:key estable). Antes del commit se guarda la posición de cada fila;
+    | tras aplicarse la respuesta se anima el salto de la posición vieja a la nueva.
+    */
+    Livewire.hook('commit', ({ component, succeed }) => {
+        const rows = component.el.querySelectorAll('[data-stop-row]');
+        if (rows.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+
+        const before = new Map();
+        rows.forEach((row) => before.set(row, row.getBoundingClientRect().top));
+
+        succeed(() => requestAnimationFrame(() => {
+            component.el.querySelectorAll('[data-stop-row]').forEach((row) => {
+                const delta = (before.get(row) ?? 0) - row.getBoundingClientRect().top;
+                if (! before.has(row) || Math.abs(delta) < 1) {
+                    return;
+                }
+
+                row.style.transition = 'none';
+                row.style.transform = `translateY(${delta}px)`;
+
+                requestAnimationFrame(() => {
+                    row.style.transition = 'transform 260ms cubic-bezier(0.2, 0, 0.2, 1)';
+                    row.style.transform = '';
+                });
+
+                row.addEventListener('transitionend', () => {
+                    row.style.transition = '';
+                    row.style.transform = '';
+                }, { once: true });
+            });
+        }));
+    });
 });
 
 /*

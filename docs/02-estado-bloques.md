@@ -436,7 +436,9 @@ columna de paradas. Mobile-first, `.surface` siempre, nunca `.glass`.
   `field_schema`, validados por `DeliveryTypeSchemaValidator`) / Fallida / Cancelada (con motivo →
   `failure_reason`; el estado se guarda como `skipped` pero se etiqueta "Cancelada"). Se puede
   reabrir una parada cerrada. **No toca `delivery_notes`** (Bloque 8).
-- `<x-chofer.stop-card>` = tarjeta táctil grande (sin drag), distinta de la del Kanban.
+- `<x-chofer.stop-card>` = tarjeta táctil grande (sin drag), distinta de la del Kanban. Cada parada
+  **pendiente** lleva botones **▲/▼** al lado (`Today::moveStop`) para subirla/bajarla una posición
+  a mano; las cerradas no se mueven.
 - 13 tests nuevos (`tests/Feature/ChoferTodayTest.php`). **Suite total: 99 passed.**
 
 ### Cómo probar el Bloque 7

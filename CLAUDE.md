@@ -449,6 +449,15 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - Autorización: `RoutePolicy::operate` y `RouteStopPolicy::complete` (permiso + `owns()`), ya existían.
 - `<x-chofer.stop-card>` es la tarjeta táctil del chofer (grande, sin drag), distinta de
   `<x-routes.stop-card>` (Kanban del admin).
+- **Reordenar a mano**: cada parada **pendiente** lleva a su derecha dos botones **▲/▼**
+  (`Today::moveStop(RouteStop, 'up'|'down')`) para subirla/bajarla una posición cuando el chofer
+  necesita cambiar el orden sobre la marcha. Solo se intercambian dos pendientes contiguas; las
+  cerradas conservan su hueco (mismo criterio que `RouteOptimizer` / `Board::reindexColumn`).
+  Visibles si `operable() && ! finished && pendingCount > 1`. No hay drag&drop en el chofer (móvil).
+  El salto de las tarjetas se **anima con FLIP** (`Livewire.hook('commit', …)` en `app.js`: guarda
+  la posición de cada fila `[data-stop-row]` antes del commit y anima `translateY` de la vieja a la
+  nueva tras la respuesta; respeta `prefers-reduced-motion`). La fila lleva `wire:key="stop-row-…"`
+  para que el morph mueva el nodo en vez de recrearlo.
 - **Añadir cliente sobre la marcha** (un cliente llama al chofer): botón "Añadir cliente (ha llamado)"
   **al final de la lista de paradas** (visible si `operable()`, es decir hoy o ruta `InProgress`) →
   modal `add-stop` con buscador (`clientMatches`, `Client::scopeSearch`, mín. 2 caracteres) →

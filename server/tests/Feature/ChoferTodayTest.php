@@ -552,6 +552,54 @@ it('"Ir a la base a repostar" reordena las pendientes desde la base sin tocar la
         ->and($done->fresh()->status)->toBe(RouteStopStatus::Completed);
 });
 
+it('el chofer sube y baja una parada pendiente a mano', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    $a = RouteStop::factory()->for($route)->create(['position' => 1]);
+    $b = RouteStop::factory()->for($route)->create(['position' => 2]);
+    $c = RouteStop::factory()->for($route)->create(['position' => 3]);
+
+    $t = Livewire::actingAs($user)->test(Today::class);
+
+    $t->call('moveStop', $c->id, 'up');
+    expect($route->stops()->pluck('id')->all())->toBe([$a->id, $c->id, $b->id]);
+
+    $t->call('moveStop', $a->id, 'down');
+    expect($route->stops()->pluck('id')->all())->toBe([$c->id, $a->id, $b->id]);
+});
+
+it('mover una parada en un extremo no hace nada', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    $a = RouteStop::factory()->for($route)->create(['position' => 1]);
+    $b = RouteStop::factory()->for($route)->create(['position' => 2]);
+
+    Livewire::actingAs($user)->test(Today::class)->call('moveStop', $a->id, 'up');
+
+    expect($route->stops()->pluck('id')->all())->toBe([$a->id, $b->id]);
+});
+
+it('mover paradas pendientes no cambia el sitio de una completada', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    $done = RouteStop::factory()->for($route)->create(['position' => 1, 'status' => RouteStopStatus::Completed]);
+    $b = RouteStop::factory()->for($route)->create(['position' => 2]);
+    $c = RouteStop::factory()->for($route)->create(['position' => 3]);
+
+    Livewire::actingAs($user)->test(Today::class)->call('moveStop', $c->id, 'up');
+
+    // La completada sigue primera; se intercambian solo $b y $c.
+    expect($route->stops()->pluck('id')->all())->toBe([$done->id, $c->id, $b->id])
+        ->and($done->fresh()->position)->toBe(1);
+});
+
+it('el chofer no puede mover una parada completada', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    $done = RouteStop::factory()->for($route)->create(['position' => 1, 'status' => RouteStopStatus::Completed]);
+    RouteStop::factory()->for($route)->create(['position' => 2]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('moveStop', $done->id, 'down')
+        ->assertStatus(422);
+});
+
 it('no se puede ir a la base a repostar con la jornada terminada', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::Completed, 'started_at' => now(), 'completed_at' => now()], stops: 3);
 
