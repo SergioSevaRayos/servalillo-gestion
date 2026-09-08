@@ -39,14 +39,14 @@ it('usa la matriz de distancias reales de OSRM /table y reordena', function () {
 
     // Orden actual: A(pos1), D(pos2), B(pos3), C(pos4)
     [$route, $s] = routeWithStops([
-        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1], // A (ancla, índice 0)
-        ['lat' => 28.46, 'lng' => -16.46, 'pos' => 2], // D (índice 1)
-        ['lat' => 28.42, 'lng' => -16.42, 'pos' => 3], // B (índice 2)
-        ['lat' => 28.44, 'lng' => -16.44, 'pos' => 4], // C (índice 3)
+        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1], // A
+        ['lat' => 28.46, 'lng' => -16.46, 'pos' => 2], // D
+        ['lat' => 28.42, 'lng' => -16.42, 'pos' => 3], // B
+        ['lat' => 28.44, 'lng' => -16.44, 'pos' => 4], // C
     ]);
     [$a, $d, $b, $c] = $s;
 
-    // Matriz por carretera (m): A-B, B-C, C-D baratos; el resto caro => óptimo A,B,C,D
+    // Matriz por carretera (m): A-B, B-C, C-D baratos; el resto caro => camino corto A,B,C,D
     Http::fake(['*/table/*' => Http::response([
         'code' => 'Ok',
         'distances' => [
@@ -66,6 +66,29 @@ it('usa la matriz de distancias reales de OSRM /table y reordena', function () {
     Http::assertSent(fn ($req) => str_contains($req->url(), '/table/v1/driving/')
         && str_contains($req->url(), 'annotations=distance')
         && str_contains($req->url(), '-16.4,28.4')); // lon,lat, no lat,lon
+});
+
+it('optimización libre: encuentra el camino más corto aunque cambie la primera parada', function () {
+    config()->set('servalillo.routing.enabled', true);
+
+    // Orden actual: M(pos1, en medio), A(pos2, un extremo), Z(pos3, otro extremo)
+    [$route, $s] = routeWithStops([
+        ['lat' => 28.44, 'lng' => -16.44, 'pos' => 1], // M
+        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 2], // A
+        ['lat' => 28.48, 'lng' => -16.48, 'pos' => 3], // Z
+    ]);
+    [$m, $a, $z] = $s;
+
+    // M-A y M-Z baratos, A-Z carísimo => el camino corto es A,M,Z (o Z,M,A)
+    Http::fake(['*/table/*' => Http::response([
+        'code' => 'Ok',
+        'distances' => [[0, 100, 100], [100, 0, 9000], [100, 9000, 0]],
+    ])]);
+
+    app(RouteOptimizer::class)->optimize($route);
+
+    // Ya no empieza por M (que estaba primera): pasa a un extremo.
+    expect(positionsOf($route))->toBeIn([[$a->id, $m->id, $z->id], [$z->id, $m->id, $a->id]]);
 });
 
 it('no reordena si con la matriz real el orden actual ya es igual o mejor', function () {
@@ -90,12 +113,13 @@ it('no reordena si con la matriz real el orden actual ya es igual o mejor', func
         ->and(positionsOf($route))->toBe($original);
 });
 
-it('cae a la heurística local si OSRM no responde, dejando fija la primera parada', function () {
+it('cae a la heurística local (haversine) si OSRM no responde', function () {
     config()->set('servalillo.routing.enabled', true);
     Http::fake(['*' => Http::response('nope', 503)]);
 
+    // Paradas casi en línea; el orden actual (A, lejos, ...) es un zigzag.
     [$route, $s] = routeWithStops([
-        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1], // A (ancla)
+        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1], // A
         ['lat' => 28.46, 'lng' => -16.46, 'pos' => 2], // lejos
         ['lat' => 28.42, 'lng' => -16.42, 'pos' => 3], // cerca de A
         ['lat' => 28.44, 'lng' => -16.44, 'pos' => 4],
@@ -106,8 +130,11 @@ it('cae a la heurística local si OSRM no responde, dejando fija la primera para
 
     expect($result['method'])->toBe('local')
         ->and($result['moved'])->toBeTrue()
-        ->and(positionsOf($route))->toBe([$a->id, $near->id, $mid->id, $far->id])
-        ->and($result['distance_after_m'])->toBeLessThanOrEqual($result['distance_before_m']);
+        ->and($result['distance_after_m'])->toBeLessThan($result['distance_before_m'])
+        ->and(positionsOf($route))->toBeIn([
+            [$a->id, $near->id, $mid->id, $far->id],   // monótono ascendente
+            [$far->id, $mid->id, $near->id, $a->id],   // o el mismo camino al revés
+        ]);
 });
 
 it('no toca nada si la ruta ya está en el mejor orden', function () {
@@ -163,22 +190,21 @@ it('no hace nada si hay menos de 2 paradas con coordenadas', function () {
         ->and(positionsOf($route))->toBe($original);
 });
 
-it('respeta el sitio de las paradas ya cerradas', function () {
+it('optimiza las pendientes desde la última parada cerrada', function () {
     [$route, $s] = routeWithStops([
-        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1, 'status' => RouteStopStatus::Completed],
-        ['lat' => 28.41, 'lng' => -16.41, 'pos' => 2], // ancla pendiente
-        ['lat' => 28.46, 'lng' => -16.46, 'pos' => 3],
-        ['lat' => 28.43, 'lng' => -16.43, 'pos' => 4],
+        ['lat' => 28.40, 'lng' => -16.40, 'pos' => 1, 'status' => RouteStopStatus::Completed], // camión aquí
+        ['lat' => 28.41, 'lng' => -16.41, 'pos' => 2], // la más cercana a la cerrada
+        ['lat' => 28.46, 'lng' => -16.46, 'pos' => 3], // la más lejana
+        ['lat' => 28.43, 'lng' => -16.43, 'pos' => 4], // intermedia
     ]);
-    [$done, $anchor, $far, $mid] = $s;
+    [$done, $near, $far, $mid] = $s;
 
     app(RouteOptimizer::class)->optimize($route);
 
-    $order = positionsOf($route);
-    expect($order[0])->toBe($done->id)            // cerrada: sigue primera
-        ->and($order[1])->toBe($anchor->id)       // ancla pendiente: sigue segunda
-        ->and($order)->toBe([$done->id, $anchor->id, $mid->id, $far->id]);
-    expect($done->fresh()->position)->toBe(1);
+    // La cerrada se queda primera; las pendientes salen desde ella: cerca -> media -> lejos.
+    expect(positionsOf($route))->toBe([$done->id, $near->id, $mid->id, $far->id])
+        ->and($done->fresh()->position)->toBe(1)
+        ->and($done->fresh()->status)->toBe(RouteStopStatus::Completed);
 });
 
 it('optimiza una ruta con una completada intermedia y hueco de posiciones sin dar error', function () {

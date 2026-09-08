@@ -12,16 +12,22 @@ use Illuminate\Support\Facades\Http;
 
 /**
  * "Ruta eficiente" (Bloque 13): reordena las paradas PENDIENTES de una ruta para
- * acortar el recorrido. Ancla la primera parada pendiente (no se mueve) y optimiza
- * el orden del resto como un camino abierto (vecino más cercano + mejora 2-opt).
+ * acortar el recorrido (camino abierto: vecino más cercano probando cada inicio +
+ * mejora 2-opt).
  *
- * La matriz de distancias es la real por carretera (OSRM /table); si OSRM no
- * responde, se usa la distancia en línea recta (haversine). Nunca deja la ruta peor
- * que como estaba: si el orden actual ya es igual o mejor, no se toca.
+ * - Si la ruta ya tiene paradas cerradas, el recorrido se optimiza **desde la última
+ *   parada cerrada** (donde está / estará el camión); la primera pendiente pasa a ser
+ *   la más cercana a ese punto.
+ * - Si no hay ninguna cerrada, la optimización es **libre**: se busca el orden más
+ *   corto, aunque cambie qué parada va primera.
  *
- * Las paradas ya cerradas (completada/omitida/fallida) conservan su sitio; las
- * pendientes sin coordenadas se dejan al final. Persiste el nuevo `position` (solo
- * las filas que cambian) dentro de una transacción — igual que Board::reorderStops().
+ * La matriz de distancias es la real por carretera (OSRM /table); si OSRM no responde,
+ * se usa la distancia en línea recta (haversine). Nunca deja la ruta peor que como
+ * estaba: si el orden actual ya es igual o mejor, no se toca.
+ *
+ * Las paradas cerradas conservan su sitio (su `position` solo se compacta); las
+ * pendientes sin coordenadas se dejan al final. Persiste el nuevo `position` (solo las
+ * filas que cambian) dentro de una transacción — igual que Board::reorderStops().
  */
 class RouteOptimizer
 {
@@ -56,13 +62,27 @@ class RouteOptimizer
             return $this->result(false, 0, $withCoords->count(), $noCoords->count(), null, null);
         }
 
-        $optimizedIds = $this->solve($withCoords);
+        // Origen del recorrido: la última parada cerrada con coordenadas (donde está el
+        // camión). Si no hay, la optimización es libre.
+        $lastClosed = $stops->last(fn (RouteStop $s) => $s->status !== RouteStopStatus::Pending
+            && $s->latitude !== null && $s->longitude !== null);
+        $origin = $lastClosed
+            ? [(float) $lastClosed->latitude, (float) $lastClosed->longitude]
+            : null;
+
+        $optimizedIds = $this->solve($withCoords, $origin);
 
         $coordsById = $withCoords->mapWithKeys(
             fn (RouteStop $s) => [$s->id => [(float) $s->latitude, (float) $s->longitude]],
         );
-        $before = Haversine::pathLength($coordsById->values()->all());
-        $after = Haversine::pathLength(array_map(fn (int $id) => $coordsById[$id], $optimizedIds));
+        $currentPath = $coordsById->values()->all();
+        $optimizedPath = array_map(fn (int $id) => $coordsById[$id], $optimizedIds);
+        if ($origin !== null) {
+            array_unshift($currentPath, $origin);
+            array_unshift($optimizedPath, $origin);
+        }
+        $before = Haversine::pathLength($currentPath);
+        $after = Haversine::pathLength($optimizedPath);
 
         $queue = [...$optimizedIds, ...$noCoords->pluck('id')->all()];
 
@@ -121,24 +141,28 @@ class RouteOptimizer
     }
 
     /**
-     * Orden óptimo de las paradas con coordenadas (lista de IDs; la primera queda fija).
-     * Nunca devuelve un orden peor que el actual.
+     * Orden óptimo de las paradas con coordenadas (lista de IDs). Nunca peor que el actual.
      *
      * @param  Collection<int, RouteStop>  $stops
+     * @param  array{0: float, 1: float}|null  $origin  punto fijo del que sale el recorrido (última
+     *                                                  parada cerrada), o null para optimización libre
      * @return list<int>
      */
-    private function solve(Collection $stops): array
+    private function solve(Collection $stops, ?array $origin): array
     {
-        $points = $this->points($stops);
         $ids = $stops->pluck('id')->all();
-        $n = count($points);
+        $n = count($ids);
 
-        $matrix = config('servalillo.routing.enabled') ? $this->osrmTable($points) : null;
+        // Índices: si hay origen va como 0 (fijo) y las paradas pasan a 1..n; si no, 0..n-1.
+        $allPoints = $origin !== null ? [$origin, ...$this->points($stops)] : $this->points($stops);
+        $offset = $origin !== null ? 1 : 0;
+
+        $matrix = config('servalillo.routing.enabled') ? $this->osrmTable($allPoints) : null;
         $this->lastMethod = $matrix !== null ? 'osrm' : 'local';
 
         $dist = $matrix !== null
             ? fn (int $i, int $j): float => (float) $matrix[$i][$j]
-            : fn (int $i, int $j): float => Haversine::meters($points[$i][0], $points[$i][1], $points[$j][0], $points[$j][1]);
+            : fn (int $i, int $j): float => Haversine::meters($allPoints[$i][0], $allPoints[$i][1], $allPoints[$j][0], $allPoints[$j][1]);
 
         $cost = function (array $order) use ($dist): float {
             $sum = 0.0;
@@ -149,13 +173,35 @@ class RouteOptimizer
             return $sum;
         };
 
-        $solved = $this->twoOpt($this->nearestNeighbour($n, $dist), $cost);
-        $current = range(0, $n - 1);
+        // Orden actual (con el origen delante si lo hay).
+        $current = range(0, $n + $offset - 1);
+        $best = $current;
+        $bestCost = $cost($current);
 
-        // Nunca empeorar: si el orden actual ya es igual o mejor, se deja como está.
-        $order = $cost($solved) + 1.0 < $cost($current) ? $solved : $current;
+        if ($origin !== null) {
+            // El origen (índice 0) queda fijo; se optimiza el resto.
+            $candidate = $this->twoOpt($this->nearestNeighbourFrom(0, $n + 1, $dist), $cost);
 
-        return array_map(fn (int $i) => $ids[$i], $order);
+            if ($cost($candidate) + 1.0 < $bestCost) {
+                $best = $candidate;
+                $bestCost = $cost($candidate);
+            }
+        } else {
+            // Libre: se prueba cada inicio y se elige el camino abierto más corto.
+            for ($start = 0; $start < $n; $start++) {
+                $candidate = $this->twoOpt($this->nearestNeighbourFrom($start, $n, $dist), $cost);
+
+                if ($cost($candidate) + 1.0 < $bestCost) {
+                    $best = $candidate;
+                    $bestCost = $cost($candidate);
+                }
+            }
+        }
+
+        // Quitar el origen y devolver los ids de parada en el nuevo orden.
+        $pendingOrder = $origin !== null ? array_slice($best, 1) : $best;
+
+        return array_map(fn (int $i) => $ids[$i - $offset], $pendingOrder);
     }
 
     /**
@@ -199,14 +245,14 @@ class RouteOptimizer
     }
 
     /**
-     * Vecino más cercano desde el índice 0 (que nunca se mueve).
+     * Vecino más cercano empezando por el índice `$start` (que queda fijo el primero).
      *
      * @return list<int>
      */
-    private function nearestNeighbour(int $n, callable $dist): array
+    private function nearestNeighbourFrom(int $start, int $n, callable $dist): array
     {
-        $remaining = range(1, $n - 1);
-        $order = [0];
+        $remaining = array_values(array_diff(range(0, $n - 1), [$start]));
+        $order = [$start];
 
         while ($remaining !== []) {
             $last = end($order);

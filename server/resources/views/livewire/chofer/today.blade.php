@@ -161,7 +161,7 @@
             @if ($this->operable() && ! $this->finished && $this->pendingCount > 1)
                 <button type="button" wire:click="optimizeRoute" wire:target="optimizeRoute"
                     wire:loading.attr="disabled"
-                    wire:confirm="{{ __('¿Reorganizar las paradas pendientes por cercanía? Tu próxima parada no cambia.') }}"
+                    wire:confirm="{{ __('¿Reorganizar las paradas pendientes para acortar el recorrido?') }}"
                     class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500">
                     <svg wire:loading.remove wire:target="optimizeRoute" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                         <path fill-rule="evenodd" d="M11.3 1.046a1 1 0 0 1 .7 1.19L10.42 8H15a1 1 0 0 1 .8 1.6l-7 9.333A1 1 0 0 1 7 18.333L8.58 12H4a1 1 0 0 1-.8-1.6l7-9.333a1 1 0 0 1 1.1-.021Z" clip-rule="evenodd" />

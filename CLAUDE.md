@@ -612,19 +612,24 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `Today::optimizeRoute()`, "Organizar mi ruta").
 - **`App\Services\RouteOptimizer` es el único punto.** `optimize(Route): array` + `toast(array): array`.
   - Motor: **OSRM `/table`** (`?annotations=distance`) → matriz N×N de distancias reales por carretera.
-    Sobre esa matriz, **vecino más cercano desde el ancla + 2-opt** (camino abierto). Config
-    `servalillo.routing` (`OSRM_URL` autoalojable, demo público sin API key; `timeout`/`connect_timeout`).
-    OSRM quiere **`lon,lat`**. **OJO**: NO usar `/trip` con `roundtrip=true` — optimiza un circuito
-    cerrado y con la pierna de vuelta descartada puede dejar el camino abierto *peor*.
+    Sobre esa matriz, **vecino más cercano + 2-opt** (camino abierto). Config `servalillo.routing`
+    (`OSRM_URL` autoalojable, demo público sin API key; `timeout`/`connect_timeout`). OSRM quiere
+    **`lon,lat`**. **OJO**: NO usar `/trip` con `roundtrip=true` — optimiza un circuito cerrado y con
+    la pierna de vuelta descartada puede dejar el camino abierto *peor*.
+  - **Punto de partida**: si la ruta tiene alguna parada **cerrada**, el recorrido se optimiza **desde
+    la última cerrada** (`$origin`, donde está el camión) → se antepone como índice 0 fijo y la
+    primera pendiente pasa a ser la más cercana. Si **no hay ninguna cerrada**, la optimización es
+    **libre**: se prueba NN desde cada inicio y se elige el camino más corto (la primera parada
+    puede cambiar — es lo que "organizar" significa cuando aún no has salido).
   - **Fallback obligatorio** (`App\Support\Haversine`, mismo algoritmo con distancia en línea recta):
     cualquier fallo de OSRM (red, timeout, `code != Ok`, par no ruteable, `enabled=false`) → local.
     El botón **siempre** da resultado (`method` = `osrm` | `local` | `none`).
-  - **Nunca empeora**: se compara el orden propuesto con el actual (misma métrica); si el actual ya es
-    igual o mejor, no se toca (`moved: false`, toast "ya estaba optimizada").
+  - **Nunca empeora**: se compara el orden propuesto con el actual (misma métrica, con `$origin`
+    delante si lo hay); si el actual ya es igual o mejor, no se toca (`moved: false`, toast "ya
+    estaba optimizada").
   - Solo reordena `Pending`; las cerradas conservan su sitio (su `position` puede desplazarse solo
-    para compactar huecos). La **primera parada pendiente** queda anclada (índice 0, nunca se mueve).
-    Las pendientes **sin `lat/lon`** se anexan al final en su orden. `latitude/longitude` son
-    `decimal:7` → **`(float)` antes de operar**.
+    para compactar huecos). Las pendientes **sin `lat/lon`** se anexan al final en su orden.
+    `latitude/longitude` son `decimal:7` → **`(float)` antes de operar**.
   - Persiste `position` en `DB::transaction`, solo filas que cambian. Coste: ~N filas de `audits`
     por clic, igual que `reorderStops` — aceptado.
   - **Gotcha resuelto**: NO usar una arrow-fn `fn () => array_shift($queue)` dentro de `map()` para
