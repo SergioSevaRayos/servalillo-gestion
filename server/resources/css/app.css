@@ -235,3 +235,18 @@
     @apply bg-slate-100 dark:bg-slate-800;
     font: inherit;
 }
+
+/*
+| Móvil: la nav "sticky" y el botón de menú "fixed" saltaban al hacer scroll (Safari iOS /
+| Chrome Android no repintan los elementos fixed/sticky en cada frame). Se fuerzan a su propia
+| capa de composición (translateZ) y se quita cualquier backdrop-filter residual, que agrava
+| el repintado.
+*/
+@media (max-width: 767px) {
+    nav.sticky > .glass,
+    .drop-menu-fab {
+        transform: translateZ(0);
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+    }
+}

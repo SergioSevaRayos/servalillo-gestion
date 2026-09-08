@@ -17,7 +17,7 @@
         class="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[2px]"
     ></div>
 
-    <div class="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
+    <div class="drop-menu-fab fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
         <div
             x-show="open"
             x-cloak

@@ -156,9 +156,13 @@ Backed enums con `->label()` en español; casteados en los modelos.
     `withUnencryptedCookies(['theme' => 'dark'])`, si no el test recibe `null` y da un falso negativo.
 - Menú móvil = `<x-ui.drop-menu>`: gota → 3 gotas con rebote (`ease-[cubic-bezier(0.34,1.56,0.64,1)]`,
   solo `opacity`/`transform`). Referenciado desde `livewire/layout/navigation.blade.php`.
-  - **El botón y el panel son sólidos, NO `.glass`**, y la barra `<nav>` sticky pierde el blur por
-    debajo de `md` (`max-md:backdrop-blur-none max-md:bg-white/95 …`): un `backdrop-filter` en un
-    elemento `sticky`/`fixed` se repinta en cada frame de scroll en móvil y "vibra".
+  - **El botón y el panel son sólidos, NO `.glass`.** En móvil (`max-width: 767px`), la regla
+    `nav.sticky > .glass, .drop-menu-fab` en `app.css` fuerza `backdrop-filter: none !important` (con
+    prefijo `-webkit-`; **PostCSS descartaba la versión sin prefijo**, por eso `!important` y ambas)
+    **y `transform: translateZ(0)`** (capa de composición propia). Sin lo primero, un `backdrop-filter`
+    —aunque sea identidad— en un elemento `sticky`/`fixed` se repinta cada frame de scroll y la barra
+    "vibra"; sin lo segundo, Safari iOS / Chrome Android no repintan el elemento cada frame y "salta"
+    al hacer scroll. La nav lleva además `max-md:bg-white/95` (fondo sólido).
 - **Regla de modales: en escritorio el modal NO debe forzar scroll evitable.** Antes de dejar un
   `<x-modal>` con formulario, primero **aprovecha el ancho, no el alto**:
   - Modal ancho (`max-width="3xl"`/`4xl`) + rejilla `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`,

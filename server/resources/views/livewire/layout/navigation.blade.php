@@ -14,8 +14,9 @@ new class extends Component
 }; ?>
 
 <nav class="sticky top-0 z-30 px-4 pt-4">
-    {{-- En móvil el blur se repinta en cada frame de scroll y "vibra": barra sólida sin blur < md. --}}
-    <div class="glass mx-auto flex h-16 max-w-7xl items-center justify-between rounded-2xl px-4 max-md:bg-white/95 max-md:backdrop-blur-none max-md:backdrop-saturate-100 dark:max-md:bg-slate-900/95 sm:px-6">
+    {{-- En móvil: barra sólida y sin backdrop-filter (se repinta en cada frame de scroll y "salta"
+         la barra); el resto lo hace la regla `nav.sticky > .glass` en app.css (translateZ + none). --}}
+    <div class="glass mx-auto flex h-16 max-w-7xl items-center justify-between rounded-2xl px-4 max-md:bg-white/95 dark:max-md:bg-slate-900/95 sm:px-6">
         <div class="flex items-center gap-8">
             <a href="{{ route('home') }}" wire:navigate class="flex shrink-0 items-center gap-2 text-primary-700 dark:text-primary-300">
                 <x-application-logo class="h-7 w-7" />
