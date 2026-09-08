@@ -830,7 +830,28 @@ Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
 
 ---
 
-## Punto de continuación (última sesión: 2026-09-07)
+## Punto de continuación (última sesión: 2026-09-08)
+
+**Estado:** Bloques 1–13 terminados. Servidor: **260 tests en verde**
+(`docker compose exec laravel.test php artisan test`). APK: **53 tests Dart en verde**
+(`cd mobile && flutter test`, con `JAVA_HOME=~/tools/jdk-17.0.20.1+1`).
+
+Esta sesión: pulido de UX del tablero/chofer (paradas cerradas fijas, editar solo datos de servicio,
+`<x-ui.date-input>`, reabrir jornada al añadir cliente, "Cancelada", "Ir a la base a repostar",
+reordenar ▲/▼ con animación FLIP, nav pill opaca en móvil) + **Bloque 10** (API de tracking GPS) +
+**Bloque 11** (APK Flutter tracker headless + `GET /api/device`).
+
+**APK ya compilada**: `mobile/build/app/outputs/flutter-apk/app-release.apk` (51 MB, firmada con la
+clave debug). Config real en `mobile/dart_define.json` (gitignored). Para reconstruir:
+`cd mobile && export JAVA_HOME=~/tools/jdk-17.0.20.1+1 && flutter build apk --release --dart-define-from-file=dart_define.json`.
+Falta probarla en un Android físico (el usuario lo hará).
+
+**Siguiente:** no hay bloque pendiente definido. Pendiente transversal: paginación Livewire en inglés
+(ver Bloque 6). Todo commiteado en `develop` (sin push).
+
+---
+
+## Punto de continuación (sesión: 2026-09-07)
 
 **Estado:** Bloques 1–9 terminados (**155 tests en verde**). Esta sesión: Bloque 9 (gestión de
 clientes) + tipo de servicio Reparto/Viajes (enum `ServiceKind` en clientes, rutas y paradas; filtro
