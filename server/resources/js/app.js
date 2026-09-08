@@ -340,7 +340,8 @@ document.addEventListener('alpine:init', () => {
                 const rot = Math.max(-42, Math.min(42, -p * 20));
                 el.style.transform = `perspective(600px) translateZ(${(-a * 40).toFixed(1)}px) rotateY(${rot.toFixed(1)}deg) scale(${scale.toFixed(3)})`;
                 el.style.opacity = Math.max(0.12, 1 - a * 0.32).toFixed(3);
-                el.style.zIndex = String(100 - Math.round(a * 10));
+                // Solo ordena los días entre sí; mantener bajo (el modal es z-50, el nav z-30).
+                el.style.zIndex = String(Math.max(0, 10 - Math.round(a)));
                 el.classList.toggle('is-focus', a < 0.5);
             });
         },
