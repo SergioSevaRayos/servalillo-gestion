@@ -123,8 +123,18 @@ Backed enums con `->label()` en español; casteados en los modelos.
     `bg-slate-950/70`.
 - Componentes reutilizables en `resources/views/components/ui/*` (`button`, `input`, `select`, `textarea`,
   `checkbox`, `badge`, `card`, `glass-panel`, `stat-card`, `table`, `theme-toggle`, `toast-container`,
-  `drop-menu`). Los primitivos de Breeze (`x-text-input`, `x-primary-button`, `x-dropdown`, `x-modal`,
-  etc., namespace raíz sin `ui.`) están restilizados in-place y los siguen usando las páginas de auth.
+  `drop-menu`, `date-input`, `digit-wheel`, `signature-pad`). Los primitivos de Breeze
+  (`x-text-input`, `x-primary-button`, `x-dropdown`, `x-modal`, etc., namespace raíz sin `ui.`) están
+  restilizados in-place y los siguen usando las páginas de auth.
+- **`<x-ui.date-input>`** sustituye a **todo** `<input type="date">` (el calendario nativo del
+  navegador no se puede estilar). `Alpine.data('datePicker')` (`app.js`): botón con la fecha
+  formateada + popover con rejilla de mes, tokens del sistema, claro/oscuro, `min`/`max`, "Borrar"
+  y "Hoy". `value` = fecha ISO (`'YYYY-MM-DD'` o `''`); se integra con Livewire vía
+  `x-modelable="value"` + `wire:model` (acepta `.live` para los filtros). **El panel se
+  teletransporta a `<body>`** (`x-teleport`) con `position:fixed` calculado del trigger, para no
+  quedar recortado por el `overflow-hidden`/`transform` de un modal; el cierre por clic-fuera y el
+  reposicionado al hacer scroll se gestionan con listeners propios en el componente (no
+  `x-on:click.outside`, que no es fiable con teleport).
 - `<x-ui.table>` + `.table-responsive` (CSS puro, sin JS): cada `<td>` necesita `data-label="Cabecera"`
   para que se muestre como tarjeta en móvil. Los enums de estado (`RouteStatus`, `RouteStopStatus`,
   `DeliveryNoteStatus`) tienen `->badgeVariant()` para pintarlos con `<x-ui.badge>`.

@@ -93,7 +93,7 @@
                 />
                 <x-ui.input name="employee_code" label="{{ __('Código de empleado') }}" wire:model="form.employee_code" />
                 <x-ui.input name="license_number" label="{{ __('Nº de carné') }}" wire:model="form.license_number" />
-                <x-ui.input name="license_expiry" label="{{ __('Caducidad del carné') }}" type="date" wire:model="form.license_expiry" />
+                <x-ui.date-input name="license_expiry" label="{{ __('Caducidad del carné') }}" wire:model="form.license_expiry" />
                 <x-ui.input name="phone" label="{{ __('Teléfono') }}" wire:model="form.phone" />
                 <div class="flex items-end pb-2">
                     <x-ui.checkbox name="is_active" label="{{ __('Activo') }}" wire:model="form.is_active" />

@@ -17,7 +17,7 @@
                 <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
             </x-ui.button>
 
-            <input type="date" wire:model.live="date" class="rounded-lg border-slate-300 shadow-soft-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm" />
+            <div class="w-44"><x-ui.date-input name="date" wire:model.live="date" /></div>
 
             <x-ui.button variant="secondary" size="sm" wire:click="nextDay">
                 <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
@@ -223,7 +223,7 @@
                                     <x-ui.textarea :name="'data_'.$field['key']" :label="$field['label']" :rows="2" wire:model="form.data.{{ $field['key'] }}" />
                                     @break
                                 @case('date')
-                                    <x-ui.input :name="'data_'.$field['key']" :label="$field['label']" type="date" wire:model="form.data.{{ $field['key'] }}" />
+                                    <x-ui.date-input :name="'data_'.$field['key']" :label="$field['label']" wire:model="form.data.{{ $field['key'] }}" />
                                     @break
                                 @case('number')
                                     <x-ui.input :name="'data_'.$field['key']" :label="$field['label'].(!empty($field['unit']) ? ' ('.$field['unit'].')' : '')" type="number" wire:model="form.data.{{ $field['key'] }}" />

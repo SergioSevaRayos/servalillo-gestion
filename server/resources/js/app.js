@@ -479,6 +479,194 @@ document.addEventListener('alpine:init', () => {
             this.map = null;
         },
     }));
+
+    /*
+    | Selector de fecha propio (<x-ui.date-input>). El calendario nativo del navegador no se
+    | puede estilar, así que se sustituye por este popover con los tokens del sistema. Se integra
+    | con Livewire vía x-modelable + wire:model; `value` es la fecha ISO ('YYYY-MM-DD') o ''.
+    | El panel se teletransporta a <body> para que no lo recorte el overflow de un modal.
+    */
+    Alpine.data('datePicker', ({ initial, min, max, model }) => ({
+        value: initial || '',
+        model,
+        open: false,
+        viewYear: 2000,
+        viewMonth: 0,
+        min: min || null,
+        max: max || null,
+        panelStyle: '',
+        weekdays: ['L', 'M', 'X', 'J', 'V', 'S', 'D'],
+        _onDoc: null,
+        _onReflow: null,
+
+        init() {
+            // El valor real lo tiene el servidor (wire:model); lo leemos al montar.
+            if (this.model && this.$wire) {
+                const v = this.$wire.get(this.model);
+                if (v) {
+                    this.value = v;
+                }
+            }
+
+            this.syncView();
+            this.$watch('value', () => {
+                if (! this.open) {
+                    this.syncView();
+                }
+            });
+        },
+
+        destroy() {
+            this._teardownListeners();
+        },
+
+        iso(d) {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        },
+
+        syncView() {
+            const base = this.value ? new Date(this.value + 'T00:00:00') : new Date();
+            this.viewYear = base.getFullYear();
+            this.viewMonth = base.getMonth();
+        },
+
+        get displayValue() {
+            if (! this.value) {
+                return '';
+            }
+
+            return new Date(this.value + 'T00:00:00')
+                .toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        },
+
+        get monthLabel() {
+            const label = new Date(this.viewYear, this.viewMonth, 1)
+                .toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+
+            return label.charAt(0).toUpperCase() + label.slice(1);
+        },
+
+        get weeks() {
+            const first = new Date(this.viewYear, this.viewMonth, 1);
+            const offset = (first.getDay() + 6) % 7; // ISO: lunes primero
+            const start = new Date(this.viewYear, this.viewMonth, 1 - offset);
+            const todayIso = this.iso(new Date());
+            const weeks = [];
+
+            for (let w = 0; w < 6; w++) {
+                const days = [];
+
+                for (let d = 0; d < 7; d++) {
+                    const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + d);
+                    const iso = this.iso(day);
+
+                    days.push({
+                        iso,
+                        label: day.getDate(),
+                        inMonth: day.getMonth() === this.viewMonth,
+                        isToday: iso === todayIso,
+                        disabled: (this.min && iso < this.min) || (this.max && iso > this.max),
+                    });
+                }
+
+                weeks.push(days);
+            }
+
+            return weeks;
+        },
+
+        toggle() {
+            this.open ? this.close() : this.show();
+        },
+
+        show() {
+            this.syncView();
+            this.open = true;
+            this.$nextTick(() => {
+                this.position();
+
+                this._onDoc = (e) => {
+                    if (! this.$refs.panel?.contains(e.target) && ! this.$refs.trigger?.contains(e.target)) {
+                        this.close();
+                    }
+                };
+                this._onReflow = () => this.position();
+
+                // setTimeout: que el propio clic de apertura no lo cierre al instante.
+                setTimeout(() => document.addEventListener('click', this._onDoc), 0);
+                window.addEventListener('scroll', this._onReflow, true);
+                window.addEventListener('resize', this._onReflow);
+            });
+        },
+
+        close() {
+            this.open = false;
+            this._teardownListeners();
+        },
+
+        _teardownListeners() {
+            if (this._onDoc) {
+                document.removeEventListener('click', this._onDoc);
+                this._onDoc = null;
+            }
+            if (this._onReflow) {
+                window.removeEventListener('scroll', this._onReflow, true);
+                window.removeEventListener('resize', this._onReflow);
+                this._onReflow = null;
+            }
+        },
+
+        position() {
+            const r = this.$refs.trigger.getBoundingClientRect();
+            const panel = this.$refs.panel;
+            const h = panel.offsetHeight || 320;
+            const w = panel.offsetWidth || 280;
+            const spaceBelow = window.innerHeight - r.bottom;
+            const top = (spaceBelow > h + 12 || r.top < h + 12) ? r.bottom + 4 : r.top - h - 4;
+            const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+
+            this.panelStyle = `position:fixed;top:${Math.round(top)}px;left:${Math.round(left)}px;`;
+        },
+
+        prevMonth() {
+            const d = new Date(this.viewYear, this.viewMonth - 1, 1);
+            this.viewYear = d.getFullYear();
+            this.viewMonth = d.getMonth();
+        },
+
+        nextMonth() {
+            const d = new Date(this.viewYear, this.viewMonth + 1, 1);
+            this.viewYear = d.getFullYear();
+            this.viewMonth = d.getMonth();
+        },
+
+        pick(day) {
+            if (day.disabled) {
+                return;
+            }
+
+            this.value = day.iso;
+            this.close();
+        },
+
+        clear() {
+            this.value = '';
+            this.close();
+        },
+
+        goToday() {
+            const t = this.iso(new Date());
+
+            if ((this.min && t < this.min) || (this.max && t > this.max)) {
+                this.syncView();
+
+                return;
+            }
+
+            this.value = t;
+            this.close();
+        },
+    }));
 });
 
 /*

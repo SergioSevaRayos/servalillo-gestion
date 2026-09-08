@@ -21,8 +21,8 @@
                 <option value="{{ $value }}">{{ $label }}</option>
             @endforeach
         </select>
-        <input type="date" wire:model.live="from" class="{{ $ctrl }}" />
-        <input type="date" wire:model.live="to" class="{{ $ctrl }}" />
+        <div class="w-40"><x-ui.date-input name="from" wire:model.live="from" placeholder="{{ __('Desde') }}" /></div>
+        <div class="w-40"><x-ui.date-input name="to" wire:model.live="to" placeholder="{{ __('Hasta') }}" /></div>
         <x-ui.button variant="ghost" size="sm" wire:click="resetFilters">{{ __('Limpiar') }}</x-ui.button>
     </div>
 

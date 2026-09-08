@@ -90,7 +90,7 @@
             </h3>
 
             <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <x-ui.input name="route_date" label="{{ __('Fecha') }}" type="date" wire:model="form.route_date" />
+                <x-ui.date-input name="route_date" label="{{ __('Fecha') }}" wire:model="form.route_date" />
 
                 <x-ui.select name="status" label="{{ __('Estado') }}" wire:model="form.status">
                     @foreach ($this->statuses as $s)

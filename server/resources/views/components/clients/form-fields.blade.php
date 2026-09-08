@@ -108,10 +108,10 @@
                     </div>
                     <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{{ __('Si marcas días, el cliente sale solo en la ruta esos días. Deja vacío para usar "cada N días".') }}</p>
                 </div>
-                <x-ui.input name="schedule_starts_on" type="date" label="{{ __('Desde') }}" wire:model="form.schedule_starts_on" />
-                <x-ui.input name="schedule_ends_on" type="date" label="{{ __('Hasta') }}" wire:model="form.schedule_ends_on" :help="__('Vacío = indefinido.')" />
+                <x-ui.date-input name="schedule_starts_on" label="{{ __('Desde') }}" wire:model="form.schedule_starts_on" />
+                <x-ui.date-input name="schedule_ends_on" label="{{ __('Hasta') }}" wire:model="form.schedule_ends_on" :help="__('Vacío = indefinido.')" />
                 <x-ui.input name="frequency_days" type="number" label="{{ __('O cada N días') }}" wire:model="form.frequency_days" :help="__('Solo si no marcas días de la semana.')" />
-                <x-ui.input name="last_served_on" type="date" label="{{ __('Último reparto') }}" wire:model="form.last_served_on" />
+                <x-ui.date-input name="last_served_on" label="{{ __('Último reparto') }}" wire:model="form.last_served_on" />
             </div>
         </div>
 

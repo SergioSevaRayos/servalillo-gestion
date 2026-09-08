@@ -403,7 +403,7 @@
                                             <x-ui.textarea :name="'fd_'.$field['key']" :label="$field['label']" wire:model="form.data.{{ $field['key'] }}" />
                                             @break
                                         @case('date')
-                                            <x-ui.input :name="'fd_'.$field['key']" :label="$field['label']" type="date" wire:model="form.data.{{ $field['key'] }}" />
+                                            <x-ui.date-input :name="'fd_'.$field['key']" :label="$field['label']" wire:model="form.data.{{ $field['key'] }}" />
                                             @break
                                         @case('number')
                                             <x-ui.input :name="'fd_'.$field['key']" type="number" :label="$field['label'].(!empty($field['unit']) ? ' ('.$field['unit'].')' : '')" wire:model="form.data.{{ $field['key'] }}" />
@@ -429,13 +429,10 @@
                         <x-ui.textarea name="form.reason" label="{{ $this->form->outcome === 'failed' ? __('Motivo del fallo') : __('Motivo para omitir') }}" wire:model="form.reason" rows="3" />
 
                         <div>
-                            <x-input-label :value="__('Reprogramar para otro día (opcional)')" />
-                            <input type="date" wire:model="form.reschedule_on" min="{{ now()->addDay()->toDateString() }}"
-                                class="mt-1.5 block w-full rounded-lg border-slate-300 shadow-soft-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm" />
-                            <x-input-error :messages="$errors->get('form.reschedule_on')" class="mt-1.5" />
-                            <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                                {{ __('Se crea una parada nueva para ese día: en tu ruta si tienes una, o en "Sin asignar" para que oficina la reparta.') }}
-                            </p>
+                            <x-ui.date-input name="form.reschedule_on" wire:model="form.reschedule_on"
+                                :min="now()->addDay()->toDateString()"
+                                label="{{ __('Reprogramar para otro día (opcional)') }}"
+                                help="{{ __('Se crea una parada nueva para ese día: en tu ruta si tienes una, o en \'Sin asignar\' para que oficina la reparta.') }}" />
                         </div>
                     @endif
 
