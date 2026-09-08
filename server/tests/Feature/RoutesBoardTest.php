@@ -51,6 +51,36 @@ test('crear una parada sin ruta la deja en sin asignar', function () {
     expect(RouteStop::where('customer_name', 'Cliente Suelto')->first()->route_id)->toBeNull();
 });
 
+test('editar una parada solo cambia los datos del servicio, no los del cliente', function () {
+    $route = makeRoute('2026-09-10');
+    $stop = RouteStop::factory()->create([
+        'route_id' => $route->id,
+        'customer_name' => 'Cliente Original',
+        'address' => 'Calle Vieja 1',
+        'contact_phone' => '600 000 000',
+        'planned_quantity' => 500,
+        'status' => RouteStopStatus::Pending,
+    ]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('openEditStop', $stop)
+        ->set('form.customer_name', 'Intento de Cambio')
+        ->set('form.address', 'Calle Nueva 99')
+        ->set('form.contact_phone', '699 999 999')
+        ->set('form.planned_quantity', 1200)
+        ->set('form.status', RouteStopStatus::Skipped->value)
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    $stop->refresh();
+    expect($stop->customer_name)->toBe('Cliente Original')
+        ->and($stop->address)->toBe('Calle Vieja 1')
+        ->and($stop->contact_phone)->toBe('600 000 000')
+        ->and((float) $stop->planned_quantity)->toBe(1200.0)
+        ->and($stop->status)->toBe(RouteStopStatus::Skipped);
+});
+
 test('arrastrar una parada de sin asignar a una ruta la reasigna', function () {
     $route = makeRoute('2026-09-10');
     $stop = RouteStop::factory()->create(['route_id' => null, 'position' => 1]);

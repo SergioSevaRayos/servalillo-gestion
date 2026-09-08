@@ -149,20 +149,43 @@
             </h3>
 
             <div class="mt-5 grid max-h-[65vh] grid-cols-1 gap-x-4 gap-y-3 overflow-y-auto px-1 -mx-1 themed-scrollbar sm:grid-cols-2 lg:grid-cols-3">
-                <x-ui.select name="service_kind" label="{{ __('Tipo de servicio') }}" wire:model="form.service_kind">
-                    @foreach (\App\Enums\ServiceKind::options() as $value => $label)
-                        <option value="{{ $value }}">{{ $label }}</option>
-                    @endforeach
-                </x-ui.select>
-                <div class="sm:col-span-1 lg:col-span-2">
-                    <x-ui.input name="customer_name" label="{{ __('Cliente') }}" wire:model="form.customer_name" />
-                </div>
-                <div class="sm:col-span-2 lg:col-span-3">
-                    <x-ui.input name="address" label="{{ __('Dirección') }}" wire:model="form.address" />
-                </div>
+                @if ($this->form->editing)
+                    {{-- Al editar solo se cambian los datos del servicio: la identidad del cliente es de solo lectura. --}}
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50 sm:col-span-2 lg:col-span-3">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="font-medium text-slate-900 dark:text-white">{{ $this->form->customer_name }}</p>
+                                @if ($this->form->address)
+                                    <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{{ $this->form->address }}</p>
+                                @endif
+                                @if ($this->form->contact_name || $this->form->contact_phone)
+                                    <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                                        {{ collect([$this->form->contact_name, $this->form->contact_phone])->filter()->join(' · ') }}
+                                    </p>
+                                @endif
+                            </div>
+                            @if ($this->form->service_kind === \App\Enums\ServiceKind::Viaje->value)
+                                <x-ui.badge variant="primary">{{ __('Viaje') }}</x-ui.badge>
+                            @endif
+                        </div>
+                        <p class="mt-2 text-xs text-slate-400">{{ __('Los datos del cliente se editan desde su ficha.') }}</p>
+                    </div>
+                @else
+                    <x-ui.select name="service_kind" label="{{ __('Tipo de servicio') }}" wire:model="form.service_kind">
+                        @foreach (\App\Enums\ServiceKind::options() as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </x-ui.select>
+                    <div class="sm:col-span-1 lg:col-span-2">
+                        <x-ui.input name="customer_name" label="{{ __('Cliente') }}" wire:model="form.customer_name" />
+                    </div>
+                    <div class="sm:col-span-2 lg:col-span-3">
+                        <x-ui.input name="address" label="{{ __('Dirección') }}" wire:model="form.address" />
+                    </div>
 
-                <x-ui.input name="contact_name" label="{{ __('Contacto') }}" wire:model="form.contact_name" />
-                <x-ui.input name="contact_phone" label="{{ __('Teléfono') }}" wire:model="form.contact_phone" />
+                    <x-ui.input name="contact_name" label="{{ __('Contacto') }}" wire:model="form.contact_name" />
+                    <x-ui.input name="contact_phone" label="{{ __('Teléfono') }}" wire:model="form.contact_phone" />
+                @endif
 
                 <x-ui.select name="status" label="{{ __('Estado') }}" wire:model="form.status">
                     @foreach (\App\Enums\RouteStopStatus::cases() as $s)

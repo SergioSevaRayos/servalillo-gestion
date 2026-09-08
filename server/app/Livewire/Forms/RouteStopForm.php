@@ -83,7 +83,14 @@ class RouteStopForm extends Form
         }
 
         if ($this->editing) {
-            $this->editing->update([...$validated, 'data' => $cleanData]);
+            // Al editar una parada solo se tocan los datos del servicio: la identidad del
+            // cliente (nombre, dirección, contacto, tipo de servicio) se gestiona en su ficha.
+            $this->editing->update([
+                'delivery_type_id' => $validated['delivery_type_id'],
+                'status' => $validated['status'],
+                'planned_quantity' => $validated['planned_quantity'],
+                'data' => $cleanData,
+            ]);
             $stop = $this->editing;
         } else {
             $nextPosition = RouteStop::where('route_id', $this->route_id)->max('position') + 1;

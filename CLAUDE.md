@@ -204,6 +204,11 @@ Backed enums con `->label()` en español; casteados en los modelos.
     Contacto/Teléfono/Estado, Cantidad/Tipo de reparto) para que quepa sin scroll en escritorio —
     ver la "Regla de modales" en la sección del sistema de diseño. `<x-modal>` acepta
     `sm|md|lg|xl|2xl|3xl|4xl`.
+  - **Al EDITAR** solo se tocan los datos del servicio (`status`, `planned_quantity`,
+    `delivery_type_id`, `data`): la identidad del cliente (`customer_name`, `address`, `contact_*`,
+    `service_kind`) sale como bloque de **solo lectura** y `RouteStopForm::save()` **no la persiste**
+    aunque llegue en el request (la ficha del cliente es su único punto de edición). Al **CREAR** sí
+    se piden todos los campos.
 - **Drag & drop = SortableJS** (`npm install sortablejs`, importado en `resources/js/app.js`,
   función `initKanbanColumns`), no el plugin `@alpinejs/sort` — se descartó por no poder verificar con
   certeza su API exacta de arrastre multi-columna sin acceso a la documentación en vivo; SortableJS es
