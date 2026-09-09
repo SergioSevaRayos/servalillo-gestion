@@ -518,6 +518,110 @@ document.addEventListener('alpine:init', () => {
     }));
 
     /*
+    | "Localizar dispositivo" (Bloque 11): mapa Leaflet con la última ubicación conocida de
+    | un dispositivo tracker + rastro de posiciones recientes. Maintenance\Devices::locate()
+    | emite `open-device-map` con { label, driver, last, trail }.
+    */
+    Alpine.data('deviceMap', () => ({
+        map: null,
+        layer: null,
+        title: '',
+        subtitle: '',
+        age: '',
+        detail: '',
+
+        open(payload) {
+            this.$dispatch('open-modal', 'device-map');
+            this._whenVisible(() => this.render(payload || {}));
+        },
+
+        _whenVisible(cb, tries = 90) {
+            const el = this.$refs.map;
+            if (el && el.offsetParent !== null && el.clientWidth > 0) return cb();
+            if (tries <= 0) return;
+            requestAnimationFrame(() => this._whenVisible(cb, tries - 1));
+        },
+
+        render(payload) {
+            const last = payload.last || null;
+            const trail = Array.isArray(payload.trail) ? payload.trail : [];
+
+            this.title = payload.label || 'Dispositivo';
+            this.subtitle = payload.driver ? `Chofer: ${payload.driver}` : 'Sin chofer asignado';
+
+            if (! last) {
+                this.age = '';
+                this.detail = 'Sin ubicación.';
+                return;
+            }
+
+            if (! this.map) {
+                this.map = L.map(this.$refs.map, { scrollWheelZoom: true });
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap',
+                }).addTo(this.map);
+                this.layer = L.layerGroup().addTo(this.map);
+            }
+
+            this.layer.clearLayers();
+
+            if (trail.length > 1) {
+                L.polyline(trail, { color: '#0d9488', weight: 3, opacity: 0.6, dashArray: '4 6' }).addTo(this.layer);
+            }
+
+            const pos = [last.lat, last.lng];
+
+            if (typeof last.accuracy_m === 'number' && last.accuracy_m > 0) {
+                L.circle(pos, {
+                    radius: last.accuracy_m,
+                    color: '#0d9488',
+                    weight: 1,
+                    fillColor: '#0d9488',
+                    fillOpacity: 0.12,
+                }).addTo(this.layer);
+            }
+
+            L.marker(pos, {
+                icon: L.divIcon({
+                    className: '',
+                    html: '<span class="route-map-pin" style="background:#0d9488">•</span>',
+                    iconSize: [26, 26],
+                    iconAnchor: [13, 13],
+                }),
+            }).addTo(this.layer);
+
+            this.map.setView(pos, 16);
+            this.map.invalidateSize();
+
+            this.age = this._age(last.recorded_at);
+
+            const bits = [];
+            if (typeof last.accuracy_m === 'number') bits.push(`precisión ±${Math.round(last.accuracy_m)} m`);
+            if (typeof last.speed_mps === 'number' && last.speed_mps >= 0) {
+                bits.push(`${Math.round(last.speed_mps * 3.6)} km/h`);
+            }
+            if (typeof last.battery_level === 'number') bits.push(`batería ${last.battery_level}%`);
+            bits.push(`${last.lat.toFixed(6)}, ${last.lng.toFixed(6)}`);
+            this.detail = bits.join(' · ');
+        },
+
+        _age(iso) {
+            if (! iso) return '';
+            const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+            if (secs < 60) return `hace ${secs} s`;
+            if (secs < 3600) return `hace ${Math.round(secs / 60)} min`;
+            if (secs < 86400) return `hace ${Math.round(secs / 3600)} h`;
+            return `hace ${Math.round(secs / 86400)} d`;
+        },
+
+        destroy() {
+            this.map?.remove();
+            this.map = null;
+        },
+    }));
+
+    /*
     | Selector de fecha propio (<x-ui.date-input>). El calendario nativo del navegador no se
     | puede estilar, así que se sustituye por este popover con los tokens del sistema. Se integra
     | con Livewire vía x-modelable + wire:model; `value` es la fecha ISO ('YYYY-MM-DD') o ''.

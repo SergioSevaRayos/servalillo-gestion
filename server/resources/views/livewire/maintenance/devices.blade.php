@@ -54,6 +54,11 @@
                     </td>
                     <td data-label="{{ __('Acciones') }}" class="text-right">
                         <div class="flex justify-end gap-2">
+                            @if ($device->positions_count > 0)
+                                <x-ui.button variant="ghost" size="sm" wire:click="locate({{ $device->id }})">
+                                    {{ __('Localizar') }}
+                                </x-ui.button>
+                            @endif
                             <x-ui.button variant="ghost" size="sm" wire:click="toggleActive({{ $device->id }})">
                                 {{ $device->is_active ? __('Desactivar') : __('Reactivar') }}
                             </x-ui.button>
@@ -80,4 +85,6 @@
             @endforelse
         </tbody>
     </x-ui.table>
+
+    <x-device-map-modal />
 </div>

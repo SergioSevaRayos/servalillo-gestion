@@ -48,12 +48,20 @@ Edita `dart_define.json` (gitignored):
 
 | Clave | Qué es |
 |---|---|
-| `SERVER_URL` | URL base del servidor accesible desde el móvil (dev tunnel de VSC, o `http://IP-LAN:8000`). Sin `/` final. |
+| `SERVER_URL` | URL base del servidor accesible desde el móvil. **Producción:** `https://tu-dominio` (VPS con nginx + certificado). **Pruebas en LAN:** `http://IP-DEL-PC:8000` (PC y móvil en la misma Wi-Fi). Sin `/` final. |
 | `ENROLMENT_SECRET` | El `DEVICE_ENROLMENT_SECRET` del `.env` del servidor. |
 | `APP_VERSION` | Texto libre, se guarda en el panel de dispositivos. |
 
-En el servidor: `DEVICE_ENROLMENT_SECRET` en `.env`, `php artisan config:clear`. Si el servidor va
-tras un túnel/proxy, `APP_URL` correcto y `trustProxies` activo (ya lo está).
+En el servidor: `DEVICE_ENROLMENT_SECRET` en `.env`, `php artisan config:clear`. Tras nginx/proxy,
+`APP_URL` correcto y `trustProxies` activo (ya lo está).
+
+### HTTP en claro (solo pruebas en LAN)
+
+El APK trae `android:usesCleartextTraffic="true"` + `res/xml/network_security_config.xml` para poder
+apuntar a un servidor de desarrollo por `http://`. **El túnel de VS Code no vale** para el tracker
+(latencia >100 s por petición, supera el timeout de 25 s del cliente) — para probar sin VPS hay que
+usar la Wi-Fi local. **Para la build de producción** (servidor por HTTPS) quita esas dos líneas del
+`AndroidManifest.xml` antes de compilar; con HTTPS no hacen falta y es un cierre de seguridad.
 
 ## Compilar el APK
 

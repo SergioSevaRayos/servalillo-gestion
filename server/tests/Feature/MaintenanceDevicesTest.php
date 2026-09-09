@@ -93,6 +93,38 @@ it('activa y desactiva un dispositivo', function () {
     expect($device->fresh()->is_active)->toBeFalse();
 });
 
+it('localizar abre el mapa con la última posición y el rastro', function () {
+    $driver = choferDriver('Lucía Gómez');
+    $device = Device::factory()->forDriver($driver)->create(['label' => 'Móvil C-02']);
+
+    GpsPosition::insert([
+        ['device_id' => $device->id, 'latitude' => 38.10, 'longitude' => -0.80, 'accuracy_m' => null, 'battery_level' => null, 'recorded_at' => now()->subMinutes(5), 'created_at' => now()],
+        ['device_id' => $device->id, 'latitude' => 38.12, 'longitude' => -0.82, 'accuracy_m' => 15.5, 'battery_level' => 60, 'recorded_at' => now()->subMinute(), 'created_at' => now()],
+    ]);
+
+    Livewire::actingAs(makeUser('mantenimiento'))
+        ->test(Devices::class)
+        ->call('locate', $device->id)
+        ->assertDispatched('open-device-map', function (string $event, array $params) {
+            return $params['label'] === 'Móvil C-02'
+                && $params['driver'] === 'Lucía Gómez'
+                && $params['last']['lat'] === 38.12
+                && $params['last']['battery_level'] === 60
+                && count($params['trail']) === 2
+                && $params['trail'][0] === [38.10, -0.80]; // rastro en orden cronológico
+        });
+});
+
+it('localizar avisa si el dispositivo no ha enviado posiciones', function () {
+    $device = Device::factory()->create();
+
+    Livewire::actingAs(makeUser('mantenimiento'))
+        ->test(Devices::class)
+        ->call('locate', $device->id)
+        ->assertDispatched('toast', variant: 'warning')
+        ->assertNotDispatched('open-device-map');
+});
+
 it('elimina un dispositivo y sus posiciones', function () {
     $device = Device::factory()->create();
     GpsPosition::insert([

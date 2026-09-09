@@ -760,7 +760,10 @@ Backed enums con `->label()` en español; casteados en los modelos.
   señal, versión, nº posiciones, estado), `<select>` para **asignar/reasignar chofer** (`assign()` —
   avisa si el chofer ya tiene otro dispositivo, el `driver_id` es unique), **revocar** acceso
   (`$device->tokens()->delete()`), **activar/desactivar**, **eliminar** (borra sus `gps_positions` por
-  cascade).
+  cascade), y **"Localizar"** (`locate()`, solo si tiene posiciones): emite `open-device-map` con la
+  última posición + un rastro de las ≤60 recientes; `<x-device-map-modal>` + `Alpine.data('deviceMap')`
+  (mapa Leaflet, círculo de precisión, línea punteada del rastro) — misma infra que `<x-route-map-modal>`
+  del Bloque 13.
 - **`gps:purgar {--dias=}`** (`App\Console\Commands\PurgeGpsPositions`, schedule diario 04:00): borra
   `gps_positions` anteriores a `config('servalillo.gps_retention_days')` en lotes de 5000.
 - `bootstrap/app.php` ya devuelve JSON en `api/*` y loguea toda excepción a `error_logs` → los errores
@@ -786,6 +789,19 @@ Backed enums con `->label()` en español; casteados en los modelos.
   exige recompilar.
 - Build: `cd mobile && flutter build apk --release --dart-define-from-file=dart_define.json` →
   `build/app/outputs/flutter-apk/app-release.apk` (firmado con la clave debug — sideload).
+- **El túnel de VS Code NO sirve para el tracker** (latencia >100 s/petición > timeout de 25 s del
+  cliente → "no se pudo conectar" en bucle, aunque el device sí se crea en el servidor). Para probar
+  sin VPS: PC + móvil en la misma Wi-Fi, `SERVER_URL=http://<IP-LAN>:8000`. El APK lleva
+  `usesCleartextTraffic=true` + `res/xml/network_security_config.xml` para permitir `http://`;
+  **quitar esas dos líneas del manifest para la build de producción** (servidor por HTTPS).
+- **Gotchas de plataforma ya resueltos** (todos detectados con `adb logcat`, móvil por Wi-Fi):
+  (1) `MainActivity` tiene que estar en el paquete del `namespace` (`es.servalillo.tracker`), no en
+  `es.servalillo.servalillo_tracker` que genera `flutter create` — si no, `ClassNotFoundException` al
+  abrir. (2) **NUNCA** `db.execute('PRAGMA journal_mode=WAL')` en `openAppDatabase()`: en Android
+  devuelve una fila y `execute()` la rechaza → `DatabaseException` → el `onStart` del servicio muere
+  antes de montar el controller (0 envíos). sqflite ya gestiona WAL solo. (3) el servicio arranca con
+  `PermissionsState.canTrack` (ubicación "mientras se usa" + notificaciones), no con `allGranted`;
+  "ubicación siempre" + batería se recomiendan pero no bloquean.
 - **Arquitectura Dart**: servicio en 1er plano (`flutter_foreground_task`, `TaskHandler` +
   `@pragma('vm:entry-point') startCallback()`) → cada tick: `pause_window` → `location_sampler` →
   `position_queue` (SQLite, cola offline ≤50k) → `sync_service` (lotes ≤500, borra tras 2xx) →

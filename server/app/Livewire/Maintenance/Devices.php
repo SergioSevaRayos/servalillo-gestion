@@ -4,6 +4,7 @@ namespace App\Livewire\Maintenance;
 
 use App\Models\Device;
 use App\Models\Driver;
+use App\Models\GpsPosition;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -68,6 +69,49 @@ class Devices extends Component
         unset($this->devices);
 
         $this->dispatch('toast', message: 'Dispositivo actualizado.', variant: 'success');
+    }
+
+    /**
+     * Abre el mapa con la última ubicación conocida del dispositivo y un rastro de
+     * las posiciones recientes. Emite `open-device-map` para el Alpine `deviceMap`.
+     */
+    public function locate(int $deviceId): void
+    {
+        $device = Device::with('driver.user')->findOrFail($deviceId);
+        $this->authorize('view', $device);
+
+        $positions = GpsPosition::query()
+            ->where('device_id', $device->id)
+            ->orderByDesc('recorded_at')
+            ->limit(60)
+            ->get(['latitude', 'longitude', 'accuracy_m', 'speed_mps', 'heading_deg', 'battery_level', 'recorded_at']);
+
+        if ($positions->isEmpty()) {
+            $this->dispatch('toast', message: 'Este dispositivo aún no ha enviado ninguna posición.', variant: 'warning');
+
+            return;
+        }
+
+        $last = $positions->first();
+
+        $this->dispatch('open-device-map', ...[
+            'label' => $device->label,
+            'driver' => $device->driver?->user?->name,
+            'last' => [
+                'lat' => (float) $last->latitude,
+                'lng' => (float) $last->longitude,
+                'accuracy_m' => $last->accuracy_m !== null ? (float) $last->accuracy_m : null,
+                'speed_mps' => $last->speed_mps !== null ? (float) $last->speed_mps : null,
+                'heading_deg' => $last->heading_deg !== null ? (float) $last->heading_deg : null,
+                'battery_level' => $last->battery_level,
+                'recorded_at' => $last->recorded_at?->toIso8601String(),
+            ],
+            // Rastro en orden cronológico (el más antiguo primero) para dibujar la línea.
+            'trail' => $positions->reverse()->values()->map(fn (GpsPosition $p) => [
+                (float) $p->latitude,
+                (float) $p->longitude,
+            ])->all(),
+        ]);
     }
 
     /** Revoca los tokens: la APK tendrá que volver a enrolarse. */
