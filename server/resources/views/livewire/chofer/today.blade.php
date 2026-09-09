@@ -228,7 +228,7 @@
                                 <a href="{{ \App\Support\GoogleMaps::pointUrl((float) $stop->latitude, (float) $stop->longitude) }}"
                                     target="_blank" rel="noopener" aria-label="{{ __('Navegar a esta parada') }}"
                                     class="grid h-9 w-9 place-items-center rounded-lg border border-primary-200 bg-primary-50 text-primary-600 transition-colors hover:bg-primary-100 dark:border-primary-500/40 dark:bg-primary-500/10 dark:text-primary-300 dark:hover:bg-primary-500/20">
-                                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.71 11.29 12.71 2.29a1 1 0 0 0-1.42 0l-9 9a1 1 0 0 0 .33 1.64l4.38 1.75 1.75 4.38a1 1 0 0 0 .82.62h.11a1 1 0 0 0 .83-.45l9-13.5a1 1 0 0 0-.13-1.46Z" /></svg>
+                                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="m11.54 22.351.07.04.028.016a.76.76 0 0 0 .723 0l.028-.015.071-.041a16.975 16.975 0 0 0 1.144-.742 19.58 19.58 0 0 0 2.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 0 0-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 0 0 2.682 2.282 16.975 16.975 0 0 0 1.145.742ZM12 13.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clip-rule="evenodd" /></svg>
                                 </a>
                             @endif
                             @if ($canReorder)
