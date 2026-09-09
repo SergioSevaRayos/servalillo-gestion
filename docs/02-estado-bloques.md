@@ -830,28 +830,32 @@ Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
 
 ---
 
-## Punto de continuación (última sesión: 2026-09-08)
+## Punto de continuación (última sesión: 2026-09-09)
 
 **Estado:** Bloques 1–13 terminados. Servidor: **260 tests en verde**
 (`docker compose exec laravel.test php artisan test`). APK: **53 tests Dart en verde**
 (`cd mobile && flutter test`, con `JAVA_HOME=~/tools/jdk-17.0.20.1+1`).
 
-Esta sesión: pulido de UX del tablero/chofer (paradas cerradas fijas, editar solo datos de servicio,
-`<x-ui.date-input>`, reabrir jornada al añadir cliente, "Cancelada", "Ir a la base a repostar",
-reordenar ▲/▼ con animación FLIP, nav pill opaca en móvil) + **Bloque 10** (API de tracking GPS) +
-**Bloque 11** (APK Flutter tracker headless + `GET /api/device`).
+Bloque 10 (API de tracking GPS) + Bloque 11 (APK Flutter tracker headless + `GET /api/device`) hechos.
 
-**APK ya compilada**: `mobile/build/app/outputs/flutter-apk/app-release.apk` (51 MB, firmada con la
-clave debug). Config real en `mobile/dart_define.json` (gitignored). Para reconstruir:
-`cd mobile && export JAVA_HOME=~/tools/jdk-17.0.20.1+1 && flutter build apk --release --dart-define-from-file=dart_define.json`.
+**Banco de pruebas web** en `/tracker-test` (solo fuera de producción): simula el APK desde el
+navegador del móvil para validar el pipeline GPS (enrolar → `GET /api/device` → `POST /api/gps/batch`
+con la geolocalización del navegador). No sustituye al APK (solo con pestaña abierta y pantalla
+encendida).
 
-**Bloqueo en prueba de campo (pendiente):** el usuario instaló el APK en un Android físico y al pulsar
-"Abrir" **no pasa nada** — probable crash al inicio. El wizard de permisos tampoco pidió los 4
-permisos en orden (se concedieron a mano). Siguiente paso: `adb logcat` mientras se abre la app para
-ver la excepción (requiere Depuración USB en el móvil). Sospechosos: `main.dart` llama
-`FlutterForegroundTask.initCommunicationPort()` + `TrackerForegroundService.init()` antes de `runApp`;
-el `<service>` de `flutter_foreground_task` declarado a mano en el manifest sin `tools:replace`;
-permisos runtime en `StatusScreen._bootstrap()`.
+**APK compilada**: `mobile/build/app/outputs/flutter-apk/app-release.apk` (~51 MB, clave debug).
+Reconstruir: `cd mobile && export JAVA_HOME=~/tools/jdk-17.0.20.1+1 && flutter build apk --release --dart-define-from-file=dart_define.json`.
+
+**Prueba de campo 2026-09-09 — 3 bugs corregidos** (`70c35b8`, `30f213c`):
+1. El APK no abría → `MainActivity` estaba en el paquete `es.servalillo.servalillo_tracker` y el
+   namespace es `es.servalillo.tracker` → `ClassNotFoundException` al arrancar. Movida al paquete
+   correcto y recompilada (verificado con `apkanalyzer`).
+2. No se podía asignar chofer a un dispositivo → el seed asignaba dispositivo (falso) a los 4
+   chóferes. Ahora solo a 2; Carlos Díaz y Nadia El Amrani quedan libres.
+3. `/tracker-test` "se quedaba cargando" → el stack de Docker estaba caído tras reiniciar el PC.
+
+**Pendiente:** el usuario reinstala el APK nuevo y reprueba el flujo completo (permisos, enrolamiento,
+asignación de chofer, recepción de posiciones). Ver si el wizard de permisos pide bien los 4.
 
 **Siguiente:** desbloquear la prueba de campo de la APK. Pendiente transversal: paginación Livewire en
 inglés (ver Bloque 6). Todo commiteado en `develop` (sin push).
