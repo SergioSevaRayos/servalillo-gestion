@@ -110,4 +110,12 @@ Route::middleware(['auth', 'role:chofer'])->prefix('chofer')->name('chofer.')->g
 */
 Route::view('profile', 'profile')->middleware('auth')->name('profile');
 
+/*
+| Banco de pruebas de la API del tracker (Bloque 10/11) — para validar el pipeline
+| GPS desde el navegador del móvil sin depender del APK. Solo fuera de producción.
+*/
+if (! app()->isProduction()) {
+    Route::view('tracker-test', 'tracker-test')->name('tracker-test');
+}
+
 require __DIR__.'/auth.php';
