@@ -36,6 +36,7 @@ class _StatusScreenState extends State<StatusScreen>
   DeviceStatus? _serverStatus;
   DateTime? _lastSentAt;
   String _serviceMessage = '';
+  String? _serviceError;
   int _pending = 0;
   bool _serviceRunning = false;
   bool _working = false;
@@ -59,7 +60,9 @@ class _StatusScreenState extends State<StatusScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refresh();
+    if (state == AppLifecycleState.resumed) {
+      _refresh().then((_) => _maybeStartService());
+    }
   }
 
   void _onTaskData(Object data) {
@@ -125,12 +128,29 @@ class _StatusScreenState extends State<StatusScreen>
 
   Future<void> _maybeStartService() async {
     final PermissionsState? p = _perms;
-    if (p == null || !p.allGranted) return;
+    if (p == null || !p.canTrack) return;
     if (_enrolState != EnrolState.enrolled) return;
     if (await FlutterForegroundTask.isRunningService) return;
-    final config = await _store.config;
-    await TrackerForegroundService.applyConfig(config);
-    await TrackerForegroundService.start();
+    await _startService();
+  }
+
+  Future<void> _startService() async {
+    try {
+      final config = await _store.config;
+      await TrackerForegroundService.applyConfig(config);
+      final ServiceRequestResult result =
+          await TrackerForegroundService.start();
+      if (!mounted) return;
+      setState(() {
+        _serviceError = result is ServiceRequestFailure
+            ? 'No se pudo iniciar el servicio: ${result.error}'
+            : null;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _serviceError = 'No se pudo iniciar el servicio: $e');
+      }
+    }
     await _refresh();
   }
 
@@ -186,6 +206,29 @@ class _StatusScreenState extends State<StatusScreen>
               FilledButton(
                 onPressed: _working ? null : _grantNext,
                 child: Text(p.nextActionLabel),
+              ),
+            ],
+
+            if (p != null &&
+                p.canTrack &&
+                _enrolState == EnrolState.enrolled &&
+                !_serviceRunning) ...<Widget>[
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _working ? null : _startService,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Iniciar seguimiento'),
+              ),
+            ],
+
+            if (_serviceError != null) ...<Widget>[
+              const SizedBox(height: 12),
+              _card(
+                color: Colors.red.shade50,
+                child: Text(
+                  _serviceError!,
+                  style: const TextStyle(color: Colors.red),
+                ),
               ),
             ],
 

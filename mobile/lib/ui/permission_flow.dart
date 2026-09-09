@@ -16,6 +16,11 @@ class PermissionsState {
   final bool notifications;
   final bool batteryUnrestricted;
 
+  /// Mínimo para que el servicio en primer plano arranque y envíe posición con la app
+  /// abierta: ubicación (aunque sea solo "mientras se usa") + permiso de notificación.
+  bool get canTrack => locationWhileInUse && notifications;
+
+  /// Todo concedido, incluido lo necesario para seguir en segundo plano y sobrevivir a Doze.
   bool get allGranted => locationAlways && notifications && batteryUnrestricted;
 
   /// Texto del botón: el siguiente permiso que falta.
