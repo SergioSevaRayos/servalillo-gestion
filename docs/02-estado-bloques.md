@@ -844,35 +844,52 @@ Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
 
 ---
 
-## Punto de continuación (última sesión: 2026-09-09)
+## Punto de continuación (última sesión: 2026-09-09, noche)
 
-**Estado:** Bloques 1–13 terminados. Servidor: **260 tests en verde**
-(`docker compose exec laravel.test php artisan test`). APK: **53 tests Dart en verde**
-(`cd mobile && flutter test`, con `JAVA_HOME=~/tools/jdk-17.0.20.1+1`).
+**Estado:** Bloques 1–13 terminados. Servidor: **277 tests en verde**
+(`cd server && docker compose exec -T laravel.test php artisan test`). APK Flutter: **53 tests Dart**
+(`cd mobile && export JAVA_HOME=~/tools/jdk-17.0.20.1+1 && flutter test`). Todo en `develop`, sin push.
 
-Bloque 10 (API de tracking GPS) + Bloque 11 (APK Flutter tracker headless + `GET /api/device`) hechos.
+### El tracker GPS FUNCIONA en campo (2026-09-09)
+El APK enrola, se le asigna chofer y **envía posiciones de forma fiable** (probado con Lucía Gómez,
+device #16, ~50 posiciones en 40 min). Bugs de campo corregidos esta sesión:
+- `MainActivity` en el paquete equivocado (`servalillo_tracker` vs namespace `tracker`) → crash al
+  abrir. Movida. (`70c35b8`)
+- El seed asignaba dispositivo falso a los 4 chóferes → no se podía asignar uno real. Ahora solo 2.
+  (`30f213c`)
+- **`openAppDatabase()` lanzaba `PRAGMA journal_mode=WAL` con `execute()`** → en Android devuelve una
+  fila → `DatabaseException` → el servicio moría antes de muestrear. Quitado (sqflite gestiona WAL).
+  Detectado con `adb logcat` (Galaxy S20 FE, wifi, `adb pair`). (`b4fb8b6`)
+- El servicio arranca con `PermissionsState.canTrack` (ubicación "mientras se usa" + notificaciones),
+  no `allGranted`. (`617e7fd`)
+- El túnel de VS Code va inservible de lento (>100 s/petición) → **HTTP directo en la LAN** para
+  pruebas. `mobile/dart_define.json` + `server/.env` `APP_URL` = `http://<IP-LAN>:8000`. Recompilar
+  el APK cada vez que cambie la IP. (`26f109a`)
 
-**Banco de pruebas web** en `/tracker-test` (solo fuera de producción): simula el APK desde el
-navegador del móvil para validar el pipeline GPS (enrolar → `GET /api/device` → `POST /api/gps/batch`
-con la geolocalización del navegador). No sustituye al APK (solo con pestaña abierta y pantalla
-encendida).
+### Funciones nuevas sobre el tracker
+- **"Localizar"** en Mantenimiento → Dispositivos: mapa Leaflet con última posición + rastro. (`4897002`)
+- **"Ruta eficiente" desde la posición real del camión** + **"Ver recorrido"** dibuja el camión (🚚)
+  y el tramo por carretera hasta la 1ª parada pendiente. (`eb1dfe7`)
+- **Botones "Abrir en Google Maps"** para navegar (chofer): "Seguir ruta en Google Maps" (waypoints),
+  icono de navegación por parada, "Cómo llegar" en el modal de parada, y "Abrir en Google Maps" en
+  "Ver recorrido". `App\Support\GoogleMaps` (sin API key, sin origin → GPS del móvil). (`38fd457`, `94b1f7a`)
 
-**APK compilada**: `mobile/build/app/outputs/flutter-apk/app-release.apk` (~51 MB, clave debug).
-Reconstruir: `cd mobile && export JAVA_HOME=~/tools/jdk-17.0.20.1+1 && flutter build apk --release --dart-define-from-file=dart_define.json`.
+### SIGUIENTE (retomar): despliegue a producción en VPS
+**Plan aprobado** en `~/.claude/plans/harmonic-twirling-dove.md` — sin empezar aún. Resumen:
+- VPS bare-metal (Hetzner CX22 ~€5/mes, Ubuntu 24.04), nginx + PHP 8.3-FPM + PostgreSQL 16 + Node 22.
+  Sin Docker en prod, sin Reverb. ~€6/mes total.
+- Decisiones del usuario: **Cloudflare R2** para PDFs/firmas (solo backup de BD); **deploy manual**
+  con `server/deploy/deploy.sh` por SSH.
+- Crear: `docs/04-despliegue-vps.md`, `server/deploy/` (nginx.conf, deploy.sh, worker+backup systemd
+  units, crontab), `server/.env.production.example`.
+- Código: `config/app.php` timezone → `env('APP_TIMEZONE')`; `AppServiceProvider` → `URL::forceScheme('https')`
+  en prod; `DeliveryTypeSeeder` + `ProductionSeeder` (NO ejecutar `DatabaseSeeder`, usa faker); comando
+  `php artisan servalillo:crear-usuario`.
+- APK prod: `network_security_config.xml` → cleartext solo en `<debug-overrides>`; quitar
+  `usesCleartextTraffic` del manifest; `dart_define.production.example.json`. Pruebas LAN pasan a
+  `flutter build apk --debug`.
 
-**Prueba de campo 2026-09-09 — 3 bugs corregidos** (`70c35b8`, `30f213c`):
-1. El APK no abría → `MainActivity` estaba en el paquete `es.servalillo.servalillo_tracker` y el
-   namespace es `es.servalillo.tracker` → `ClassNotFoundException` al arrancar. Movida al paquete
-   correcto y recompilada (verificado con `apkanalyzer`).
-2. No se podía asignar chofer a un dispositivo → el seed asignaba dispositivo (falso) a los 4
-   chóferes. Ahora solo a 2; Carlos Díaz y Nadia El Amrani quedan libres.
-3. `/tracker-test` "se quedaba cargando" → el stack de Docker estaba caído tras reiniciar el PC.
-
-**Pendiente:** el usuario reinstala el APK nuevo y reprueba el flujo completo (permisos, enrolamiento,
-asignación de chofer, recepción de posiciones). Ver si el wizard de permisos pide bien los 4.
-
-**Siguiente:** desbloquear la prueba de campo de la APK. Pendiente transversal: paginación Livewire en
-inglés (ver Bloque 6). Todo commiteado en `develop` (sin push).
+**Pendiente transversal** (sin relación): paginación Livewire sale en inglés (ver Bloque 6).
 
 ---
 
