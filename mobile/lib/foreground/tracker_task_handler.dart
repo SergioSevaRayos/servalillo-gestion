@@ -1,3 +1,6 @@
+import 'dart:ui' show DartPluginRegistrant;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:http/http.dart' as http;
 
@@ -27,27 +30,48 @@ class TrackerTaskHandler extends TaskHandler {
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    // Sin esto, geolocator / battery_plus / secure_storage lanzan MissingPluginException.
-    FlutterForegroundTask.initCommunicationPort();
+    try {
+      // Este isolate NO hereda los plugins registrados en el isolate principal:
+      // sin esto, sqflite / geolocator / secure_storage lanzan MissingPluginException.
+      DartPluginRegistrant.ensureInitialized();
+      FlutterForegroundTask.initCommunicationPort();
 
-    final db = await openAppDatabase();
-    final queue = PositionQueue(db, cap: AppConfig.queueCap);
-    final store = SecureStore(SecureKeyValueStore());
-    _client = http.Client();
-    final api = TrackerApi(_client!, AppConfig.serverUrl);
+      // Latido: confirma a la pantalla que el isolate del servicio arrancó.
+      FlutterForegroundTask.sendDataToMain(<String, dynamic>{
+        'action': 'tracking',
+        'message': 'Servicio iniciado, preparando…',
+        'pending': 0,
+      });
 
-    // Por si el servicio arrancó en boot antes de que la UI enrolara.
-    await EnrolmentService(store: store, api: api).ensureEnrolled();
+      final db = await openAppDatabase();
+      final queue = PositionQueue(db, cap: AppConfig.queueCap);
+      final store = SecureStore(SecureKeyValueStore());
+      _client = http.Client();
+      final api = TrackerApi(_client!, AppConfig.serverUrl);
 
-    _controller = TrackerController(
-      queue: queue,
-      store: store,
-      sampler: GeolocatorSampler(),
-      sync: SyncService(queue: queue, store: store, api: api),
-      clock: const SystemClock(),
-    );
+      // Por si el servicio arrancó en boot antes de que la UI enrolara.
+      await EnrolmentService(store: store, api: api).ensureEnrolled();
 
-    await _runTick();
+      _controller = TrackerController(
+        queue: queue,
+        store: store,
+        sampler: GeolocatorSampler(),
+        sync: SyncService(queue: queue, store: store, api: api),
+        clock: const SystemClock(),
+      );
+
+      await _runTick();
+    } catch (e, st) {
+      FlutterForegroundTask.sendDataToMain(<String, dynamic>{
+        'action': 'error',
+        'message': 'Fallo al arrancar el servicio: $e',
+        'pending': 0,
+      });
+      await FlutterForegroundTask.updateService(
+        notificationText: 'Error al arrancar: $e',
+      );
+      debugPrintStack(stackTrace: st, label: 'TrackerTaskHandler.onStart');
+    }
   }
 
   @override
@@ -65,20 +89,28 @@ class TrackerTaskHandler extends TaskHandler {
     final controller = _controller;
     if (controller == null) return;
 
-    final TickResult result = await controller.tick();
-    _skip = result.skipTicks;
+    try {
+      final TickResult result = await controller.tick();
+      _skip = result.skipTicks;
 
-    FlutterForegroundTask.sendDataToMain(<String, dynamic>{
-      'action': result.action.name,
-      'message': result.message,
-      'pending': result.pending,
-    });
+      FlutterForegroundTask.sendDataToMain(<String, dynamic>{
+        'action': result.action.name,
+        'message': result.message,
+        'pending': result.pending,
+      });
 
-    await TrackerForegroundService.updateNotification(result.message);
+      await TrackerForegroundService.updateNotification(result.message);
 
-    if (result.action == TickAction.stopRevoked ||
-        result.action == TickAction.stopDeactivated) {
-      await FlutterForegroundTask.stopService();
+      if (result.action == TickAction.stopRevoked ||
+          result.action == TickAction.stopDeactivated) {
+        await FlutterForegroundTask.stopService();
+      }
+    } catch (e) {
+      FlutterForegroundTask.sendDataToMain(<String, dynamic>{
+        'action': 'error',
+        'message': 'Error en el envío: $e',
+        'pending': 0,
+      });
     }
   }
 

@@ -73,6 +73,9 @@ class _StatusScreenState extends State<StatusScreen>
       final String? action = data['action'] as String?;
       if (action == 'stopRevoked') _enrolState = EnrolState.revoked;
       if (action == 'stopDeactivated') _enrolState = EnrolState.deactivated;
+      _serviceError = action == 'error'
+          ? (data['message'] as String?) ?? 'Error del servicio.'
+          : null;
     });
   }
 
