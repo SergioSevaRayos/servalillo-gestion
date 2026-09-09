@@ -499,5 +499,5 @@
     </x-modal>
 
     <x-route-map-modal />
-    <x-route-optimize-modal :stops="$this->optimizingStops" />
+    <x-route-optimize-modal :stops="$this->optimizingStops" :vehicle-age="$this->optimizingVehicleAge" />
 </div>

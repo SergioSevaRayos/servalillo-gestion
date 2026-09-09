@@ -1,9 +1,11 @@
-@props(['stops'])
+@props(['stops', 'vehicleAge' => null])
 
 {{-- "Ruta eficiente": antes de reordenar, se pregunta desde dónde sale el camión.
+     - "Ubicación actual del camión": última posición GPS de la APK tracker (si es reciente).
      - "Desde la base": usa las coordenadas de la base (config servalillo.base).
      - "Desde un cliente": se elige una parada pendiente y se optimiza el resto desde ahí.
-     Los dos botones llaman a runOptimize(...) — el mismo método existe en el tablero y en el chofer. --}}
+     Los botones llaman a runOptimize('vehicle'|'base'|<id>) — el mismo método existe en el
+     tablero y en el chofer. --}}
 <x-modal name="route-optimize" max-width="lg">
     <div class="p-6"
         x-data="{ step: 'origin' }"
@@ -13,6 +15,20 @@
         {{-- Paso 1: elegir el tipo de origen --}}
         <div x-show="step === 'origin'" class="mt-4 space-y-2.5">
             <p class="text-sm text-slate-500 dark:text-slate-400">{{ __('¿Desde dónde sale el camión?') }}</p>
+
+            @if ($vehicleAge)
+                <button type="button" wire:click="runOptimize('vehicle')" wire:target="runOptimize" wire:loading.attr="disabled"
+                    class="flex w-full items-center gap-3 rounded-xl border-2 border-primary-400 bg-primary-50/60 p-4 text-left transition-colors hover:border-primary-500 hover:bg-primary-100/60 disabled:opacity-50 dark:border-primary-500 dark:bg-primary-500/10 dark:hover:bg-primary-500/20">
+                    <svg class="h-6 w-6 shrink-0 text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                    </svg>
+                    <span>
+                        <span class="block text-sm font-medium text-slate-800 dark:text-slate-100">{{ __('Ubicación actual del camión') }}</span>
+                        <span class="block text-xs text-slate-500 dark:text-slate-400">{{ __('Última señal del tracker') }} {{ $vehicleAge }}</span>
+                    </span>
+                </button>
+            @endif
 
             <button type="button" wire:click="runOptimize('base')" wire:target="runOptimize" wire:loading.attr="disabled"
                 class="flex w-full items-center gap-3 rounded-xl border border-slate-200 p-4 text-left transition-colors hover:border-primary-400 hover:bg-primary-50/60 disabled:opacity-50 dark:border-slate-700 dark:hover:border-primary-500 dark:hover:bg-primary-500/10">

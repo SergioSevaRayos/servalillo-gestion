@@ -225,6 +225,22 @@
         @apply grid h-[26px] w-[26px] place-items-center rounded-full border-2 border-white text-xs font-bold text-white;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
     }
+
+    /* Marcador del camión (última posición del tracker) en el mapa de recorrido / dispositivo. */
+    .route-map-vehicle {
+        @apply grid h-[30px] w-[30px] place-items-center rounded-full border-[3px] border-white bg-amber-500 text-base;
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+    }
+    .route-map-vehicle::after {
+        content: '';
+        @apply absolute h-[30px] w-[30px] rounded-full;
+        border: 2px solid theme('colors.amber.500');
+        animation: route-map-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+    @keyframes route-map-ping {
+        0% { transform: scale(1); opacity: 0.6; }
+        80%, 100% { transform: scale(2.4); opacity: 0; }
+    }
 }
 
 /* El preflight de Tailwind (img{max-width:100%}) descoloca los mosaicos de Leaflet. */

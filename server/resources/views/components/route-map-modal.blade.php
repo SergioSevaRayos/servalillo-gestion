@@ -14,7 +14,8 @@
         <div x-ref="map" wire:ignore
             class="h-[65vh] w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700"></div>
 
-        <p class="mt-2 text-xs text-slate-400" x-text="skippedNote" x-show="skippedNote"></p>
+        <p class="mt-2 text-sm font-medium text-amber-600 dark:text-amber-400" x-text="approachNote" x-show="approachNote"></p>
+        <p class="mt-1 text-xs text-slate-400" x-text="skippedNote" x-show="skippedNote"></p>
 
         <div class="mt-4 flex justify-end">
             <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cerrar') }}</x-ui.button>

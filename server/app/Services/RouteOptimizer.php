@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Enums\RouteStopStatus;
+use App\Models\GpsPosition;
 use App\Models\Route;
 use App\Models\RouteStop;
 use App\Support\Haversine;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -42,6 +44,46 @@ class RouteOptimizer
             (float) config('servalillo.base.latitude'),
             (float) config('servalillo.base.longitude'),
         ];
+    }
+
+    /**
+     * Última posición GPS conocida del camión de esta ruta (la manda la APK tracker del
+     * chofer), si es lo bastante reciente para usarla como punto de salida.
+     *
+     * @return array{0: float, 1: float}|null
+     */
+    public function latestVehiclePosition(Route $route, int $maxAgeMinutes = 60): ?array
+    {
+        $position = $this->latestVehicleGpsPosition($route, $maxAgeMinutes);
+
+        return $position
+            ? [(float) $position->latitude, (float) $position->longitude]
+            : null;
+    }
+
+    /** Antigüedad legible ("hace 3 min") de la última posición del camión, o null si no sirve. */
+    public function vehiclePositionAge(Route $route, int $maxAgeMinutes = 60): ?string
+    {
+        return $this->latestVehicleGpsPosition($route, $maxAgeMinutes)?->recorded_at?->diffForHumans();
+    }
+
+    private function latestVehicleGpsPosition(Route $route, int $maxAgeMinutes): ?GpsPosition
+    {
+        if ($route->driver_id === null) {
+            return null;
+        }
+
+        $cutoff = Carbon::now()->subMinutes($maxAgeMinutes);
+
+        return GpsPosition::query()
+            ->where('recorded_at', '>=', $cutoff)
+            ->where(function ($query) use ($route): void {
+                $query->where('route_id', $route->id)
+                    ->orWhere(fn ($q) => $q->where('driver_id', $route->driver_id)
+                        ->whereDate('recorded_at', $route->route_date));
+            })
+            ->orderByDesc('recorded_at')
+            ->first();
     }
 
     /**

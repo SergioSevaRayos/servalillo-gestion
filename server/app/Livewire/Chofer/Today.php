@@ -323,6 +323,10 @@ class Today extends Component
 
         if ($from === 'base') {
             $origin = $optimizer->baseOrigin();
+        } elseif ($from === 'vehicle') {
+            $origin = $optimizer->latestVehiclePosition($this->route);
+
+            abort_if($origin === null, 422, 'No hay una posición reciente del camión.');
         } else {
             $stop = $this->route->stops->firstWhere('id', (int) $from);
 
@@ -407,6 +411,15 @@ class Today extends Component
                 ->filter(fn (RouteStop $s) => $s->latitude !== null && $s->longitude !== null)
                 ->values()
             : collect();
+    }
+
+    /** Antigüedad de la última posición GPS del camión (la manda la APK del propio chofer), o null. */
+    #[Computed]
+    public function optimizingVehicleAge(): ?string
+    {
+        return $this->route
+            ? app(RouteOptimizer::class)->vehiclePositionAge($this->route)
+            : null;
     }
 
     public function openStartDay(): void

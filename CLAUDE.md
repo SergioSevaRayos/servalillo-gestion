@@ -686,10 +686,15 @@ Backed enums con `->label()` en español; casteados en los modelos.
     (`OSRM_URL` autoalojable, demo público sin API key; `timeout`/`connect_timeout`). OSRM quiere
     **`lon,lat`**. **OJO**: NO usar `/trip` con `roundtrip=true` — optimiza un circuito cerrado y con
     la pierna de vuelta descartada puede dejar el camino abierto *peor*.
-  - **Punto de partida (`$origin`)**: lo elige quien llama (base o parada del modal) → se antepone
-    como índice 0 fijo y la primera pendiente pasa a ser la más cercana. Si **no se pasa `$origin`**
-    (llamada directa / tests), se toma la **última parada cerrada** con coordenadas; si tampoco hay,
-    la optimización es **libre** (se prueba NN desde cada inicio y se elige el camino más corto).
+  - **Punto de partida (`$origin`)**: lo elige quien llama (base / parada del modal / **posición real
+    del camión**) → se antepone como índice 0 fijo y la primera pendiente pasa a ser la más cercana.
+    Si **no se pasa `$origin`** (llamada directa / tests), se toma la **última parada cerrada** con
+    coordenadas; si tampoco hay, la optimización es **libre** (NN desde cada inicio, el camino más corto).
+  - **"Ubicación actual del camión"** (Bloque 11): `RouteOptimizer::latestVehiclePosition(Route, $maxAgeMin=60)`
+    devuelve `[lat,lon]` de la última `GpsPosition` de la ruta (match por `route_id`, o `driver_id` +
+    `route_date`) si es reciente; `vehiclePositionAge()` da el "hace X min". El modal
+    `<x-route-optimize-modal :vehicle-age>` muestra esa opción **destacada** cuando hay señal reciente
+    (`Board::optimizingVehicleAge` / `Today::optimizingVehicleAge` computed); `runOptimize('vehicle')`.
   - **Fallback obligatorio** (`App\Support\Haversine`, mismo algoritmo con distancia en línea recta):
     cualquier fallo de OSRM (red, timeout, `code != Ok`, par no ruteable, `enabled=false`) → local.
     El botón **siempre** da resultado (`method` = `osrm` | `local` | `none`).
@@ -714,8 +719,13 @@ Backed enums con `->label()` en español; casteados en los modelos.
   - `App\Services\RouteGeometry`: `for(array $points): ?array` pide a OSRM `/route/v1/driving/{lon,lat…}
     ?overview=full&geometries=geojson` y devuelve `{ line: [[lat,lon]…], distance_m, duration_s }` o
     null (el mapa cae a línea recta entre paradas). `payloadFor(Route): array` arma
-    `{ stops:[{n,name,lat,lng,status}], meta, skipped }` (numeración por posición real, aparta las
-    paradas sin coordenadas).
+    `{ stops:[{n,name,lat,lng,status}], meta, skipped, vehicle }` (numeración por posición real,
+    aparta las paradas sin coordenadas).
+  - **`vehicle`** (Bloque 11): última `GpsPosition` de la ruta (sin límite de antigüedad, se muestra
+    "hace X") + `approach` = trazado por carretera desde el camión hasta la **primera parada
+    pendiente** (`next_stop`). `routeMap` lo pinta como marcador 🚚 ámbar con "ping" + línea ámbar
+    discontinua ("cómo llegar a la 1ª parada", con km/min en `approachNote`). `.route-map-vehicle`
+    en `app.css`.
   - `Board::showRouteMap(int $routeId)` (`authorize('view')`) y `Today::showRouteMap()`
     (`authorize('operate')` — la ruta propia, cualquier día) emiten el evento **`open-route-map`**
     con ese payload.

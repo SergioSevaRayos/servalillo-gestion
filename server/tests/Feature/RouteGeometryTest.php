@@ -1,5 +1,8 @@
 <?php
 
+use App\Enums\RouteStopStatus;
+use App\Models\Device;
+use App\Models\GpsPosition;
 use App\Models\RouteStop;
 use App\Services\RouteGeometry;
 use Illuminate\Support\Facades\Http;
@@ -61,5 +64,46 @@ it('payloadFor numera las paradas por su posición y aparta las que no tienen co
         ->and($payload['stops'])->toHaveCount(2)
         ->and($payload['stops'][0])->toMatchArray(['n' => 1, 'name' => 'Uno', 'status' => 'pending'])
         ->and($payload['stops'][1]['n'])->toBe(3) // "Tres" mantiene su número real
-        ->and($payload['meta']['distance_m'])->toBe(12500.0);
+        ->and($payload['meta']['distance_m'])->toBe(12500.0)
+        ->and($payload['vehicle'])->toBeNull(); // sin posiciones GPS
+});
+
+it('payloadFor añade el camión y el trazado hasta la primera parada si hay posición GPS', function () {
+    config()->set('servalillo.routing.enabled', true);
+    Http::fake(['*/route/*' => Http::response(osrmRouteOk())]);
+
+    $route = makeRoute('2026-09-10');
+    RouteStop::factory()->for($route)->create(['position' => 1, 'customer_name' => 'Primera', 'latitude' => 28.40, 'longitude' => -16.40]);
+    RouteStop::factory()->for($route)->create(['position' => 2, 'customer_name' => 'Segunda', 'latitude' => 28.42, 'longitude' => -16.42]);
+
+    $device = Device::factory()->create();
+    GpsPosition::insert([
+        ['device_id' => $device->id, 'route_id' => $route->id, 'driver_id' => $route->driver_id, 'latitude' => 28.35, 'longitude' => -16.35, 'accuracy_m' => 12.0, 'recorded_at' => now()->subMinutes(2), 'created_at' => now()],
+    ]);
+
+    $payload = app(RouteGeometry::class)->payloadFor($route);
+
+    expect($payload['vehicle'])->not->toBeNull()
+        ->and($payload['vehicle']['lat'])->toBe(28.35)
+        ->and($payload['vehicle']['next_stop'])->toMatchArray(['n' => 1, 'name' => 'Primera'])
+        ->and($payload['vehicle']['approach']['distance_m'])->toBe(12500.0)
+        ->and($payload['vehicle']['approach']['line'][0])->toBe([28.40, -16.40]);
+});
+
+it('el trazado del camión apunta a la primera parada PENDIENTE, no a una ya cerrada', function () {
+    config()->set('servalillo.routing.enabled', true);
+    Http::fake(['*/route/*' => Http::response(osrmRouteOk())]);
+
+    $route = makeRoute('2026-09-10');
+    RouteStop::factory()->for($route)->create(['position' => 1, 'customer_name' => 'Ya hecha', 'latitude' => 28.40, 'longitude' => -16.40, 'status' => RouteStopStatus::Completed]);
+    RouteStop::factory()->for($route)->create(['position' => 2, 'customer_name' => 'Siguiente', 'latitude' => 28.42, 'longitude' => -16.42]);
+
+    $device = Device::factory()->create();
+    GpsPosition::insert([
+        ['device_id' => $device->id, 'route_id' => $route->id, 'driver_id' => $route->driver_id, 'latitude' => 28.41, 'longitude' => -16.41, 'accuracy_m' => null, 'recorded_at' => now(), 'created_at' => now()],
+    ]);
+
+    $payload = app(RouteGeometry::class)->payloadFor($route);
+
+    expect($payload['vehicle']['next_stop'])->toMatchArray(['n' => 2, 'name' => 'Siguiente']);
 });

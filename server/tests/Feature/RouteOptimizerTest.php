@@ -1,6 +1,8 @@
 <?php
 
 use App\Enums\RouteStopStatus;
+use App\Models\Device;
+use App\Models\GpsPosition;
 use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\RouteOptimizer;
@@ -265,4 +267,48 @@ it('no revienta con lat/lon como string (cast decimal:7) y devuelve distancias f
 
     expect($result['distance_before_m'])->toBeFloat()
         ->and($result['distance_after_m'])->toBeFloat();
+});
+
+it('latestVehiclePosition devuelve la última posición GPS reciente de la ruta', function () {
+    $route = makeRoute('2026-09-10');
+
+    $device = Device::factory()->create();
+    GpsPosition::insert([
+        ['device_id' => $device->id, 'route_id' => $route->id, 'driver_id' => $route->driver_id, 'latitude' => 38.10, 'longitude' => -0.80, 'recorded_at' => now()->subMinutes(20), 'created_at' => now()],
+        ['device_id' => $device->id, 'route_id' => $route->id, 'driver_id' => $route->driver_id, 'latitude' => 38.17, 'longitude' => -0.84, 'recorded_at' => now()->subMinutes(2), 'created_at' => now()],
+    ]);
+
+    expect(app(RouteOptimizer::class)->latestVehiclePosition($route))->toBe([38.17, -0.84]);
+});
+
+it('latestVehiclePosition ignora posiciones antiguas', function () {
+    $route = makeRoute('2026-09-10');
+
+    $device = Device::factory()->create();
+    GpsPosition::insert([
+        ['device_id' => $device->id, 'route_id' => $route->id, 'driver_id' => $route->driver_id, 'latitude' => 38.10, 'longitude' => -0.80, 'recorded_at' => now()->subHours(3), 'created_at' => now()],
+    ]);
+
+    expect(app(RouteOptimizer::class)->latestVehiclePosition($route))->toBeNull();
+});
+
+it('optimiza las pendientes desde la posición real del camión', function () {
+    config()->set('servalillo.routing.enabled', false); // heurística local determinista
+
+    $route = makeRoute('2026-09-10');
+    // Paradas: oeste, este; en ese orden de position.
+    $west = RouteStop::factory()->for($route)->create(['latitude' => 38.17, 'longitude' => -0.90, 'position' => 1]);
+    $east = RouteStop::factory()->for($route)->create(['latitude' => 38.16, 'longitude' => -0.78, 'position' => 2]);
+
+    // El camión está pegado al este.
+    $device = Device::factory()->create();
+    GpsPosition::insert([
+        ['device_id' => $device->id, 'route_id' => $route->id, 'driver_id' => $route->driver_id, 'latitude' => 38.16, 'longitude' => -0.77, 'recorded_at' => now()->subMinute(), 'created_at' => now()],
+    ]);
+
+    $origin = app(RouteOptimizer::class)->latestVehiclePosition($route);
+    app(RouteOptimizer::class)->optimize($route, $origin);
+
+    // La primera parada pasa a ser la del este (la más cercana al camión).
+    expect(positionsOf($route))->toBe([$east->id, $west->id]);
 });

@@ -244,13 +244,21 @@ class Board extends Component
     }
 
     /**
-     * @param  'base'|string  $from
+     * @param  'base'|'vehicle'|string  $from
      * @return array{0: float, 1: float}
      */
     private function resolveOptimizeOrigin(Route $route, string $from, RouteOptimizer $optimizer): array
     {
         if ($from === 'base') {
             return $optimizer->baseOrigin();
+        }
+
+        if ($from === 'vehicle') {
+            $position = $optimizer->latestVehiclePosition($route);
+
+            abort_if($position === null, 422, 'No hay una posición reciente del camión.');
+
+            return $position;
         }
 
         $stop = $route->stops->firstWhere('id', (int) $from);
@@ -282,6 +290,19 @@ class Board extends Component
             ->whereNotNull('longitude')
             ->orderBy('position')
             ->get();
+    }
+
+    /** Antigüedad de la última posición GPS del camión de la ruta que se reordena (o null). */
+    #[Computed]
+    public function optimizingVehicleAge(): ?string
+    {
+        if ($this->optimizingRouteId === null) {
+            return null;
+        }
+
+        $route = Route::find($this->optimizingRouteId);
+
+        return $route ? app(RouteOptimizer::class)->vehiclePositionAge($route) : null;
     }
 
     /** "Ver recorrido": abre el mapa con las paradas de la ruta y su trazado. */

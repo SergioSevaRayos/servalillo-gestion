@@ -435,6 +435,7 @@ document.addEventListener('alpine:init', () => {
         layer: null,
         summary: '',
         skippedNote: '',
+        approachNote: '',
 
         open(detail) {
             this.$dispatch('open-modal', 'route-map');
@@ -480,10 +481,54 @@ document.addEventListener('alpine:init', () => {
                     });
             });
 
-            if (points.length === 1) {
-                this.map.setView(points[0], 15);
-            } else if (points.length > 1) {
-                this.map.fitBounds(L.latLngBounds(points).pad(0.15));
+            const bounds = points.slice();
+
+            const v = detail.vehicle || null;
+            this.approachNote = '';
+            if (v && typeof v.lat === 'number' && typeof v.lng === 'number') {
+                const vpos = [v.lat, v.lng];
+
+                // Trazado "cómo llegar" del camión a la primera parada (línea ámbar discontinua).
+                const approach = v.approach || null;
+                const approachLine = approach && Array.isArray(approach.line) && approach.line.length > 1
+                    ? approach.line
+                    : (v.next_stop ? [vpos, [stops.find((s) => s.n === v.next_stop.n)?.lat, stops.find((s) => s.n === v.next_stop.n)?.lng]] : null);
+
+                if (approachLine && approachLine.every((p) => Array.isArray(p) && typeof p[0] === 'number')) {
+                    L.polyline(approachLine, { color: '#f59e0b', weight: 4, opacity: 0.9, dashArray: '2 8', lineCap: 'round' }).addTo(this.layer);
+                    approachLine.forEach((p) => bounds.push(p));
+                }
+
+                if (approach && approach.distance_m) {
+                    this.approachNote = `Del camión a la parada ${v.next_stop ? v.next_stop.n : 1}: ~${(approach.distance_m / 1000).toFixed(1)} km · ~${Math.round((approach.duration_s || 0) / 60)} min`;
+                } else if (v.next_stop) {
+                    this.approachNote = `El camión va hacia la parada ${v.next_stop.n} (${v.next_stop.name}).`;
+                }
+
+                if (typeof v.accuracy_m === 'number' && v.accuracy_m > 0) {
+                    L.circle(vpos, { radius: v.accuracy_m, color: '#f59e0b', weight: 1, fillColor: '#f59e0b', fillOpacity: 0.12 }).addTo(this.layer);
+                }
+                L.marker(vpos, {
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<span class="route-map-vehicle">🚚</span>',
+                        iconSize: [30, 30],
+                        iconAnchor: [15, 15],
+                        popupAnchor: [0, -15],
+                    }),
+                    zIndexOffset: 1000,
+                }).addTo(this.layer).bindPopup(() => {
+                    const el = document.createElement('div');
+                    el.textContent = `Camión · ${v.age || 'última señal'}`;
+                    return el;
+                });
+                bounds.push(vpos);
+            }
+
+            if (bounds.length === 1) {
+                this.map.setView(bounds[0], 15);
+            } else if (bounds.length > 1) {
+                this.map.fitBounds(L.latLngBounds(bounds).pad(0.15));
             } else {
                 this.map.setView([28.46, -16.25], 10); // Tenerife, sin paradas ubicadas
             }
