@@ -23,6 +23,7 @@
                 <tr wire:key="device-{{ $device->id }}">
                     <td data-label="{{ __('Chofer') }}">
                         <select
+                            wire:key="device-driver-{{ $device->id }}-{{ $device->driver_id ?? 'none' }}"
                             wire:change="assign({{ $device->id }}, $event.target.value)"
                             class="rounded-lg border-slate-300 text-sm shadow-soft-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                         >

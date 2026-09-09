@@ -50,8 +50,16 @@ class Devices extends Component
 
         $driverId = $driverId ? (int) $driverId : null;
 
-        if ($driverId && Device::where('driver_id', $driverId)->where('id', '!=', $device->id)->exists()) {
-            $this->dispatch('toast', message: 'Ese chofer ya tiene un dispositivo asignado.', variant: 'warning');
+        $holder = $driverId
+            ? Device::where('driver_id', $driverId)->where('id', '!=', $device->id)->first()
+            : null;
+
+        if ($holder) {
+            unset($this->devices);
+            $this->dispatch('toast',
+                message: "Ese chofer ya tiene un dispositivo asignado ({$holder->label}). Quítaselo primero.",
+                variant: 'warning',
+            );
 
             return;
         }

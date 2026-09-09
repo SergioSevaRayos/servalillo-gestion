@@ -128,10 +128,12 @@ class DatabaseSeeder extends Seeder
                 ['driver_id' => $driver->id, 'valid_from' => $today->copy()->subMonths(6)]
             );
 
-            // La APK tracker se enrola sola; el seed la deja ya asignada a su chofer
-            // (los dos primeros con señal reciente, los otros dos "sin señal" para el panel).
+            // La APK tracker se enrola sola. El seed deja los dos primeros dispositivos ya
+            // asignados y con señal reciente; los otros dos SIN chofer y sin señal, para que
+            // el panel muestre el caso "pendiente de asignar" y queden chofers libres para
+            // enrolar un móvil real en pruebas.
             Device::updateOrCreate(['install_identifier' => 'seed-device-'.$row['code']], [
-                'driver_id' => $driver->id,
+                'driver_id' => $i < 2 ? $driver->id : null,
                 'label' => 'Móvil '.$row['code'],
                 'platform' => 'android',
                 'app_version' => '1.4.2',
