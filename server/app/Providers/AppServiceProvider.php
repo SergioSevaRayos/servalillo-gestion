@@ -36,7 +36,8 @@ class AppServiceProvider extends ServiceProvider
             return $this->app->isProduction() ? $rule->uncompromised() : $rule;
         });
 
-        // Enrolamiento de la APK tracker (Bloque 10): limitado por IP.
-        RateLimiter::for('device-register', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
+        // Enrolamiento de la APK tracker (Bloque 10): limitado por IP. Margen holgado porque
+        // durante el alta un mismo técnico puede re-enrolar varias veces seguidas.
+        RateLimiter::for('device-register', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
     }
 }

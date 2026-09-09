@@ -60,10 +60,10 @@ it('re-enrolar el mismo identificador revoca el token anterior', function () {
 });
 
 it('limita el enrolamiento por IP', function () {
-    foreach (range(1, 10) as $i) {
+    foreach (range(1, 30) as $i) {
         $this->postJson('/api/device/register', registerPayload(['install_identifier' => "phone-$i"]));
     }
 
-    $this->postJson('/api/device/register', registerPayload(['install_identifier' => 'phone-11']))
+    $this->postJson('/api/device/register', registerPayload(['install_identifier' => 'phone-31']))
         ->assertStatus(429);
 });

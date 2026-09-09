@@ -74,9 +74,11 @@ class _StatusScreenState extends State<StatusScreen>
   }
 
   Future<void> _bootstrap() async {
-    final EnrolmentOutcome outcome = await _enrolment.ensureEnrolled();
-    if (!outcome.enrolled && outcome.error != null) {
-      _enrolError = outcome.error;
+    try {
+      final EnrolmentOutcome outcome = await _enrolment.ensureEnrolled();
+      _enrolError = outcome.enrolled ? null : outcome.error;
+    } catch (e) {
+      _enrolError = 'Error al enrolar: $e';
     }
     await _refresh();
     await _maybeStartService();
@@ -187,20 +189,13 @@ class _StatusScreenState extends State<StatusScreen>
               ),
             ],
 
-            if (_enrolState == EnrolState.revoked) ...<Widget>[
-              const SizedBox(height: 12),
+            if (_enrolState == EnrolState.revoked)
               _card(
                 color: Colors.amber.shade50,
                 child: const Text(
                   'El acceso de este dispositivo fue revocado.',
                 ),
               ),
-              const SizedBox(height: 8),
-              FilledButton.tonal(
-                onPressed: _working ? null : _reEnrol,
-                child: const Text('Re-enrolar'),
-              ),
-            ],
 
             if (_enrolState == EnrolState.deactivated)
               _card(
@@ -210,7 +205,8 @@ class _StatusScreenState extends State<StatusScreen>
                 ),
               ),
 
-            if (_enrolError != null)
+            if (_enrolError != null) ...<Widget>[
+              const SizedBox(height: 12),
               _card(
                 color: Colors.red.shade50,
                 child: Text(
@@ -218,6 +214,18 @@ class _StatusScreenState extends State<StatusScreen>
                   style: const TextStyle(color: Colors.red),
                 ),
               ),
+            ],
+
+            if (AppConfig.isConfigured &&
+                _enrolState != EnrolState.enrolled) ...<Widget>[
+              const SizedBox(height: 12),
+              FilledButton.tonal(
+                onPressed: _working ? null : _reEnrol,
+                child: Text(
+                  _working ? 'Enrolando…' : 'Reintentar enrolamiento',
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -239,6 +247,10 @@ class _StatusScreenState extends State<StatusScreen>
             'Enrolado',
             _deviceId != null ? '#$_deviceId' : 'no',
             ok: _deviceId != null,
+          ),
+          _row(
+            'Servidor',
+            AppConfig.serverUrl.replaceFirst(RegExp(r'^https?://'), ''),
           ),
           _row(
             'Chofer',

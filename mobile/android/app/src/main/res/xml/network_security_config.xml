@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+      El servidor de desarrollo (Laravel en la LAN) se sirve por HTTP sin cifrar.
+      Android bloquea el tráfico en claro por defecto desde API 28; esto lo permite.
+      En producción el servidor va por HTTPS y esto es irrelevante.
+    -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
