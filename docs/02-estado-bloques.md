@@ -691,6 +691,20 @@ ubicación en segundo plano para siempre. **Sin login, sin interacción del chof
    volver; revocar el token en el panel → la APK muestra "re-enrolar"; desactivar el dispositivo →
    para y muestra "desactivado"; dentro de 22:00–05:00 → deja de muestrear.
 
+### Sobre el tracker (encima del Bloque 11)
+- **"Localizar" en el panel de Dispositivos**: mapa Leaflet con la última posición + rastro de las
+  ≤60 recientes.
+- **"Ruta eficiente" desde la posición real del camión**: el modal ofrece "Ubicación actual del
+  camión" como punto de salida cuando el tracker tiene señal reciente
+  (`RouteOptimizer::latestVehiclePosition`).
+- **"Ver recorrido"** dibuja el camión (🚚) y el trazado por carretera hasta la primera parada
+  pendiente (`RouteGeometry` payload `vehicle.approach`).
+- **Navegar con Google Maps** (`App\Support\GoogleMaps`): en `/chofer/ruta`, botón "Seguir ruta en
+  Google Maps" (paradas pendientes como waypoints, sin origin → GPS del móvil), icono de navegación
+  por parada, "Cómo llegar" en el modal de parada, y "Abrir en Google Maps" en el modal "Ver
+  recorrido" (chofer + oficina). Sin API key. Probar como `pedro@servalillo.test` en el móvil: el
+  enlace abre la app de Google Maps.
+
 ---
 
 ## Bloque 12 — lo que se ha construido

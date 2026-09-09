@@ -12,6 +12,27 @@ function applyThemeClass(value) {
     document.documentElement.dataset.theme = value;
 }
 
+/*
+| Enlace a Google Maps para navegar unas paradas (equivalente JS de App\Support\GoogleMaps).
+| Prioriza las pendientes; sin `origin` → Google usa el GPS del móvil. Máx. 9 waypoints.
+*/
+function googleMapsDirectionsUrl(stops) {
+    const list = Array.isArray(stops) ? stops : [];
+    const pending = list.filter((s) => s && s.status === 'pending');
+    const use = (pending.length ? pending : list)
+        .filter((s) => s && typeof s.lat === 'number' && typeof s.lng === 'number');
+
+    if (! use.length) return '';
+
+    const fmt = (s) => `${(+s.lat).toFixed(6)},${(+s.lng).toFixed(6)}`;
+    const base = 'https://www.google.com/maps/dir/?api=1&travelmode=driving';
+    const destination = fmt(use[use.length - 1]);
+    const waypoints = use.slice(0, -1).slice(0, 9).map(fmt);
+
+    return `${base}&destination=${destination}`
+        + (waypoints.length ? `&waypoints=${waypoints.join('%7C')}` : '');
+}
+
 document.addEventListener('alpine:init', () => {
     Alpine.store('theme', {
         current: document.documentElement.dataset.theme || 'system',
@@ -436,9 +457,11 @@ document.addEventListener('alpine:init', () => {
         summary: '',
         skippedNote: '',
         approachNote: '',
+        mapsUrl: '',
 
         open(detail) {
             this.$dispatch('open-modal', 'route-map');
+            this.mapsUrl = googleMapsDirectionsUrl(detail && detail.stops);
             this._whenVisible(() => this.render(detail || {}));
         },
 

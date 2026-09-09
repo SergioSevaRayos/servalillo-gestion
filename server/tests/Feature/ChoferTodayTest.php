@@ -10,6 +10,7 @@ use App\Models\Driver;
 use App\Models\Route;
 use App\Models\RouteStop;
 use App\Models\Truck;
+use App\Support\GoogleMaps;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -625,4 +626,39 @@ it('un chofer sin ruta hoy no puede organizar nada (404)', function () {
     Livewire::actingAs($user)->test(Today::class)
         ->call('startOptimize')
         ->assertStatus(404);
+});
+
+it('ofrece un enlace "Seguir ruta" a Google Maps con las paradas pendientes', function () {
+    [$user, $driver, $route] = chofer(stops: 3);
+
+    $stops = $route->stops()->orderBy('position')->get();
+    $expected = GoogleMaps::directionsUrl(
+        $stops->map(fn ($s) => [(float) $s->latitude, (float) $s->longitude])->all()
+    );
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->assertSee('Seguir ruta en Google Maps')
+        ->assertSee($expected);
+
+    expect($expected)
+        ->toContain('https://www.google.com/maps/dir/?api=1')
+        ->toContain('&destination=')
+        ->toContain('&waypoints=');
+});
+
+it('no muestra "Seguir ruta" si ninguna parada tiene coordenadas', function () {
+    [$user, $driver, $route] = chofer(stops: 2);
+    $route->stops()->update(['latitude' => null, 'longitude' => null]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->assertDontSee('Seguir ruta en Google Maps')
+        ->assertDontSee('maps/dir/?api=1');
+});
+
+it('cada parada pendiente con coordenadas tiene un enlace de navegación a Google Maps', function () {
+    [$user, $driver, $route] = chofer(stops: 2);
+    $stop = $route->stops()->orderBy('position')->first();
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->assertSee(GoogleMaps::pointUrl((float) $stop->latitude, (float) $stop->longitude));
 });

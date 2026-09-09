@@ -13,6 +13,7 @@ use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
 use App\Services\RouteGeometry;
 use App\Services\RouteOptimizer;
+use App\Support\GoogleMaps;
 use App\Support\Notifications\RouteChangeNotifier;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -420,6 +421,20 @@ class Today extends Component
         return $this->route
             ? app(RouteOptimizer::class)->vehiclePositionAge($this->route)
             : null;
+    }
+
+    /**
+     * Enlace a Google Maps para navegar las paradas pendientes de la ruta (en el orden actual).
+     * null si no hay ninguna pendiente con coordenadas.
+     */
+    #[Computed]
+    public function navRouteUrl(): ?string
+    {
+        $points = $this->optimizingStops
+            ->map(fn (RouteStop $s) => [(float) $s->latitude, (float) $s->longitude])
+            ->all();
+
+        return $points === [] ? null : GoogleMaps::directionsUrl($points);
     }
 
     public function openStartDay(): void

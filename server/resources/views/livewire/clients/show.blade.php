@@ -80,7 +80,7 @@
                             <dt class="text-xs text-slate-400">{{ __('Coordenadas') }}</dt>
                             <dd class="text-slate-700 dark:text-slate-200">
                                 {{ $client->latitude }}, {{ $client->longitude }}
-                                <a href="https://www.google.com/maps?q={{ $client->latitude }},{{ $client->longitude }}" target="_blank" rel="noopener"
+                                <a href="{{ \App\Support\GoogleMaps::pointUrl((float) $client->latitude, (float) $client->longitude) }}" target="_blank" rel="noopener"
                                     class="ml-2 text-primary-600 hover:underline dark:text-primary-400">{{ __('abrir en mapa ↗') }}</a>
                             </dd>
                         </div>

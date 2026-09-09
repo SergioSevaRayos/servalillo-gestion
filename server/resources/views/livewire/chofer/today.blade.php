@@ -143,8 +143,19 @@
             </div>
         </x-ui.card>
 
+        {{-- Navegar la ruta en Google Maps (paradas pendientes, orden actual; sin origin → GPS del móvil) --}}
+        @if ($this->operable() && $this->navRouteUrl)
+            <a href="{{ $this->navRouteUrl }}" target="_blank" rel="noopener"
+                class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-primary-700 active:bg-primary-800">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+                {{ __('Seguir ruta en Google Maps') }}
+            </a>
+        @endif
+
         {{-- Acciones de la ruta --}}
-        <div class="mt-4 flex flex-wrap gap-2">
+        <div class="{{ $this->operable() && $this->navRouteUrl ? 'mt-2' : 'mt-4' }} flex flex-wrap gap-2">
             <button type="button" wire:click="showRouteMap" wire:target="showRouteMap"
                 wire:loading.attr="disabled"
                 class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500">
@@ -198,6 +209,8 @@
                 @php
                     $rank = $pendingIds->search($stop->id);
                     $canReorder = $rank !== false && $this->operable() && ! $this->finished && $pendingIds->count() > 1;
+                    $hasNav = $stop->status === \App\Enums\RouteStopStatus::Pending
+                        && $stop->latitude !== null && $stop->longitude !== null;
                 @endphp
                 <div class="flex items-stretch gap-2" wire:key="stop-row-{{ $stop->id }}" data-stop-row>
                     <div class="min-w-0 flex-1">
@@ -208,9 +221,18 @@
                         />
                     </div>
 
-                    @if ($canReorder)
-                        {{-- El chofer sube/baja una parada pendiente a mano si le cambian el orden --}}
-                        <div class="flex shrink-0 flex-col justify-center gap-1" wire:key="move-{{ $stop->id }}">
+                    @if ($canReorder || $hasNav)
+                        <div class="flex shrink-0 flex-col justify-center gap-1" wire:key="row-actions-{{ $stop->id }}">
+                            @if ($hasNav)
+                                {{-- Navegar a esta parada con Google Maps --}}
+                                <a href="{{ \App\Support\GoogleMaps::pointUrl((float) $stop->latitude, (float) $stop->longitude) }}"
+                                    target="_blank" rel="noopener" aria-label="{{ __('Navegar a esta parada') }}"
+                                    class="grid h-9 w-9 place-items-center rounded-lg border border-primary-200 bg-primary-50 text-primary-600 transition-colors hover:bg-primary-100 dark:border-primary-500/40 dark:bg-primary-500/10 dark:text-primary-300 dark:hover:bg-primary-500/20">
+                                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.71 11.29 12.71 2.29a1 1 0 0 0-1.42 0l-9 9a1 1 0 0 0 .33 1.64l4.38 1.75 1.75 4.38a1 1 0 0 0 .82.62h.11a1 1 0 0 0 .83-.45l9-13.5a1 1 0 0 0-.13-1.46Z" /></svg>
+                                </a>
+                            @endif
+                            @if ($canReorder)
+                            {{-- El chofer sube/baja una parada pendiente a mano si le cambian el orden --}}
                             <button type="button" wire:click="moveStop({{ $stop->id }}, 'up')"
                                 wire:target="moveStop" wire:loading.attr="disabled" @disabled($rank === 0)
                                 aria-label="{{ __('Subir esta parada') }}"
@@ -223,6 +245,7 @@
                                 class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-primary-500">
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
                             </button>
+                            @endif
                         </div>
                     @endif
                 </div>
@@ -367,11 +390,25 @@
             <div class="p-6">
                 <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ $s->customer_name }}</h3>
                 <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{{ $s->address ?: '—' }}</p>
-                @if ($s->contact_phone)
-                    <a href="tel:{{ $s->contact_phone }}" class="mt-1 inline-flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400">
-                        {{ $s->contact_name ? $s->contact_name.' · ' : '' }}{{ $s->contact_phone }}
-                    </a>
-                @endif
+                <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    @if ($s->contact_phone)
+                        <a href="tel:{{ $s->contact_phone }}" class="inline-flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
+                            {{ $s->contact_name ? $s->contact_name.' · ' : '' }}{{ $s->contact_phone }}
+                        </a>
+                    @endif
+                    @if ($s->latitude && $s->longitude)
+                        <a href="{{ \App\Support\GoogleMaps::pointUrl((float) $s->latitude, (float) $s->longitude) }}"
+                            target="_blank" rel="noopener"
+                            class="inline-flex items-center gap-1 text-sm font-medium text-primary-600 dark:text-primary-400">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                            </svg>
+                            {{ __('Cómo llegar') }}
+                        </a>
+                    @endif
+                </div>
 
                 @if ($s->deliveryType && $s->planned_quantity)
                     <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">

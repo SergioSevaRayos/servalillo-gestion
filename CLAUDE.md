@@ -450,6 +450,14 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - Autorización: `RoutePolicy::operate` y `RouteStopPolicy::complete` (permiso + `owns()`), ya existían.
 - `<x-chofer.stop-card>` es la tarjeta táctil del chofer (grande, sin drag), distinta de
   `<x-routes.stop-card>` (Kanban del admin).
+- **Navegar con Google Maps** (`App\Support\GoogleMaps`, helper estático puro): botón **"Seguir
+  ruta en Google Maps"** (`Today::navRouteUrl` computed → `GoogleMaps::directionsUrl` de las
+  pendientes con coordenadas, orden `position`) + un **icono de navegación por parada** en la fila
+  + enlace **"Cómo llegar"** en el modal de la parada + botón **"Abrir en Google Maps"** en el modal
+  "Ver recorrido" (JS `googleMapsDirectionsUrl` en `app.js`, sirve chofer y tablero). URL:
+  `maps/dir/?api=1&travelmode=driving&destination=…&waypoints=…%7C…` **sin `origin`** (Google usa el
+  GPS del móvil = el camión); destino = última parada, resto = waypoints (máx **9**, se cortan);
+  coords a 6 decimales; sin API key.
 - **Reordenar a mano**: cada parada **pendiente** lleva a su derecha dos botones **▲/▼**
   (`Today::moveStop(RouteStop, 'up'|'down')`) para subirla/bajarla una posición cuando el chofer
   necesita cambiar el orden sobre la marcha. Solo se intercambian dos pendientes contiguas; las

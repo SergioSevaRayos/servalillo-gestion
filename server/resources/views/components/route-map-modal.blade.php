@@ -17,7 +17,14 @@
         <p class="mt-2 text-sm font-medium text-amber-600 dark:text-amber-400" x-text="approachNote" x-show="approachNote"></p>
         <p class="mt-1 text-xs text-slate-400" x-text="skippedNote" x-show="skippedNote"></p>
 
-        <div class="mt-4 flex justify-end">
+        <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
+            <a x-show="mapsUrl" x-bind:href="mapsUrl" target="_blank" rel="noopener"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-soft transition-colors hover:bg-primary-700">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+                {{ __('Abrir en Google Maps') }}
+            </a>
             <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cerrar') }}</x-ui.button>
         </div>
     </div>
