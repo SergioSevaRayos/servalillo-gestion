@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\Device;
 use App\Models\GpsPosition;
-use App\Models\Route;
+use App\Models\RouteDay;
 use Illuminate\Support\Carbon;
 
 /**
@@ -25,7 +25,7 @@ class GpsIngestService
         $now = now();
         $future = $now->copy()->addHour();
 
-        /** @var array<string, Route|null> $routeByDate */
+        /** @var array<string, RouteDay|null> $routeByDate */
         $routeByDate = [];
         $rows = [];
 
@@ -41,7 +41,7 @@ class GpsIngestService
 
             if (! array_key_exists($dateKey, $routeByDate)) {
                 $routeByDate[$dateKey] = $device->driver_id
-                    ? Route::forDate($dateKey)->where('driver_id', $device->driver_id)->first()
+                    ? RouteDay::forDate($dateKey)->where('driver_id', $device->driver_id)->first()
                     : null;
             }
 

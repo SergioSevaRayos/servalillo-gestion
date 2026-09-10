@@ -54,9 +54,9 @@ it('payloadFor numera las paradas por su posición y aparta las que no tienen co
     Http::fake(['*/route/*' => Http::response(osrmRouteOk())]);
 
     $route = makeRoute('2026-09-10');
-    RouteStop::factory()->for($route)->create(['position' => 1, 'customer_name' => 'Uno', 'latitude' => 28.40, 'longitude' => -16.40]);
-    RouteStop::factory()->for($route)->create(['position' => 2, 'customer_name' => 'Dos', 'latitude' => null, 'longitude' => null]);
-    RouteStop::factory()->for($route)->create(['position' => 3, 'customer_name' => 'Tres', 'latitude' => 28.42, 'longitude' => -16.42]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'customer_name' => 'Uno', 'latitude' => 28.40, 'longitude' => -16.40]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'customer_name' => 'Dos', 'latitude' => null, 'longitude' => null]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 3, 'customer_name' => 'Tres', 'latitude' => 28.42, 'longitude' => -16.42]);
 
     $payload = app(RouteGeometry::class)->payloadFor($route);
 
@@ -73,8 +73,8 @@ it('payloadFor añade el camión y el trazado hasta la primera parada si hay pos
     Http::fake(['*/route/*' => Http::response(osrmRouteOk())]);
 
     $route = makeRoute('2026-09-10');
-    RouteStop::factory()->for($route)->create(['position' => 1, 'customer_name' => 'Primera', 'latitude' => 28.40, 'longitude' => -16.40]);
-    RouteStop::factory()->for($route)->create(['position' => 2, 'customer_name' => 'Segunda', 'latitude' => 28.42, 'longitude' => -16.42]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'customer_name' => 'Primera', 'latitude' => 28.40, 'longitude' => -16.40]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'customer_name' => 'Segunda', 'latitude' => 28.42, 'longitude' => -16.42]);
 
     $device = Device::factory()->create();
     GpsPosition::insert([
@@ -95,8 +95,8 @@ it('el trazado del camión apunta a la primera parada PENDIENTE, no a una ya cer
     Http::fake(['*/route/*' => Http::response(osrmRouteOk())]);
 
     $route = makeRoute('2026-09-10');
-    RouteStop::factory()->for($route)->create(['position' => 1, 'customer_name' => 'Ya hecha', 'latitude' => 28.40, 'longitude' => -16.40, 'status' => RouteStopStatus::Completed]);
-    RouteStop::factory()->for($route)->create(['position' => 2, 'customer_name' => 'Siguiente', 'latitude' => 28.42, 'longitude' => -16.42]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'customer_name' => 'Ya hecha', 'latitude' => 28.40, 'longitude' => -16.40, 'status' => RouteStopStatus::Completed]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'customer_name' => 'Siguiente', 'latitude' => 28.42, 'longitude' => -16.42]);
 
     $device = Device::factory()->create();
     GpsPosition::insert([

@@ -2,7 +2,7 @@
 
 namespace App\Support\Notifications;
 
-use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Models\User;
 use App\Notifications\ChoferRouteChanged;
@@ -38,7 +38,7 @@ class RouteChangeNotifier
         $this->sendForStop('client_added', $stop);
     }
 
-    public function meterDiscrepancy(Route $route, float $liters, ?string $note): void
+    public function meterDiscrepancy(RouteDay $route, float $liters, ?string $note): void
     {
         if ($this->guarded()) {
             return;

@@ -31,17 +31,6 @@ class RoutePolicy
         return $user->can('routes.update');
     }
 
-    public function reorderStops(User $user, Route $route): bool
-    {
-        return $user->can('routes.reorder_stops');
-    }
-
-    /** El chofer puede pedir "organizar mi ruta" solo sobre una ruta suya. */
-    public function optimizeOwn(User $user, Route $route): bool
-    {
-        return $user->can('routes.optimize.own') && $this->owns($user, $route);
-    }
-
     public function delete(User $user, Route $route): bool
     {
         return $user->can('routes.delete');
@@ -50,12 +39,6 @@ class RoutePolicy
     public function restore(User $user, Route $route): bool
     {
         return $user->can('routes.delete');
-    }
-
-    /** El chofer solo puede operar su propia ruta. */
-    public function operate(User $user, Route $route): bool
-    {
-        return $user->can('routes.view.own') && $this->owns($user, $route);
     }
 
     protected function owns(User $user, Route $route): bool

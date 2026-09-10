@@ -3,7 +3,7 @@
 use App\Enums\RouteStopStatus;
 use App\Models\Device;
 use App\Models\GpsPosition;
-use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Services\RouteOptimizer;
 use Illuminate\Support\Collection;
@@ -14,13 +14,13 @@ use OwenIt\Auditing\Models\Audit;
  * Monta una ruta con paradas en coordenadas/posiciones/estados concretos.
  *
  * @param  list<array{lat: float|null, lng: float|null, pos: int, status?: RouteStopStatus}>  $stops
- * @return array{0: Route, 1: Collection<int, RouteStop>}
+ * @return array{0: RouteDay, 1: Collection<int, RouteStop>}
  */
 function routeWithStops(array $stops): array
 {
     $route = makeRoute('2026-09-10');
 
-    $models = collect($stops)->map(fn (array $s) => RouteStop::factory()->for($route)->create([
+    $models = collect($stops)->map(fn (array $s) => RouteStop::factory()->for($route, 'route')->create([
         'latitude' => $s['lat'],
         'longitude' => $s['lng'],
         'position' => $s['pos'],
@@ -31,7 +31,7 @@ function routeWithStops(array $stops): array
 }
 
 /** IDs de las paradas de la ruta en orden de position. */
-function positionsOf(Route $route): array
+function positionsOf(RouteDay $route): array
 {
     return $route->stops()->pluck('id')->all();
 }
@@ -297,8 +297,8 @@ it('optimiza las pendientes desde la posición real del camión', function () {
 
     $route = makeRoute('2026-09-10');
     // Paradas: oeste, este; en ese orden de position.
-    $west = RouteStop::factory()->for($route)->create(['latitude' => 38.17, 'longitude' => -0.90, 'position' => 1]);
-    $east = RouteStop::factory()->for($route)->create(['latitude' => 38.16, 'longitude' => -0.78, 'position' => 2]);
+    $west = RouteStop::factory()->for($route, 'route')->create(['latitude' => 38.17, 'longitude' => -0.90, 'position' => 1]);
+    $east = RouteStop::factory()->for($route, 'route')->create(['latitude' => 38.16, 'longitude' => -0.78, 'position' => 2]);
 
     // El camión está pegado al este.
     $device = Device::factory()->create();

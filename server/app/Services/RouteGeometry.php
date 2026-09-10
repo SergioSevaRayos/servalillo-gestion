@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\GpsPosition;
-use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
@@ -61,7 +61,7 @@ class RouteGeometry
      *
      * @return array{stops: list<array{n: int, name: string, lat: float, lng: float, status: string}>, meta: array|null, skipped: int, vehicle: array|null}
      */
-    public function payloadFor(Route $route): array
+    public function payloadFor(RouteDay $route): array
     {
         $stops = $route->stops()->get()->values()->map(fn (RouteStop $s, int $i) => [
             'n' => $i + 1,
@@ -89,7 +89,7 @@ class RouteGeometry
      * @param  Collection<int, array{n: int, name: string, lat: float, lng: float, status: string}>  $located
      * @return array{lat: float, lng: float, recorded_at: string, age: string, accuracy_m: ?float, approach: array|null, next_stop: array{n: int, name: string}|null}|null
      */
-    private function vehicleFor(Route $route, $located): ?array
+    private function vehicleFor(RouteDay $route, $located): ?array
     {
         if ($route->driver_id === null) {
             return null;

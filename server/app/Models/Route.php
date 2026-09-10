@@ -2,66 +2,40 @@
 
 namespace App\Models;
 
-use App\Enums\RouteStatus;
-use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
 
+/**
+ * Una ruta: camión + chofer, de reparto o de viajes, vigente entre `valid_from` y
+ * `valid_until` (`null` = sin fin determinado) — "Sergio lleva el camión C-01". Es la fila
+ * permanente que ve el usuario en `/rutas/listado`; NO tiene fecha propia. Cada día se le
+ * genera sola su `RouteDay` (paradas, jornada, litros) mientras esté vigente
+ * (`RecurringRouteService`, horizonte 14 días) — el histórico día a día se consulta desde
+ * "Historial" (`App\Livewire\Routes\History`).
+ */
 class Route extends Model implements Auditable
 {
     use AuditableTrait, HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'code', 'route_date', 'truck_id', 'driver_id', 'status', 'service_kind',
-        'name', 'notes', 'started_at', 'completed_at', 'created_by',
-        'liter_meter_start', 'liter_meter_end', 'liter_discrepancy_note',
+        'truck_id', 'driver_id', 'service_kind', 'name', 'notes',
+        'valid_from', 'valid_until', 'created_by',
     ];
 
     protected function casts(): array
     {
         return [
-            'route_date' => 'date',
-            'status' => RouteStatus::class,
             'service_kind' => ServiceKind::class,
-            'started_at' => 'datetime',
-            'completed_at' => 'datetime',
-            'liter_meter_start' => 'integer',
-            'liter_meter_end' => 'integer',
+            'valid_from' => 'date',
+            'valid_until' => 'date',
         ];
-    }
-
-    /** Litros ya repartidos a clientes en esta ruta (paradas completadas). */
-    public function deliveredLiters(): float
-    {
-        return (float) $this->stops
-            ->where('status', RouteStopStatus::Completed)
-            ->sum('delivered_quantity');
-    }
-
-    /** Por dónde debería ir el contador ahora mismo = lectura de inicio + litros repartidos. */
-    public function literMeterExpected(): ?float
-    {
-        return $this->liter_meter_start === null
-            ? null
-            : $this->liter_meter_start + $this->deliveredLiters();
-    }
-
-    /**
-     * (fin − inicio) − repartido. >0 = el contador marca más de lo repartido
-     * (mermas/derrames); <0 = marca menos (raro). null si faltan datos.
-     */
-    public function literDiscrepancy(): ?float
-    {
-        return ($this->liter_meter_start === null || $this->liter_meter_end === null)
-            ? null
-            : ($this->liter_meter_end - $this->liter_meter_start) - $this->deliveredLiters();
     }
 
     public function truck(): BelongsTo
@@ -79,26 +53,25 @@ class Route extends Model implements Auditable
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function stops(): HasMany
+    public function routeDays(): HasMany
     {
-        return $this->hasMany(RouteStop::class)->orderBy('position');
+        return $this->hasMany(RouteDay::class)->orderByDesc('route_date');
     }
 
-    public function odometerReadings(): HasMany
+    /**
+     * ¿Hay ya otra ruta (activa, sin contar `$ignoreId`) para `$column` (truck_id|driver_id)
+     * = `$id` cuyo rango [valid_from, valid_until ?? sin fin) se solapa con [$from, $until ?? sin fin)?
+     */
+    public static function overlaps(string $column, int $id, Carbon|string $from, Carbon|string|null $until, ?int $ignoreId = null): bool
     {
-        return $this->hasMany(OdometerReading::class);
-    }
+        $from = Carbon::parse($from)->toDateString();
+        $until = $until ? Carbon::parse($until)->toDateString() : null;
 
-    public function scopeForDate(Builder $query, mixed $date): Builder
-    {
-        return $query->whereDate('route_date', $date);
-    }
-
-    public function scopeOperational(Builder $query): Builder
-    {
-        return $query->whereIn('status', array_map(
-            fn (RouteStatus $s) => $s->value,
-            RouteStatus::operational(),
-        ));
+        return static::query()
+            ->where($column, $id)
+            ->when($ignoreId, fn ($q) => $q->whereKeyNot($ignoreId))
+            ->where(fn ($q) => $q->whereNull('valid_until')->orWhereDate('valid_until', '>=', $from))
+            ->when($until, fn ($q) => $q->whereDate('valid_from', '<=', $until))
+            ->exists();
     }
 }

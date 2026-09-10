@@ -7,7 +7,7 @@ use App\Enums\RouteStopStatus;
 use App\Livewire\Forms\StopActionForm;
 use App\Models\Client;
 use App\Models\DeliveryType;
-use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
@@ -59,7 +59,7 @@ class Today extends Component
     }
 
     #[Computed]
-    public function route(): ?Route
+    public function route(): ?RouteDay
     {
         $driver = auth()->user()->driver;
 
@@ -67,7 +67,7 @@ class Today extends Component
             return null;
         }
 
-        return Route::query()
+        return RouteDay::query()
             ->with(['truck', 'stops.deliveryType', 'odometerReadings', 'driver.user'])
             ->where('driver_id', $driver->id)
             ->whereDate('route_date', $this->date)

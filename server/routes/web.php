@@ -15,8 +15,8 @@ use App\Livewire\Maintenance\LoginLogs as MaintenanceLoginLogs;
 use App\Livewire\Maintenance\Overview as MaintenanceOverview;
 use App\Livewire\Maintenance\Support as MaintenanceSupport;
 use App\Livewire\Maintenance\SystemLog as MaintenanceSystemLog;
-use App\Livewire\Routes\Assignments as RoutesAssignments;
 use App\Livewire\Routes\Board as RoutesBoard;
+use App\Livewire\Routes\History as RoutesHistory;
 use App\Livewire\Routes\Index as RoutesIndex;
 use App\Livewire\Support\Index as SupportIndex;
 use App\Livewire\Trucks\Index as TrucksIndex;
@@ -71,7 +71,7 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
     // El tablero es la vista principal de "Rutas"; la ficha CRUD clásica queda en /rutas/listado.
     Route::get('rutas', RoutesBoard::class)->name('routes.board');
     Route::get('rutas/listado', RoutesIndex::class)->name('routes.index');
-    Route::get('rutas/asignaciones', RoutesAssignments::class)->name('routes.assignments');
+    Route::get('rutas/{route}/historial', RoutesHistory::class)->name('routes.history');
 
     Route::get('albaranes', DeliveryNotesIndex::class)->middleware('permission:delivery_notes.view')->name('delivery-notes.index');
 

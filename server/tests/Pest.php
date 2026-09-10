@@ -2,6 +2,7 @@
 
 use App\Models\Driver;
 use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\Truck;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -58,7 +59,12 @@ function makeUser(string $role): User
     return $user;
 }
 
-function makeRoute(string $date = '2026-09-10'): Route
+/**
+ * Ruta permanente (camión + chofer) ya vigente, sin ningún día generado todavía. La mayoría de
+ * los tests quieren "el día concreto" con sus paradas — para eso usa makeRoute(), que además
+ * crea el RouteDay de la fecha pedida.
+ */
+function makePermanentRoute(): Route
 {
     $truck = Truck::factory()->create();
     $driver = Driver::factory()->for(User::factory(), 'user')->create();
@@ -66,6 +72,28 @@ function makeRoute(string $date = '2026-09-10'): Route
     return Route::factory()->create([
         'truck_id' => $truck->id,
         'driver_id' => $driver->id,
+        'valid_from' => '2020-01-01',
+        'valid_until' => null,
+    ]);
+}
+
+/**
+ * El día concreto (paradas, jornada, litros) de una ruta — lo que casi todos los tests
+ * necesitan. Crea también la ruta permanente que lo respalda.
+ */
+function makeRoute(string $date = '2026-09-10'): RouteDay
+{
+    return makeRouteDay(makePermanentRoute(), $date);
+}
+
+/** El día de una ruta permanente ya existente (para tests que necesitan varios días de una misma ruta). */
+function makeRouteDay(Route $route, string $date = '2026-09-10'): RouteDay
+{
+    return RouteDay::factory()->create([
+        'route_id' => $route->id,
+        'truck_id' => $route->truck_id,
+        'driver_id' => $route->driver_id,
+        'service_kind' => $route->service_kind->value,
         'route_date' => $date,
     ]);
 }

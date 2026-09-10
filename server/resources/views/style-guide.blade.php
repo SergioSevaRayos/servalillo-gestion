@@ -80,7 +80,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (\App\Models\Route::with(['truck', 'driver.user'])->latest('route_date')->take(5)->get() as $route)
+                    @foreach (\App\Models\RouteDay::with(['truck', 'driver.user'])->latest('route_date')->take(5)->get() as $route)
                         <tr>
                             <td data-label="{{ __('Camión') }}">{{ $route->truck->code }}</td>
                             <td data-label="{{ __('Chofer') }}">{{ $route->driver->user->name }}</td>

@@ -3,7 +3,7 @@
 use App\Models\Device;
 use App\Models\Driver;
 use App\Models\GpsPosition;
-use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\Truck;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
@@ -26,7 +26,7 @@ function positions(int $n = 1, array $overrides = []): array
 it('acepta un lote y resuelve chofer/camión/ruta desde la ruta del chofer', function () {
     $driver = Driver::factory()->for(User::factory(), 'user')->create();
     $truck = Truck::factory()->create();
-    $route = Route::factory()->create([
+    $route = RouteDay::factory()->create([
         'driver_id' => $driver->id, 'truck_id' => $truck->id, 'route_date' => today(),
     ]);
     $device = Device::factory()->forDriver($driver)->create();

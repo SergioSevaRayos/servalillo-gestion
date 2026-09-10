@@ -34,8 +34,8 @@ it('el componente aborta 403 si el usuario no tiene stats.view', function () {
 
 it('calcula los KPIs del rango elegido', function () {
     $route = makeRoute(today()->subDays(3)->toDateString());
-    RouteStop::factory()->for($route)->count(4)->create(['status' => RouteStopStatus::Completed, 'planned_quantity' => 1000, 'delivered_quantity' => 1000]);
-    RouteStop::factory()->for($route)->create(['status' => RouteStopStatus::Failed, 'planned_quantity' => 200]);
+    RouteStop::factory()->for($route, 'route')->count(4)->create(['status' => RouteStopStatus::Completed, 'planned_quantity' => 1000, 'delivered_quantity' => 1000]);
+    RouteStop::factory()->for($route, 'route')->create(['status' => RouteStopStatus::Failed, 'planned_quantity' => 200]);
 
     $this->actingAs(makeUser('administrador'));
 

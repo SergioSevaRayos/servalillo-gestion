@@ -9,9 +9,9 @@ use App\Models\Device;
 use App\Models\Driver;
 use App\Models\OdometerReading;
 use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Models\Truck;
-use App\Models\TruckAssignment;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Computed;
@@ -30,10 +30,10 @@ class Audits extends Component
     public const MODELS = [
         'Cliente' => Client::class,
         'Ruta' => Route::class,
+        'Día de ruta' => RouteDay::class,
         'Parada' => RouteStop::class,
         'Chofer' => Driver::class,
         'Camión' => Truck::class,
-        'Asignación de camión' => TruckAssignment::class,
         'Tipo de reparto' => DeliveryType::class,
         'Albarán' => DeliveryNote::class,
         'Lectura de odómetro' => OdometerReading::class,

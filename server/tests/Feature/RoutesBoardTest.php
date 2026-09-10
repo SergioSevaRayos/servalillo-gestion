@@ -3,7 +3,7 @@
 use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
 use App\Livewire\Routes\Board;
-use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
@@ -183,7 +183,7 @@ test('el filtro Reparto/Viajes separa rutas y backlog por tipo', function () {
     RouteStop::factory()->create(['route_id' => $reparto->id, 'customer_name' => 'Parada Reparto']);
     RouteStop::factory()->create(['route_id' => null, 'customer_name' => 'Backlog Reparto']);
 
-    $viaje = Route::factory()->trip()->create(['route_date' => '2026-09-10', 'name' => 'Ruta Viaje']);
+    $viaje = RouteDay::factory()->trip()->create(['route_date' => '2026-09-10', 'name' => 'Ruta Viaje']);
     RouteStop::factory()->trip()->create(['route_id' => $viaje->id, 'customer_name' => 'Parada Viaje']);
     RouteStop::factory()->trip()->create(['route_id' => null, 'customer_name' => 'Backlog Viaje']);
 
@@ -221,9 +221,9 @@ test('"Ruta eficiente": el administrador reordena una ruta y ve un toast', funct
     ])]);
 
     $route = makeRoute('2026-09-10');
-    $a = RouteStop::factory()->for($route)->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40]);
-    $b = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46]);
-    $c = RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42]);
+    $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40]);
+    $b = RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46]);
+    $c = RouteStop::factory()->for($route, 'route')->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42]);
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Board::class)->set('date', '2026-09-10')
@@ -239,9 +239,9 @@ test('"Ruta eficiente": se puede reordenar desde una parada concreta de la ruta'
 
     $route = makeRoute('2026-09-10');
     // En línea; si se sale desde $c (la del medio) el camino más corto es c -> b -> a (o c -> a -> b).
-    $a = RouteStop::factory()->for($route)->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40]);
-    $b = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.50, 'longitude' => -16.50]);
-    $c = RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.44, 'longitude' => -16.44]);
+    $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40]);
+    $b = RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'latitude' => 28.50, 'longitude' => -16.50]);
+    $c = RouteStop::factory()->for($route, 'route')->create(['position' => 3, 'latitude' => 28.44, 'longitude' => -16.44]);
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Board::class)->set('date', '2026-09-10')
@@ -257,8 +257,8 @@ test('"Ver recorrido": emite el evento del mapa con las paradas de la ruta', fun
     config()->set('servalillo.routing.enabled', false);
 
     $route = makeRoute('2026-09-10');
-    RouteStop::factory()->for($route)->create(['position' => 1, 'customer_name' => 'Parada Mapa', 'latitude' => 28.40, 'longitude' => -16.40]);
-    RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.42, 'longitude' => -16.42]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'customer_name' => 'Parada Mapa', 'latitude' => 28.40, 'longitude' => -16.40]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'latitude' => 28.42, 'longitude' => -16.42]);
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Board::class)->set('date', '2026-09-10')
@@ -269,7 +269,7 @@ test('"Ver recorrido": emite el evento del mapa con las paradas de la ruta', fun
 
 test('"Ruta eficiente": un chofer recibe 403', function () {
     $route = makeRoute('2026-09-10');
-    RouteStop::factory()->for($route)->count(2)->create();
+    RouteStop::factory()->for($route, 'route')->count(2)->create();
 
     Livewire::actingAs(makeUser('chofer'))
         ->test(Board::class)->set('date', '2026-09-10')
@@ -279,9 +279,9 @@ test('"Ruta eficiente": un chofer recibe 403', function () {
 
 test('"Ruta eficiente": la parada completada líder no se mueve', function () {
     $route = makeRoute('2026-09-10');
-    $done = RouteStop::factory()->for($route)->create(['position' => 1, 'status' => RouteStopStatus::Completed, 'latitude' => 28.40, 'longitude' => -16.40]);
-    RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46]);
-    RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42]);
+    $done = RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'status' => RouteStopStatus::Completed, 'latitude' => 28.40, 'longitude' => -16.40]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42]);
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Board::class)->set('date', '2026-09-10')
@@ -293,8 +293,8 @@ test('"Ruta eficiente": la parada completada líder no se mueve', function () {
 
 test('"Ruta eficiente": sin paradas con coordenadas avisa y no cambia nada', function () {
     $route = makeRoute('2026-09-10');
-    $a = RouteStop::factory()->for($route)->create(['position' => 1, 'latitude' => null, 'longitude' => null]);
-    $b = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => null, 'longitude' => null]);
+    $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'latitude' => null, 'longitude' => null]);
+    $b = RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'latitude' => null, 'longitude' => null]);
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Board::class)->set('date', '2026-09-10')

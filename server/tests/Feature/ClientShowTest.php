@@ -4,7 +4,7 @@ use App\Enums\RouteStopStatus;
 use App\Livewire\Clients\Show;
 use App\Models\Client;
 use App\Models\Driver;
-use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use Livewire\Livewire;
 
@@ -12,14 +12,14 @@ it('muestra la ficha del cliente con su histórico emparejado por CIF', function
     $this->actingAs(makeUser('administrador'));
     $client = Client::factory()->create(['name' => 'Comunidad Teide', 'tax_id' => 'H99887766']);
 
-    $route = Route::factory()->create(['route_date' => today()->subDays(10)]);
-    RouteStop::factory()->for($route)->create([
+    $route = RouteDay::factory()->create(['route_date' => today()->subDays(10)]);
+    RouteStop::factory()->for($route, 'route')->create([
         'customer_name' => 'Otro nombre distinto', // no coincide, pero el CIF sí
         'customer_tax_id' => 'H99887766',
         'status' => RouteStopStatus::Completed,
         'delivered_quantity' => 1200,
     ]);
-    RouteStop::factory()->for(Route::factory())->create(['customer_tax_id' => 'OTRO-CIF']);
+    RouteStop::factory()->for(RouteDay::factory(), 'route')->create(['customer_tax_id' => 'OTRO-CIF']);
 
     Livewire::test(Show::class, ['client' => $client])
         ->assertSee('Comunidad Teide')

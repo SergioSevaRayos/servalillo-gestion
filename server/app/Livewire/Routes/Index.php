@@ -2,12 +2,10 @@
 
 namespace App\Livewire\Routes;
 
-use App\Enums\RouteStatus;
-use App\Enums\RouteStopStatus;
+use App\Enums\ServiceKind;
 use App\Livewire\Forms\RouteForm;
 use App\Models\Driver;
 use App\Models\Route;
-use App\Models\RouteStop;
 use App\Models\Truck;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -26,10 +24,7 @@ class Index extends Component
     public string $search = '';
 
     #[Url(history: true)]
-    public string $status = 'all';
-
-    #[Url(history: true)]
-    public string $sort = 'route_date';
+    public string $sort = 'valid_from';
 
     #[Url(history: true)]
     public string $direction = 'desc';
@@ -40,11 +35,6 @@ class Index extends Component
     }
 
     public function updatingSearch(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatingStatus(): void
     {
         $this->resetPage();
     }
@@ -64,7 +54,7 @@ class Index extends Component
         $this->authorize('create', Route::class);
 
         $this->form->reset();
-        $this->form->route_date = now()->toDateString();
+        $this->form->valid_from = now()->toDateString();
         $this->dispatch('open-modal', 'route-form');
     }
 
@@ -88,31 +78,25 @@ class Index extends Component
         $this->dispatch('toast', message: 'Ruta guardada correctamente.', variant: 'success');
     }
 
+    /** Termina hoy la ruta sin abrir el formulario completo. */
+    public function finalize(Route $route): void
+    {
+        $this->authorize('update', $route);
+
+        $route->update(['valid_until' => now()->toDateString()]);
+
+        $this->dispatch('toast', message: 'Ruta finalizada hoy.', variant: 'success');
+    }
+
     public function delete(Route $route): void
     {
         $this->authorize('delete', $route);
 
-        // La ruta es SoftDeletes, así que el FK nullOnDelete no se dispara: hay que sacar a mano
-        // las paradas pendientes a "Sin asignar" para que no queden huérfanas (invisibles). Las
-        // cerradas se van con la ruta (se recuperarían al restaurarla).
-        $pending = $route->stops()->where('status', RouteStopStatus::Pending)->orderBy('position')->get();
-
-        if ($pending->isNotEmpty()) {
-            $nextPosition = (int) RouteStop::whereNull('route_id')->max('position');
-
-            foreach ($pending as $stop) {
-                $stop->update(['route_id' => null, 'position' => ++$nextPosition]);
-            }
-        }
-
+        // La ruta permanente es SoftDeletes; su historial de días (RouteDay) no se toca —
+        // sigue viéndose desde "Historial". Solo deja de generar días nuevos a partir de hoy.
         $route->delete();
 
-        $this->dispatch('toast',
-            message: $pending->isEmpty()
-                ? 'Ruta eliminada.'
-                : 'Ruta eliminada. Sus paradas pendientes han vuelto a "Sin asignar".',
-            variant: 'success',
-        );
+        $this->dispatch('toast', message: 'Ruta eliminada. Su historial de días no se toca.', variant: 'success');
     }
 
     public function editing(): bool
@@ -133,22 +117,21 @@ class Index extends Component
     }
 
     #[Computed]
-    public function statuses(): array
+    public function serviceKinds(): array
     {
-        return RouteStatus::cases();
+        return ServiceKind::cases();
     }
 
     public function render()
     {
         $routes = Route::query()
             ->with(['truck', 'driver.user'])
-            ->withCount('stops')
+            ->withCount('routeDays')
             ->when($this->search, fn ($q) => $q->where(fn ($q) => $q
-                ->where('code', 'ilike', "%{$this->search}%")
+                ->where('name', 'ilike', "%{$this->search}%")
                 ->orWhereHas('truck', fn ($q) => $q->where('code', 'ilike', "%{$this->search}%"))
                 ->orWhereHas('driver.user', fn ($q) => $q->where('name', 'ilike', "%{$this->search}%"))
             ))
-            ->when($this->status !== 'all', fn ($q) => $q->where('status', $this->status))
             ->orderBy($this->sort, $this->direction)
             ->paginate(10);
 

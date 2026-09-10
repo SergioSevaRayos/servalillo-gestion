@@ -26,9 +26,10 @@ class OdometerReading extends Model implements Auditable
         ];
     }
 
+    /** Apunta a `RouteDay` (columna `route_id` sin cambios, ver comentario en `RouteStop::route()`). */
     public function route(): BelongsTo
     {
-        return $this->belongsTo(Route::class);
+        return $this->belongsTo(RouteDay::class, 'route_id');
     }
 
     public function truck(): BelongsTo

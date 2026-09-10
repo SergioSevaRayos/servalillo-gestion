@@ -52,12 +52,12 @@ class FleetStatsService
         $closed = $completed + $failed;
 
         return [
-            'routes_total' => DB::table('routes')
+            'routes_total' => DB::table('route_days')
                 ->whereNull('deleted_at')
                 ->whereBetween('route_date', [$from, $to])
                 ->count(),
             // Métrica fija de "ahora mismo", no depende del rango elegido.
-            'routes_today_operational' => DB::table('routes')
+            'routes_today_operational' => DB::table('route_days')
                 ->whereNull('deleted_at')
                 ->whereDate('route_date', Carbon::today())
                 ->whereIn('status', array_map(fn (RouteStatus $s) => $s->value, RouteStatus::operational()))
@@ -82,13 +82,13 @@ class FleetStatsService
     private function operations(string $from, string $to): array
     {
         $rows = DB::table('route_stops')
-            ->join('routes', 'routes.id', '=', 'route_stops.route_id')
+            ->join('route_days', 'route_days.id', '=', 'route_stops.route_id')
             ->whereNull('route_stops.deleted_at')
-            ->whereNull('routes.deleted_at')
-            ->whereBetween('routes.route_date', [$from, $to])
+            ->whereNull('route_days.deleted_at')
+            ->whereBetween('route_days.route_date', [$from, $to])
             ->whereIn('route_stops.status', [RouteStopStatus::Completed->value, RouteStopStatus::Failed->value])
-            ->groupBy('routes.route_date', 'route_stops.status')
-            ->selectRaw('routes.route_date::date as day, route_stops.status, count(*) as total')
+            ->groupBy('route_days.route_date', 'route_stops.status')
+            ->selectRaw('route_days.route_date::date as day, route_stops.status, count(*) as total')
             ->get();
 
         $byDay = [];
@@ -108,7 +108,7 @@ class FleetStatsService
             ];
         }
 
-        $routeStatus = DB::table('routes')
+        $routeStatus = DB::table('route_days')
             ->whereNull('deleted_at')
             ->whereBetween('route_date', [$from, $to])
             ->groupBy('status')
@@ -133,10 +133,10 @@ class FleetStatsService
     private function volume(string $from, string $to): array
     {
         $base = DB::table('route_stops')
-            ->join('routes', 'routes.id', '=', 'route_stops.route_id')
+            ->join('route_days', 'route_days.id', '=', 'route_stops.route_id')
             ->whereNull('route_stops.deleted_at')
-            ->whereNull('routes.deleted_at')
-            ->whereBetween('routes.route_date', [$from, $to]);
+            ->whereNull('route_days.deleted_at')
+            ->whereBetween('route_days.route_date', [$from, $to]);
 
         $plannedExpr = "coalesce(sum(route_stops.planned_quantity) filter (where route_stops.status in ('completed', 'failed')), 0)";
         $deliveredExpr = "coalesce(sum(route_stops.delivered_quantity) filter (where route_stops.status = 'completed'), 0)";
@@ -173,12 +173,12 @@ class FleetStatsService
     private function byDriver(string $from, string $to): array
     {
         return DB::table('route_stops')
-            ->join('routes', 'routes.id', '=', 'route_stops.route_id')
-            ->join('drivers', 'drivers.id', '=', 'routes.driver_id')
+            ->join('route_days', 'route_days.id', '=', 'route_stops.route_id')
+            ->join('drivers', 'drivers.id', '=', 'route_days.driver_id')
             ->join('users', 'users.id', '=', 'drivers.user_id')
             ->whereNull('route_stops.deleted_at')
-            ->whereNull('routes.deleted_at')
-            ->whereBetween('routes.route_date', [$from, $to])
+            ->whereNull('route_days.deleted_at')
+            ->whereBetween('route_days.route_date', [$from, $to])
             ->whereIn('route_stops.status', [RouteStopStatus::Completed->value, RouteStopStatus::Failed->value])
             ->groupBy('users.name')
             ->selectRaw('users.name as driver')
@@ -209,17 +209,17 @@ class FleetStatsService
     {
         // km por ruta: solo las rutas que tienen las DOS lecturas (inicio y fin).
         $kmByTruck = DB::table('odometer_readings')
-            ->join('routes', 'routes.id', '=', 'odometer_readings.route_id')
-            ->whereNull('routes.deleted_at')
-            ->whereBetween('routes.route_date', [$from, $to])
-            ->groupBy('odometer_readings.route_id', 'routes.truck_id')
+            ->join('route_days', 'route_days.id', '=', 'odometer_readings.route_id')
+            ->whereNull('route_days.deleted_at')
+            ->whereBetween('route_days.route_date', [$from, $to])
+            ->groupBy('odometer_readings.route_id', 'route_days.truck_id')
             ->havingRaw('count(*) = 2')
-            ->selectRaw('routes.truck_id, max(odometer_readings.value) - min(odometer_readings.value) as km')
+            ->selectRaw('route_days.truck_id, max(odometer_readings.value) - min(odometer_readings.value) as km')
             ->get()
             ->groupBy('truck_id')
             ->map(fn ($rows) => (int) $rows->sum('km'));
 
-        $routeDaysByTruck = DB::table('routes')
+        $routeDaysByTruck = DB::table('route_days')
             ->whereNull('deleted_at')
             ->whereBetween('route_date', [$from, $to])
             ->groupBy('truck_id')
@@ -227,13 +227,13 @@ class FleetStatsService
             ->pluck('route_days', 'truck_id');
 
         $litersByTruck = DB::table('route_stops')
-            ->join('routes', 'routes.id', '=', 'route_stops.route_id')
+            ->join('route_days', 'route_days.id', '=', 'route_stops.route_id')
             ->whereNull('route_stops.deleted_at')
-            ->whereNull('routes.deleted_at')
-            ->whereBetween('routes.route_date', [$from, $to])
+            ->whereNull('route_days.deleted_at')
+            ->whereBetween('route_days.route_date', [$from, $to])
             ->where('route_stops.status', RouteStopStatus::Completed->value)
-            ->groupBy('routes.truck_id')
-            ->selectRaw('routes.truck_id, coalesce(sum(route_stops.delivered_quantity), 0) as liters')
+            ->groupBy('route_days.truck_id')
+            ->selectRaw('route_days.truck_id, coalesce(sum(route_stops.delivered_quantity), 0) as liters')
             ->pluck('liters', 'truck_id');
 
         return Truck::query()

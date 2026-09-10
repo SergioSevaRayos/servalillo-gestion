@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\Driver;
-use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\Truck;
 
 // makeUser() está definido globalmente en tests/Pest.php
@@ -29,7 +29,7 @@ test('chofer solo puede operar su propia ruta', function () {
     $ownDriver = Driver::factory()->create(['user_id' => $ownUser->id]);
     $otherDriver = Driver::factory()->create(['user_id' => $otherUser->id]);
 
-    $route = Route::factory()->create(['driver_id' => $ownDriver->id]);
+    $route = RouteDay::factory()->create(['driver_id' => $ownDriver->id]);
 
     expect($ownUser->can('operate', $route))->toBeTrue()
         ->and($otherUser->can('operate', $route))->toBeFalse()

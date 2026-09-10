@@ -785,7 +785,7 @@ Detalle en `CLAUDE.md` (sección "Notificaciones y canal de soporte (Bloque 12)"
 acortar el recorrido. Dos entradas: cabecera de cada columna del tablero (`/rutas`) y bajo la lista
 de paradas del chofer (`/chofer/ruta`, "Organizar mi ruta"). Se intercaló por delante de 10/11.
 
-- **`App\Services\RouteOptimizer`** (`optimize(Route)` + `toast(array)`): pide a **OSRM `/table`** la
+- **`App\Services\RouteOptimizer`** (`optimize(RouteDay)` + `toast(array)`): pide a **OSRM `/table`** la
   matriz de distancias reales por carretera y resuelve el camino abierto con **vecino más cercano +
   2-opt** sobre esa matriz (`config('servalillo.routing')`, `OSRM_URL` autoalojable, demo público sin
   API key). **Fallback obligatorio** al mismo algoritmo sobre distancia en línea recta
@@ -806,8 +806,8 @@ de paradas del chofer (`/chofer/ruta`, "Organizar mi ruta"). Se intercaló por d
   aunque SortableJS las desplace al soltar otra tarjeta cerca, `reindexColumn()` las devuelve a su
   hueco y recoloca las pendientes alrededor (mismo criterio que `RouteOptimizer`). El 422 se reserva
   para intentar reasignar de ruta una parada cerrada.
-- Permiso nuevo `routes.optimize.own` (chofer + admin + mantenimiento); `RoutePolicy::optimizeOwn`
-  (chofer, con propiedad) y `RoutePolicy::reorderStops` (oficina, ahora cableado desde el tablero).
+- Permiso nuevo `routes.optimize.own` (chofer + admin + mantenimiento); `RouteDayPolicy::optimizeOwn`
+  (chofer, con propiedad) y `RouteDayPolicy::reorderStops` (oficina, cableado desde el tablero).
 - Primer uso del `Http` facade. `phpunit.xml` fija `ROUTING_OSRM_ENABLED=false` (tests deterministas
   con la heurística local); los tests de OSRM hacen `Http::fake()`.
 
@@ -870,11 +870,15 @@ salientes por defecto en VPS nuevos).
   del chofer ese día si la había, saltándose la revisión de oficina. Ahora `rescheduleStop()` va
   siempre a "Sin asignar".
 
-**Nuevo: asignación permanente camión↔chofer** (misma sesión, detalle en `CLAUDE.md` →
-"Asignación permanente camión↔chofer"). Reutiliza `truck_assignments`/`TruckAssignment` (existía
-vestigial) + `App\Services\RecurringRouteService` (mismo patrón que `RecurringStopService`) para que
-la `Route` de cada día se genere sola a partir de una asignación sin fecha de fin. Panel
-`/rutas/asignaciones`. 17 tests nuevos.
+**Ruta permanente camión↔chofer + Historial (misma sesión, dos iteraciones):** primero se probó una
+tabla `truck_assignments` aparte que generaba sola una fila de `routes` cada día; el usuario lo vio en
+producción (varias filas `R-2026091X-C-01` para el mismo camión+chofer) y pidió volver a "una ruta =
+una fila, aparece todos los días tenga viajes o no" + una herramienta para ver el resumen de un día
+concreto. Se rediseñó: `Route` pasa a ser la ficha permanente (camión+chofer+tipo de servicio, sin
+fecha) y lo que antes era `Route` (una fila por camión+día) pasa a ser `RouteDay` — migración de datos
+con backfill incluida. Nueva herramienta "Historial" (`/rutas/{route}/historial`). Detalle completo en
+`CLAUDE.md` → "Route permanente / RouteDay". 308 tests en verde localmente; **todavía sin commitear ni
+desplegar** al cierre de esta sesión.
 
 **Falta** (necesita datos externos, no bloquea el uso normal): SMTP ya funciona; Cloudflare R2 sigue
 sin configurar (PDFs/firmas van a disco local del VPS, decisión consciente — un albarán no tiene los

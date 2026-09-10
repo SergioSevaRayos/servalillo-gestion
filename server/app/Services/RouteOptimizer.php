@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Enums\RouteStopStatus;
 use App\Models\GpsPosition;
-use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Support\Haversine;
 use Illuminate\Support\Carbon;
@@ -52,7 +52,7 @@ class RouteOptimizer
      *
      * @return array{0: float, 1: float}|null
      */
-    public function latestVehiclePosition(Route $route, int $maxAgeMinutes = 60): ?array
+    public function latestVehiclePosition(RouteDay $route, int $maxAgeMinutes = 60): ?array
     {
         $position = $this->latestVehicleGpsPosition($route, $maxAgeMinutes);
 
@@ -62,12 +62,12 @@ class RouteOptimizer
     }
 
     /** Antigüedad legible ("hace 3 min") de la última posición del camión, o null si no sirve. */
-    public function vehiclePositionAge(Route $route, int $maxAgeMinutes = 60): ?string
+    public function vehiclePositionAge(RouteDay $route, int $maxAgeMinutes = 60): ?string
     {
         return $this->latestVehicleGpsPosition($route, $maxAgeMinutes)?->recorded_at?->diffForHumans();
     }
 
-    private function latestVehicleGpsPosition(Route $route, int $maxAgeMinutes): ?GpsPosition
+    private function latestVehicleGpsPosition(RouteDay $route, int $maxAgeMinutes): ?GpsPosition
     {
         if ($route->driver_id === null) {
             return null;
@@ -99,7 +99,7 @@ class RouteOptimizer
      *     distance_after_m: ?float,
      * }
      */
-    public function optimize(Route $route, ?array $origin = null): array
+    public function optimize(RouteDay $route, ?array $origin = null): array
     {
         $this->lastMethod = 'none';
 

@@ -18,10 +18,10 @@ use App\Models\Driver;
 use App\Models\ErrorLog;
 use App\Models\OdometerReading;
 use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Models\SupportTicket;
 use App\Models\Truck;
-use App\Models\TruckAssignment;
 use App\Models\User;
 use App\Notifications\ChoferRouteChanged;
 use App\Notifications\SupportTicketOpened;
@@ -60,6 +60,7 @@ class DatabaseSeeder extends Seeder
         // --- Camiones + choferes + dispositivos -----------------------------
         $today = Carbon::today();
         $drivers = [];
+        $routes = [];
 
         $fleet = [
             ['code' => 'C-01', 'plate' => '1234-KJL', 'driver' => 'Pedro Ramírez', 'email' => 'pedro@servalillo.test'],
@@ -97,9 +98,16 @@ class DatabaseSeeder extends Seeder
             ]);
             $drivers[$i] = $driver;
 
-            TruckAssignment::updateOrCreate(
+            // C-04 se deja como la ruta de "viajes" de ejemplo (ver seedTrips): un camión no
+            // puede tener dos rutas permanentes vigentes a la vez (mismo criterio que
+            // Route::overlaps()), así que su tipo de servicio se fija aquí.
+            $routes[$i] = Route::updateOrCreate(
                 ['truck_id' => $truck->id, 'valid_until' => null],
-                ['driver_id' => $driver->id, 'valid_from' => $today->copy()->subMonths(6)]
+                [
+                    'driver_id' => $driver->id,
+                    'valid_from' => $today->copy()->subMonths(6),
+                    'service_kind' => $row['code'] === 'C-04' ? ServiceKind::Viaje->value : ServiceKind::Reparto->value,
+                ]
             );
 
             // La APK tracker se enrola sola. El seed deja los dos primeros dispositivos ya
@@ -117,12 +125,12 @@ class DatabaseSeeder extends Seeder
         }
 
         // --- Rutas de ejemplo (hoy / ayer, para el tablero) ----------------
-        $this->seedRoute($drivers[0], Truck::where('code', 'C-01')->first(), $today, RouteStatus::InProgress, $gasoleo, $admin);
-        $this->seedRoute($drivers[1], Truck::where('code', 'C-02')->first(), $today, RouteStatus::Published, $agua, $admin);
-        $this->seedRoute($drivers[2], Truck::where('code', 'C-03')->first(), $today->copy()->subDay(), RouteStatus::Completed, $gasoleo, $admin);
+        $this->seedRoute($routes[0], Truck::where('code', 'C-01')->first(), $today, RouteStatus::InProgress, $gasoleo, $admin);
+        $this->seedRoute($routes[1], Truck::where('code', 'C-02')->first(), $today, RouteStatus::Published, $agua, $admin);
+        $this->seedRoute($routes[2], Truck::where('code', 'C-03')->first(), $today->copy()->subDay(), RouteStatus::Completed, $gasoleo, $admin);
 
         // --- Historial (para el panel estadístico del Bloque 5) ------------
-        $this->seedHistory($drivers, [$gasoleo, $agua], $admin);
+        $this->seedHistory($routes, [$gasoleo, $agua], $admin);
 
         // --- Auditoría + errores (para el panel de Mantenimiento del Bloque 6) ---
         $this->seedMaintenanceData($admin, $maintenance);
@@ -137,18 +145,19 @@ class DatabaseSeeder extends Seeder
         $this->seedClients();
 
         // --- Viajes de ejemplo (para el filtro del tablero) ---------------
-        $this->seedTrips($drivers, $today, $admin);
+        $this->seedTrips($routes[3], $today, $admin);
 
         $this->command->info('Seed completo. Usuarios: admin@ / soporte@ / pedro@ ... contraseña "password".');
     }
 
-    private function seedRoute(Driver $driver, Truck $truck, Carbon $date, RouteStatus $status, DeliveryType $type, User $creator): void
+    private function seedRoute(Route $route, Truck $truck, Carbon $date, RouteStatus $status, DeliveryType $type, User $creator): void
     {
-        $route = Route::updateOrCreate(
-            ['truck_id' => $truck->id, 'route_date' => $date->toDateString()],
+        $day = RouteDay::updateOrCreate(
+            ['route_id' => $route->id, 'route_date' => $date->toDateString()],
             [
                 'code' => 'R-'.$date->format('Ymd').'-'.$truck->code,
-                'driver_id' => $driver->id,
+                'truck_id' => $truck->id,
+                'driver_id' => $route->driver_id,
                 'status' => $status,
                 'name' => 'Ruta '.$date->isoFormat('D MMM').' · '.$truck->code,
                 'created_by' => $creator->id,
@@ -173,7 +182,7 @@ class DatabaseSeeder extends Seeder
             };
 
             RouteStop::updateOrCreate(
-                ['route_id' => $route->id, 'position' => $i + 1],
+                ['route_id' => $day->id, 'position' => $i + 1],
                 [
                     'customer_name' => $s['customer_name'],
                     'address' => $s['address'],
@@ -193,21 +202,21 @@ class DatabaseSeeder extends Seeder
 
         if (in_array($status, [RouteStatus::InProgress, RouteStatus::Completed])) {
             OdometerReading::updateOrCreate(
-                ['route_id' => $route->id, 'kind' => OdometerKind::Start->value],
-                ['truck_id' => $truck->id, 'driver_id' => $driver->id, 'value' => $truck->odometer, 'recorded_at' => $date->copy()->setTime(7, 10)]
+                ['route_id' => $day->id, 'kind' => OdometerKind::Start->value],
+                ['truck_id' => $truck->id, 'driver_id' => $route->driver_id, 'value' => $truck->odometer, 'recorded_at' => $date->copy()->setTime(7, 10)]
             );
         }
 
         if ($status === RouteStatus::Completed) {
             OdometerReading::updateOrCreate(
-                ['route_id' => $route->id, 'kind' => OdometerKind::End->value],
-                ['truck_id' => $truck->id, 'driver_id' => $driver->id, 'value' => $truck->odometer + 180, 'recorded_at' => $date->copy()->setTime(15, 35)]
+                ['route_id' => $day->id, 'kind' => OdometerKind::End->value],
+                ['truck_id' => $truck->id, 'driver_id' => $route->driver_id, 'value' => $truck->odometer + 180, 'recorded_at' => $date->copy()->setTime(15, 35)]
             );
 
             // Contador de litros: la ruta de ayer cerró con un pequeño descuadre (ejemplo para el panel).
-            $delivered = $route->stops()->where('status', RouteStopStatus::Completed->value)->sum('delivered_quantity');
+            $delivered = $day->stops()->where('status', RouteStopStatus::Completed->value)->sum('delivered_quantity');
             $end = (int) ($truck->liter_meter + $delivered + 4);
-            $route->update([
+            $day->update([
                 'liter_meter_end' => $end,
                 'liter_discrepancy_note' => 'Se soltó la manguera del depósito y se derramaron unos 4 L por el suelo.',
             ]);
@@ -219,13 +228,13 @@ class DatabaseSeeder extends Seeder
      * Genera ~90 días de rutas pasadas con paradas completadas/falladas, cantidades y lecturas
      * de odómetro, para que el panel estadístico (Bloque 5) tenga algo que mostrar.
      *
-     * @param  array<int, Driver>  $drivers
+     * @param  array<int, Route>  $routes  rutas permanentes, mismo orden que los camiones (por código)
      * @param  array<int, DeliveryType>  $types
      */
-    private function seedHistory(array $drivers, array $types, User $creator): void
+    private function seedHistory(array $routes, array $types, User $creator): void
     {
-        // Idempotencia básica: si ya hay rutas de hace más de una semana, el historial ya está sembrado.
-        if (Route::where('route_date', '<', Carbon::today()->subDays(7))->exists()) {
+        // Idempotencia básica: si ya hay días de hace más de una semana, el historial ya está sembrado.
+        if (RouteDay::where('route_date', '<', Carbon::today()->subDays(7))->exists()) {
             return;
         }
 
@@ -246,15 +255,16 @@ class DatabaseSeeder extends Seeder
                     continue;
                 }
 
-                $driver = $drivers[$i % count($drivers)];
+                $route = $routes[$i];
                 $type = $types[$i % count($types)];
                 $cancelled = fake()->boolean(6);
 
-                $route = Route::create([
+                $day = RouteDay::create([
                     'code' => 'R-'.$date->format('Ymd').'-'.$truck->code,
                     'route_date' => $date->toDateString(),
+                    'route_id' => $route->id,
                     'truck_id' => $truck->id,
-                    'driver_id' => $driver->id,
+                    'driver_id' => $route->driver_id,
                     'status' => $cancelled ? RouteStatus::Cancelled : RouteStatus::Completed,
                     'name' => 'Ruta '.$date->isoFormat('D MMM').' · '.$truck->code,
                     'created_by' => $creator->id,
@@ -274,7 +284,7 @@ class DatabaseSeeder extends Seeder
                     $delivered = $failed ? null : (fake()->boolean(80) ? $planned : $planned - fake()->numberBetween(1, 4) * 50);
 
                     RouteStop::create([
-                        'route_id' => $route->id,
+                        'route_id' => $day->id,
                         'position' => $s,
                         'customer_name' => fake()->company(),
                         'address' => fake()->streetAddress().', '.fake()->randomElement(['Santa Cruz', 'La Laguna', 'Tegueste', 'El Rosario']),
@@ -296,16 +306,16 @@ class DatabaseSeeder extends Seeder
                 $end = $start + fake()->numberBetween(60, 240);
                 $odometerCursor[$truck->id] = $end;
 
-                OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::Start->value, 'value' => $start, 'recorded_at' => $date->copy()->setTime(7, 10)]);
-                OdometerReading::create(['route_id' => $route->id, 'truck_id' => $truck->id, 'driver_id' => $driver->id, 'kind' => OdometerKind::End->value, 'value' => $end, 'recorded_at' => $date->copy()->setTime(16, 5)]);
+                OdometerReading::create(['route_id' => $day->id, 'truck_id' => $truck->id, 'driver_id' => $route->driver_id, 'kind' => OdometerKind::Start->value, 'value' => $start, 'recorded_at' => $date->copy()->setTime(7, 10)]);
+                OdometerReading::create(['route_id' => $day->id, 'truck_id' => $truck->id, 'driver_id' => $route->driver_id, 'kind' => OdometerKind::End->value, 'value' => $end, 'recorded_at' => $date->copy()->setTime(16, 5)]);
 
                 // Contador de litros: avanza lo repartido + alguna merma ocasional.
                 $meterStart = $literCursor[$truck->id];
-                $repartido = (int) $route->stops()->where('status', RouteStopStatus::Completed->value)->sum('delivered_quantity');
+                $repartido = (int) $day->stops()->where('status', RouteStopStatus::Completed->value)->sum('delivered_quantity');
                 $merma = fake()->boolean(15) ? fake()->numberBetween(2, 12) : 0;
                 $meterEnd = $meterStart + $repartido + $merma;
                 $literCursor[$truck->id] = $meterEnd;
-                $route->update([
+                $day->update([
                     'liter_meter_start' => $meterStart,
                     'liter_meter_end' => $meterEnd,
                     'liter_discrepancy_note' => $merma ? "Merma de {$merma} L: goteo en la manguera durante el reparto." : null,
@@ -328,7 +338,7 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
-        $routes = Route::inRandomOrder()->limit(15)->get();
+        $routeDays = RouteDay::inRandomOrder()->limit(15)->get();
         $trucks = Truck::all();
         $actors = [$admin, $maintenance];
 
@@ -336,8 +346,8 @@ class DatabaseSeeder extends Seeder
             $when = Carbon::now()->subDays(fake()->numberBetween(0, 25))->subMinutes(fake()->numberBetween(0, 1440));
             $actor = fake()->randomElement($actors);
             [$model, $old, $new] = fake()->randomElement([
-                [$routes->random(), ['status' => 'draft'], ['status' => 'published']],
-                [$routes->random(), ['name' => 'Ruta antigua'], ['name' => 'Ruta '.fake()->word()]],
+                [$routeDays->random(), ['status' => 'draft'], ['status' => 'published']],
+                [$routeDays->random(), ['name' => 'Ruta antigua'], ['name' => 'Ruta '.fake()->word()]],
                 [$trucks->random(), ['odometer' => fake()->numberBetween(90000, 200000)], ['odometer' => fake()->numberBetween(200001, 320000)]],
                 [$trucks->random(), ['is_active' => true], ['is_active' => false]],
             ]);
@@ -361,7 +371,7 @@ class DatabaseSeeder extends Seeder
         }
 
         $exceptions = [
-            ['Illuminate\Database\QueryException', 'SQLSTATE[23505]: Unique violation: 7 ERROR: duplicate key value violates unique constraint "routes_truck_id_route_date_unique"', 'app/Livewire/Routes/Board.php', 118],
+            ['Illuminate\Database\QueryException', 'SQLSTATE[23505]: Unique violation: 7 ERROR: duplicate key value violates unique constraint "route_days_route_id_route_date_unique"', 'app/Services/RecurringRouteService.php', 40],
             ['ErrorException', 'Undefined array key "litros_pedido"', 'app/Services/DeliveryTypeSchemaValidator.php', 64],
             ['Symfony\Component\HttpKernel\Exception\HttpException', 'Server Error', 'vendor/laravel/framework/src/Illuminate/Foundation/Application.php', 1220],
             ['RuntimeException', 'Reverb connection refused on 127.0.0.1:8080', 'app/Events/GpsPositionReceived.php', 41],
@@ -577,31 +587,24 @@ class DatabaseSeeder extends Seeder
     }
 
     /**
-     * Una ruta de "viaje" para hoy + backlog, para que el filtro Reparto/Viajes del tablero tenga contenido.
-     *
-     * @param  array<int, Driver>  $drivers
+     * El día de hoy de la ruta de "viaje" (C-04, ya creada como ruta permanente en el bucle de
+     * flota) + backlog, para que el filtro Reparto/Viajes del tablero tenga contenido.
      */
-    private function seedTrips(array $drivers, Carbon $today, User $creator): void
+    private function seedTrips(Route $route, Carbon $today, User $creator): void
     {
-        if (Route::where('service_kind', ServiceKind::Viaje->value)->exists()) {
-            return;
-        }
-
-        $truck = Truck::where('code', 'C-04')->first();
-        // Un chofer que no tenga ya una ruta hoy (el chofer web muestra una sola ruta por día).
-        $busy = Route::whereDate('route_date', $today->toDateString())->pluck('driver_id')->all();
-        $driver = collect($drivers)->first(fn (Driver $d) => ! in_array($d->id, $busy, true)) ?? collect($drivers)->last();
+        $truck = $route->truck;
         $clients = Client::where('service_kind', ServiceKind::Viaje->value)->take(6)->get();
 
-        if (! $truck || ! $driver || $clients->isEmpty()) {
+        if (! $truck || $clients->isEmpty()) {
             return;
         }
 
-        $route = Route::updateOrCreate(
-            ['truck_id' => $truck->id, 'route_date' => $today->toDateString()],
+        $day = RouteDay::updateOrCreate(
+            ['route_id' => $route->id, 'route_date' => $today->toDateString()],
             [
                 'code' => 'V-'.$today->format('Ymd').'-'.$truck->code,
-                'driver_id' => $driver->id,
+                'truck_id' => $truck->id,
+                'driver_id' => $route->driver_id,
                 'status' => RouteStatus::Published,
                 'service_kind' => ServiceKind::Viaje->value,
                 'name' => 'Viajes '.$today->isoFormat('D MMM'),
@@ -613,7 +616,7 @@ class DatabaseSeeder extends Seeder
             RouteStop::updateOrCreate(
                 ['customer_name' => $client->name, 'service_kind' => ServiceKind::Viaje->value],
                 [
-                    'route_id' => $i < 3 ? $route->id : null, // el resto queda en "Sin asignar"
+                    'route_id' => $i < 3 ? $day->id : null, // el resto queda en "Sin asignar"
                     'position' => $i + 1,
                     'customer_tax_id' => $client->tax_id,
                     'address' => $client->address,

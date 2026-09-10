@@ -36,9 +36,4 @@ class Driver extends Model implements Auditable
     {
         return $this->hasMany(Route::class);
     }
-
-    public function assignments(): HasMany
-    {
-        return $this->hasMany(TruckAssignment::class);
-    }
 }

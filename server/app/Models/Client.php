@@ -181,13 +181,13 @@ class Client extends Model implements Auditable
     {
         return RouteStop::query()
             ->with(['route.driver.user', 'deliveryType', 'deliveryNote'])
-            ->join('routes', 'routes.id', '=', 'route_stops.route_id')
+            ->join('route_days', 'route_days.id', '=', 'route_stops.route_id')
             ->when(
                 $this->tax_id,
                 fn (Builder $q) => $q->where('route_stops.customer_tax_id', $this->tax_id),
                 fn (Builder $q) => $q->where('route_stops.customer_name', $this->name),
             )
-            ->orderByDesc('routes.route_date')
+            ->orderByDesc('route_days.route_date')
             ->select('route_stops.*');
     }
 

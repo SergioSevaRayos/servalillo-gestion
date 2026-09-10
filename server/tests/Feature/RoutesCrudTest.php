@@ -15,59 +15,55 @@ test('el administrador crea una ruta', function () {
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Index::class)
-        ->set('form.route_date', '2026-09-10')
         ->set('form.truck_id', $truck->id)
         ->set('form.driver_id', $driver->id)
-        ->set('form.status', 'draft')
+        ->set('form.service_kind', 'reparto')
+        ->set('form.valid_from', '2026-09-10')
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(Route::where('truck_id', $truck->id)->where('route_date', '2026-09-10')->exists())->toBeTrue();
+    expect(Route::where('truck_id', $truck->id)->where('driver_id', $driver->id)->exists())->toBeTrue();
 });
 
-test('no se puede crear dos rutas el mismo día para el mismo camión', function () {
+test('no se puede crear dos rutas con fechas solapadas para el mismo camión', function () {
     $truck = Truck::factory()->create();
     $driver = Driver::factory()->for(User::factory(), 'user')->create();
 
-    Route::factory()->create(['truck_id' => $truck->id, 'route_date' => '2026-09-10']);
+    Route::factory()->create(['truck_id' => $truck->id, 'valid_from' => '2026-09-01', 'valid_until' => null]);
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Index::class)
-        ->set('form.route_date', '2026-09-10')
         ->set('form.truck_id', $truck->id)
         ->set('form.driver_id', $driver->id)
+        ->set('form.valid_from', '2026-09-10')
         ->call('save')
         ->assertHasErrors(['form.truck_id']);
 });
 
-test('editar la fecha, el camión o el tipo de servicio regenera el código de la ruta', function () {
-    $c04 = Truck::factory()->create(['code' => 'C-04']);
-    $c09 = Truck::factory()->create(['code' => 'C-09']);
+test('editar el chofer de una ruta la actualiza', function () {
+    $truck = Truck::factory()->create();
     $driver = Driver::factory()->for(User::factory(), 'user')->create();
+    $otroChofer = Driver::factory()->for(User::factory(), 'user')->create();
 
     $route = Route::factory()->create([
-        'truck_id' => $c04->id, 'driver_id' => $driver->id,
-        'route_date' => '2026-09-08', 'service_kind' => 'reparto',
-        'code' => 'R-20260908-C-04',
+        'truck_id' => $truck->id, 'driver_id' => $driver->id,
+        'valid_from' => '2026-09-01', 'valid_until' => null,
     ]);
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Index::class)
         ->call('edit', $route)
-        ->set('form.service_kind', 'viaje')
-        ->set('form.route_date', '2026-09-11')
-        ->set('form.truck_id', $c09->id)
+        ->set('form.driver_id', $otroChofer->id)
         ->call('save')
         ->assertHasNoErrors();
 
-    expect($route->fresh()->code)->toBe('V-20260911-C-09');
+    expect($route->fresh()->driver_id)->toBe($otroChofer->id);
 });
 
-test('eliminar una ruta manda sus paradas pendientes a "Sin asignar"', function () {
+test('eliminar una ruta permanente no toca el historial de días ya generados', function () {
     $route = Route::factory()->create();
-    $pendingA = RouteStop::factory()->for($route)->create(['position' => 1, 'status' => RouteStopStatus::Pending]);
-    $pendingB = RouteStop::factory()->for($route)->create(['position' => 2, 'status' => RouteStopStatus::Pending]);
-    $done = RouteStop::factory()->for($route)->create(['position' => 3, 'status' => RouteStopStatus::Completed]);
+    $day = makeRouteDay($route, '2026-09-10');
+    $stop = RouteStop::factory()->for($day, 'route')->create(['status' => RouteStopStatus::Pending]);
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Index::class)
@@ -75,9 +71,9 @@ test('eliminar una ruta manda sus paradas pendientes a "Sin asignar"', function 
         ->assertHasNoErrors();
 
     expect($route->fresh()->trashed())->toBeTrue()
-        ->and($pendingA->fresh()->route_id)->toBeNull()
-        ->and($pendingB->fresh()->route_id)->toBeNull()
-        ->and($done->fresh()->route_id)->toBe($route->id); // las cerradas se quedan con la ruta
+        ->and($day->fresh())->not->toBeNull()
+        ->and($day->fresh()->route_id)->toBe($route->id)
+        ->and($stop->fresh()->route_id)->toBe($day->id);
 });
 
 test('un chofer no puede acceder al listado de rutas', function () {

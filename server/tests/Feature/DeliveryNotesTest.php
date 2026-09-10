@@ -8,7 +8,7 @@ use App\Livewire\DeliveryNotes\Index;
 use App\Mail\DeliveryNoteMail;
 use App\Models\DeliveryNote;
 use App\Models\Driver;
-use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Services\DeliveryNotePdfRenderer;
 use App\Services\DeliveryNoteService;
@@ -23,9 +23,9 @@ beforeEach(fn () => Storage::fake('r2'));
 
 function completedStop(): RouteStop
 {
-    $route = Route::factory()->create(['status' => RouteStatus::InProgress, 'route_date' => today()]);
+    $route = RouteDay::factory()->create(['status' => RouteStatus::InProgress, 'route_date' => today()]);
 
-    return RouteStop::factory()->for($route)->create([
+    return RouteStop::factory()->for($route, 'route')->create([
         'status' => RouteStopStatus::Completed,
         'delivered_quantity' => 900,
         'customer_name' => 'Bar Central',
@@ -177,8 +177,8 @@ describe('descarga del PDF', function () {
     it('el chofer dueño de la parada descarga su albarán', function () {
         $chofer = makeUser('chofer');
         $driver = Driver::factory()->create(['user_id' => $chofer->id]);
-        $route = Route::factory()->create(['driver_id' => $driver->id]);
-        $stop = RouteStop::factory()->for($route)->create(['status' => RouteStopStatus::Completed]);
+        $route = RouteDay::factory()->create(['driver_id' => $driver->id]);
+        $stop = RouteStop::factory()->for($route, 'route')->create(['status' => RouteStopStatus::Completed]);
         $note = DeliveryNote::factory()->for($stop, 'routeStop')->create();
 
         $this->actingAs($chofer)->get(route('delivery-notes.pdf', $note))->assertOk();

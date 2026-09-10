@@ -42,9 +42,11 @@ class RouteStop extends Model implements Auditable
         ];
     }
 
+    /** Ojo: apunta a `RouteDay` (la actividad de una ruta un día concreto), no a `Route` (la
+     *  ruta permanente) — la columna sigue llamándose `route_id` por historia, sin cambios. */
     public function route(): BelongsTo
     {
-        return $this->belongsTo(Route::class);
+        return $this->belongsTo(RouteDay::class, 'route_id');
     }
 
     public function deliveryType(): BelongsTo

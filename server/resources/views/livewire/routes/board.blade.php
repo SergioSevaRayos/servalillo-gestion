@@ -28,7 +28,7 @@
 
         @can('viewAny', \App\Models\Route::class)
             <a href="{{ route('routes.index') }}" wire:navigate class="text-sm text-primary-600 hover:text-primary-800 dark:text-primary-400 sm:ml-auto">
-                {{ __('Gestionar fichas de ruta →') }}
+                {{ __('Gestionar rutas →') }}
             </a>
         @endcan
     </div>
@@ -136,7 +136,7 @@
             <div class="flex w-full items-center">
                 <x-ui.empty-state
                     title="{{ __('No hay rutas para este día') }}"
-                    description="{{ __('Créalas desde “Gestionar fichas de ruta” y vuelve aquí para repartir las paradas.') }}"
+                    description="{{ __('Crea la ruta (camión + chofer) desde “Gestionar rutas” — aparecerá aquí sola cada día mientras esté vigente.') }}"
                 />
             </div>
         @endif

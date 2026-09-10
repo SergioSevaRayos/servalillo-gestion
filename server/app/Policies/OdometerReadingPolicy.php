@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Models\OdometerReading;
+use App\Models\RouteDay;
 use App\Models\User;
 
 class OdometerReadingPolicy
@@ -26,7 +27,7 @@ class OdometerReadingPolicy
         return $user->can('odometer.record');
     }
 
-    public function record(User $user, \App\Models\Route $route): bool
+    public function record(User $user, RouteDay $route): bool
     {
         return $user->can('odometer.record')
             && $user->driver !== null

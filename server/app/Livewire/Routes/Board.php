@@ -7,6 +7,7 @@ use App\Enums\ServiceKind;
 use App\Livewire\Forms\RouteStopForm;
 use App\Models\DeliveryType;
 use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Services\DeliveryTypeSchemaValidator;
 use App\Services\RecurringRouteService;
@@ -148,7 +149,7 @@ class Board extends Component
         abort_unless(auth()->user()->can('routes.reorder_stops'), 403);
 
         if ($toRouteId !== null) {
-            abort_unless(Route::whereKey($toRouteId)->exists(), 422, 'Ruta destino inválida.');
+            abort_unless(RouteDay::whereKey($toRouteId)->exists(), 422, 'Ruta destino inválida.');
         }
 
         $allIds = array_unique([...$fromStopIds, ...$toStopIds]);
@@ -229,7 +230,7 @@ class Board extends Component
     /** Paso 1 de "Ruta eficiente": abre el modal para elegir el punto de partida. */
     public function startOptimize(int $routeId): void
     {
-        $route = Route::findOrFail($routeId);
+        $route = RouteDay::findOrFail($routeId);
         $this->authorize('reorderStops', $route);
 
         $this->optimizingRouteId = $routeId;
@@ -244,7 +245,7 @@ class Board extends Component
     {
         abort_unless($this->optimizingRouteId !== null, 400);
 
-        $route = Route::with('stops')->findOrFail($this->optimizingRouteId);
+        $route = RouteDay::with('stops')->findOrFail($this->optimizingRouteId);
         $this->authorize('reorderStops', $route);
 
         $optimizer = app(RouteOptimizer::class);
@@ -261,7 +262,7 @@ class Board extends Component
      * @param  'base'|'vehicle'|string  $from
      * @return array{0: float, 1: float}
      */
-    private function resolveOptimizeOrigin(Route $route, string $from, RouteOptimizer $optimizer): array
+    private function resolveOptimizeOrigin(RouteDay $route, string $from, RouteOptimizer $optimizer): array
     {
         if ($from === 'base') {
             return $optimizer->baseOrigin();
@@ -314,7 +315,7 @@ class Board extends Component
             return null;
         }
 
-        $route = Route::find($this->optimizingRouteId);
+        $route = RouteDay::find($this->optimizingRouteId);
 
         return $route ? app(RouteOptimizer::class)->vehiclePositionAge($route) : null;
     }
@@ -322,7 +323,7 @@ class Board extends Component
     /** "Ver recorrido": abre el mapa con las paradas de la ruta y su trazado. */
     public function showRouteMap(int $routeId): void
     {
-        $route = Route::findOrFail($routeId);
+        $route = RouteDay::findOrFail($routeId);
         $this->authorize('view', $route);
 
         $this->dispatch('open-route-map', ...app(RouteGeometry::class)->payloadFor($route));
@@ -342,12 +343,14 @@ class Board extends Component
 
     public function render()
     {
-        $routes = Route::query()
+        // generateRecurringRoutes() (mount/updatedDate/previousDay/nextDay/today) ya garantiza
+        // el RouteDay de hoy para cada Route vigente antes de llegar aquí.
+        $routes = RouteDay::query()
             ->with(['truck', 'driver.user', 'stops.deliveryType'])
             ->whereDate('route_date', $this->date)
             ->where('service_kind', $this->kind)
             ->get()
-            ->sortBy(fn (Route $route) => $route->truck->code);
+            ->sortBy(fn (RouteDay $route) => $route->truck->code);
 
         // "Sin asignar": backlog sin fecha + las recurrentes generadas para el día que se ve.
         $unassigned = RouteStop::query()

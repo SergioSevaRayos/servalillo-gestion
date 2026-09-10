@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Enums\RouteStatus;
 use App\Enums\ServiceKind;
 use App\Models\Driver;
 use App\Models\Route;
@@ -16,22 +15,14 @@ class RouteFactory extends Factory
 {
     public function definition(): array
     {
-        $date = fake()->dateTimeBetween('-1 week', '+1 week');
-
         return [
-            'code' => 'R-'.fake()->unique()->numerify('########'),
-            'route_date' => $date,
             'truck_id' => Truck::factory(),
             'driver_id' => Driver::factory(),
-            'status' => RouteStatus::Published,
             'service_kind' => ServiceKind::Reparto->value,
+            'valid_from' => fake()->dateTimeBetween('-6 months', '-1 week'),
+            'valid_until' => null,
             'name' => 'Ruta de prueba',
         ];
-    }
-
-    public function status(RouteStatus $status): static
-    {
-        return $this->state(fn () => ['status' => $status]);
     }
 
     public function trip(): static

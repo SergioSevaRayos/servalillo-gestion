@@ -7,7 +7,7 @@ use App\Livewire\Chofer\Today;
 use App\Models\Client;
 use App\Models\DeliveryType;
 use App\Models\Driver;
-use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Models\Truck;
 use App\Support\GoogleMaps;
@@ -29,7 +29,7 @@ function chofer(array $routeOverrides = [], int $stops = 3): array
 
     $started = ($routeOverrides['status'] ?? null) === RouteStatus::InProgress;
 
-    $route = Route::factory()->create([
+    $route = RouteDay::factory()->create([
         'driver_id' => $driver->id,
         'truck_id' => $truck->id,
         'route_date' => today(),
@@ -38,7 +38,7 @@ function chofer(array $routeOverrides = [], int $stops = 3): array
         ...$routeOverrides,
     ]);
 
-    RouteStop::factory()->for($route)->count($stops)->sequence(fn ($s) => ['position' => $s->index + 1])
+    RouteStop::factory()->for($route, 'route')->count($stops)->sequence(fn ($s) => ['position' => $s->index + 1])
         ->create(['status' => RouteStopStatus::Pending, 'planned_quantity' => 1000]);
 
     return [$user, $driver, $route, $truck];
@@ -46,7 +46,7 @@ function chofer(array $routeOverrides = [], int $stops = 3): array
 
 it('muestra la ruta de hoy del chofer y no la de otro', function () {
     [$user, $driver, $route] = chofer();
-    $otra = Route::factory()->create(['route_date' => today(), 'name' => 'Ruta ajena']);
+    $otra = RouteDay::factory()->create(['route_date' => today(), 'name' => 'Ruta ajena']);
 
     Livewire::actingAs($user)->test(Today::class)
         ->assertSee($route->truck->code)
@@ -64,7 +64,7 @@ it('un chofer sin ruta hoy ve el estado vacío', function () {
 it('el chofer navega a otros días y ve la ruta de ese día', function () {
     [$user, $driver] = chofer();
     $ayer = today()->subDay();
-    $rutaAyer = Route::factory()->status(RouteStatus::Completed)->create([
+    $rutaAyer = RouteDay::factory()->status(RouteStatus::Completed)->create([
         'driver_id' => $driver->id, 'route_date' => $ayer, 'name' => 'Ruta de ayer',
     ]);
 
@@ -91,7 +91,7 @@ it('acepta el día por la URL y salta a hoy si es inválido', function () {
 it('no deja empezar una jornada de un día que no es hoy', function () {
     [$user, $driver] = chofer();
     $manana = today()->addDay();
-    Route::factory()->status(RouteStatus::Published)->create(['driver_id' => $driver->id, 'route_date' => $manana]);
+    RouteDay::factory()->status(RouteStatus::Published)->create(['driver_id' => $driver->id, 'route_date' => $manana]);
 
     $c = Livewire::actingAs($user)->test(Today::class)
         ->call('selectDay', $manana->toDateString())
@@ -374,7 +374,7 @@ it('el chofer reprograma una parada fallida para otro día', function () {
 it('reprogramar va siempre a "Sin asignar", aunque el chofer ya tenga ruta ese día', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 1);
     $manana = today()->addDay()->toDateString();
-    Route::factory()->create(['driver_id' => $driver->id, 'route_date' => $manana]);
+    RouteDay::factory()->create(['driver_id' => $driver->id, 'route_date' => $manana]);
     $stop = $route->stops->first();
     $stop->update(['customer_name' => 'Taller Gómez']);
 
@@ -479,8 +479,8 @@ it('el chofer abre "Ver recorrido" y se emite el evento del mapa', function () {
     config()->set('servalillo.routing.enabled', false);
 
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
-    RouteStop::factory()->for($route)->create(['position' => 1, 'customer_name' => 'Mi Parada', 'latitude' => 28.40, 'longitude' => -16.40]);
-    RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.42, 'longitude' => -16.42]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'customer_name' => 'Mi Parada', 'latitude' => 28.40, 'longitude' => -16.40]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'latitude' => 28.42, 'longitude' => -16.42]);
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('showRouteMap')
@@ -501,9 +501,9 @@ it('el chofer organiza su ruta desde una parada y se reordenan las pendientes', 
     config()->set('servalillo.routing.enabled', false);
 
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
-    $a = RouteStop::factory()->for($route)->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40, 'planned_quantity' => 1000]);
-    $far = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46, 'planned_quantity' => 1000]);
-    $near = RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42, 'planned_quantity' => 1000]);
+    $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40, 'planned_quantity' => 1000]);
+    $far = RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46, 'planned_quantity' => 1000]);
+    $near = RouteStop::factory()->for($route, 'route')->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42, 'planned_quantity' => 1000]);
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('startOptimize')
@@ -519,9 +519,9 @@ it('el chofer organiza su ruta desde la base', function () {
     config()->set('servalillo.base', ['latitude' => 28.39, 'longitude' => -16.39]);
 
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
-    $a = RouteStop::factory()->for($route)->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40, 'planned_quantity' => 1000]);
-    $far = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46, 'planned_quantity' => 1000]);
-    $near = RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42, 'planned_quantity' => 1000]);
+    $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'latitude' => 28.40, 'longitude' => -16.40, 'planned_quantity' => 1000]);
+    $far = RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46, 'planned_quantity' => 1000]);
+    $near = RouteStop::factory()->for($route, 'route')->create(['position' => 3, 'latitude' => 28.42, 'longitude' => -16.42, 'planned_quantity' => 1000]);
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('startOptimize')
@@ -538,10 +538,10 @@ it('"Ir a la base a repostar" reordena las pendientes desde la base sin tocar la
 
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
     // El camión ya hizo la parada 1 (lejos de la base).
-    $done = RouteStop::factory()->for($route)->create(['position' => 1, 'status' => RouteStopStatus::Completed, 'latitude' => 28.50, 'longitude' => -16.50, 'planned_quantity' => 1000]);
-    $far = RouteStop::factory()->for($route)->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46, 'planned_quantity' => 1000]);
-    $near = RouteStop::factory()->for($route)->create(['position' => 3, 'latitude' => 28.41, 'longitude' => -16.41, 'planned_quantity' => 1000]);
-    $mid = RouteStop::factory()->for($route)->create(['position' => 4, 'latitude' => 28.44, 'longitude' => -16.44, 'planned_quantity' => 1000]);
+    $done = RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'status' => RouteStopStatus::Completed, 'latitude' => 28.50, 'longitude' => -16.50, 'planned_quantity' => 1000]);
+    $far = RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46, 'planned_quantity' => 1000]);
+    $near = RouteStop::factory()->for($route, 'route')->create(['position' => 3, 'latitude' => 28.41, 'longitude' => -16.41, 'planned_quantity' => 1000]);
+    $mid = RouteStop::factory()->for($route, 'route')->create(['position' => 4, 'latitude' => 28.44, 'longitude' => -16.44, 'planned_quantity' => 1000]);
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('optimizeFromBase')
@@ -555,9 +555,9 @@ it('"Ir a la base a repostar" reordena las pendientes desde la base sin tocar la
 
 it('el chofer sube y baja una parada pendiente a mano', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
-    $a = RouteStop::factory()->for($route)->create(['position' => 1]);
-    $b = RouteStop::factory()->for($route)->create(['position' => 2]);
-    $c = RouteStop::factory()->for($route)->create(['position' => 3]);
+    $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1]);
+    $b = RouteStop::factory()->for($route, 'route')->create(['position' => 2]);
+    $c = RouteStop::factory()->for($route, 'route')->create(['position' => 3]);
 
     $t = Livewire::actingAs($user)->test(Today::class);
 
@@ -570,8 +570,8 @@ it('el chofer sube y baja una parada pendiente a mano', function () {
 
 it('mover una parada en un extremo no hace nada', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
-    $a = RouteStop::factory()->for($route)->create(['position' => 1]);
-    $b = RouteStop::factory()->for($route)->create(['position' => 2]);
+    $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1]);
+    $b = RouteStop::factory()->for($route, 'route')->create(['position' => 2]);
 
     Livewire::actingAs($user)->test(Today::class)->call('moveStop', $a->id, 'up');
 
@@ -580,9 +580,9 @@ it('mover una parada en un extremo no hace nada', function () {
 
 it('mover paradas pendientes no cambia el sitio de una completada', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
-    $done = RouteStop::factory()->for($route)->create(['position' => 1, 'status' => RouteStopStatus::Completed]);
-    $b = RouteStop::factory()->for($route)->create(['position' => 2]);
-    $c = RouteStop::factory()->for($route)->create(['position' => 3]);
+    $done = RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'status' => RouteStopStatus::Completed]);
+    $b = RouteStop::factory()->for($route, 'route')->create(['position' => 2]);
+    $c = RouteStop::factory()->for($route, 'route')->create(['position' => 3]);
 
     Livewire::actingAs($user)->test(Today::class)->call('moveStop', $c->id, 'up');
 
@@ -593,8 +593,8 @@ it('mover paradas pendientes no cambia el sitio de una completada', function () 
 
 it('el chofer no puede mover una parada completada', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
-    $done = RouteStop::factory()->for($route)->create(['position' => 1, 'status' => RouteStopStatus::Completed]);
-    RouteStop::factory()->for($route)->create(['position' => 2]);
+    $done = RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'status' => RouteStopStatus::Completed]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 2]);
 
     Livewire::actingAs($user)->test(Today::class)
         ->call('moveStop', $done->id, 'down')

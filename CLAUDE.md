@@ -194,9 +194,11 @@ Backed enums con `->label()` en español; casteados en los modelos.
 ### Panel Administrador (Bloque 3)
 - 4 módulos: `/chofers`, `/camiones`, `/usuarios` (exclusivo administrador/mantenimiento), y la ficha de
   rutas en `/rutas/listado`. Todos con búsqueda+filtro+orden+paginación.
-- **`routes.code`** = `{R|V}-{YYYYMMDD}-{código camión}` (`V-` si `service_kind` es viaje). Lo genera
-  `RouteForm::buildCode()` **tanto al crear como al editar** — si cambias fecha, camión o tipo de
-  servicio en la ficha, el código se rehace para no quedar desincronizado con el tablero.
+- **`/rutas/listado` es el CRUD de la ruta *permanente*** (camión+chofer+tipo de servicio, sin fecha —
+  ver "Route permanente / RouteDay" más abajo). No tiene `code` propio: se muestra como
+  `{truck.code} · {driver.name} · {service_kind label}`. El código con fecha (`{R|V}-{YYYYMMDD}-
+  {camión}`) lo sigue generando `App\Support\RouteCode::build()`, pero ahora solo para el `RouteDay`
+  de cada día (`RecurringRouteService`), no para la ficha permanente.
 - **Chofers vs Usuarios**: un chofer es un `User` (rol `chofer`) + `Driver`. Se crea/edita **solo** desde
   `/chofers` (transacción User+Driver en `DriverForm::save()`). `/usuarios` gestiona exclusivamente
   `administrador`/`mantenimiento` y nunca lista ni toca chofers — evita dos pantallas escribiendo la
@@ -222,21 +224,26 @@ Backed enums con `->label()` en español; casteados en los modelos.
   escribe en el `<input>` y dispara un evento `input` para que `wire:model` (diferido) lo recoja,
   sin tocar `$wire` directamente.
 - Helpers de test centralizados en `tests/Pest.php` (no los dupliques en archivos individuales):
-  `makeUser(string $role): User`, `makeRoute(string $date = '2026-09-10'): Route` (con truck+driver ya
-  creados).
+  `makeUser(string $role): User`; `makeRoute(string $date = '2026-09-10'): RouteDay` (crea la ruta
+  *permanente* con truck+driver y su `RouteDay` de esa fecha — lo que necesita casi todo test que
+  monta paradas/jornada); `makePermanentRoute(): Route` (solo la ficha permanente, sin ningún día);
+  `makeRouteDay(Route $route, string $date = '2026-09-10'): RouteDay` (un día más de una ruta
+  permanente ya creada, para tests con varios días de la misma ruta).
 
 ### Tablero Kanban de rutas (Bloque 4)
 - **`/rutas` (`routes.board`) es ahora la vista principal** de "Rutas" — `App\Livewire\Routes\Board`.
-  Columnas = rutas de la fecha seleccionada (`#[Url] $date`) + columna fija **"Sin asignar"**
+  Columnas = **`RouteDay`** de la fecha seleccionada (`#[Url] $date`) + columna fija **"Sin asignar"**
   (`route_stops.route_id IS NULL`, backlog global sin filtrar por fecha). Tarjetas = `route_stops`,
-  vía `<x-routes.stop-card>`. La ficha CRUD del Bloque 3 sigue viva en `/rutas/listado` (`routes.index`).
+  vía `<x-routes.stop-card>`. La ficha CRUD del Bloque 3 sigue viva en `/rutas/listado` (`routes.index`,
+  ahora sobre la ruta *permanente* — ver "Route permanente / RouteDay").
 - `route_stops.route_id` es **nullable** desde la migración `2026_09_06_090000_...` (antes era
-  obligatorio) y su FK es `nullOnDelete()` (antes `cascadeOnDelete()`).
-- **`Route` es `SoftDeletes`**, así que el FK `nullOnDelete` NO se dispara al borrar desde la UI.
-  `Routes\Index::delete()` lo compensa a mano: saca las paradas **pendientes** de la ruta a "Sin
-  asignar" (`route_id = null`, reencoladas al final del backlog) antes del `->delete()`; las paradas
-  **cerradas** se van con la ruta (se recuperarían si se restaura). Sin esto, borrar una ruta dejaba
-  sus paradas huérfanas (`route_id` → ruta con `deleted_at`, invisibles en todas las vistas).
+  obligatorio) y su FK es `nullOnDelete()` (antes `cascadeOnDelete()`); apunta a `route_days`.
+- **`RouteDay` es `SoftDeletes`**, así que el FK `nullOnDelete` NO se dispara al borrar desde la UI —
+  pero hoy no hay ninguna acción de UI que borre un `RouteDay` suelto (solo la ruta *permanente* se
+  borra desde `/rutas/listado`, y eso no toca sus `RouteDay` — ver esa sección). Este dato queda por
+  si algún día se añade un "eliminar el día" en el tablero: habría que repetir el patrón que tenía
+  el `Routes\Index::delete()` de antes de la reforma (sacar las pendientes a "Sin asignar", las
+  cerradas se van con la fila).
 - Crear/editar una parada (`App\Livewire\Forms\RouteStopForm`) es el primer sitio de la app que **usa de
   verdad** el modelo flexible de repartos: al elegir un `delivery_type_id` se renderizan dinámicamente
   los campos de su `field_schema` y se validan con `DeliveryTypeSchemaValidator` antes de guardarlos en
@@ -329,34 +336,69 @@ Backed enums con `->label()` en español; casteados en los modelos.
   scroll propio una barra fina a juego con el sistema de diseño (claro/oscuro), en vez de la nativa del
   navegador. Úsala en cualquier `overflow-y-auto`/`overflow-x-auto` nuevo antes de dejar la del sistema.
 
-### Asignación permanente camión↔chofer (2026-09-10)
+### Route permanente / RouteDay (2026-09-10 — reemplaza el diseño anterior de "asignación permanente")
 
-- Antes, oficina tenía que crear a mano una `Route` cada día para cada camión+chofer. El usuario pidió
-  poder configurar "Sergio lleva el camión C-01" **una vez, sin fecha de fin**, y que la `Route` de
-  cada día se genere sola — lo que varía día a día son los clientes (paradas fijas/esporádicas/
-  reprogramadas), no quién lleva el camión. **`Route` sigue siendo una fila por camión+día** (jornada,
-  GPS, estadísticas y el tablero Kanban no se tocaron); solo se añadió la plantilla que la genera.
-- Reutiliza la tabla **`truck_assignments`** / `App\Models\TruckAssignment` (`truck_id`, `driver_id`,
-  `valid_from`, `valid_until` nullable = sin fin), que ya existía pero estaba vestigial (sin CRUD, sin
-  validación de solapes, nada la leía). Se le añadió `created_by` + `SoftDeletes`.
-  `TruckAssignment::overlaps(column, id, from, until, ignoreId)` es el helper estático de solape de
-  fechas (trata `valid_until = null` como "sin fin"), usado por `TruckAssignmentForm` para rechazar dos
-  asignaciones solapadas del mismo camión **o** del mismo chofer.
-- **`App\Services\RecurringRouteService`** — mismo patrón que `RecurringStopService` (paradas
-  recurrentes, Bloque 9): `generateForDate`/`generateHorizon(14)`, aditivo e idempotente
-  (`Route::firstOrCreate` — **nunca pisa una ruta ya creada a mano** ese camión+día). Comando
-  `rutas:generar-rutas {fecha?}` (scheduler diario 05:25, antes que `rutas:generar-recurrentes`) +
-  disparo desde `Routes\Board` al cambiar de fecha (mismos puntos que `generateRecurringStops()`).
-  Rutas generadas: `status = Published`, `service_kind = reparto` (Viajes sigue sin operarse; si algún
-  día se necesita, se crea esa ruta a mano como siempre). Si se borra/edita la asignación después, las
-  rutas ya generadas no se tocan.
-- `App\Support\RouteCode::build()` — fórmula del código de ruta (`{R|V}-{Ymd}-{camión}`), extraída de
-  `RouteForm::buildCode()` (que ahora delega en ella) para que el generador automático no se
-  desincronice del alta manual.
-- Panel `/rutas/asignaciones` (`App\Livewire\Routes\Assignments`, enlazado desde `/rutas/listado`):
-  listado + alta/edición + **"Finalizar"** (fija `valid_until = hoy` sin abrir el modal) + eliminar
-  (soft delete). Permisos: reutiliza `routes.view/create/update/delete` (sin permiso nuevo);
-  `TruckAssignmentPolicy` auto-descubierta.
+- **Historia (dos iteraciones el mismo día):** primero se probó una tabla `truck_assignments` aparte
+  (camión+chofer, sin fecha) que generaba sola una fila de `routes` (entonces = "un día") cada
+  madrugada. El usuario lo vio funcionar en producción (`/rutas/listado` con 6 filas
+  `R-20260910-C-01`…`R-20260915-C-01` para el mismo camión+chofer) y pidió dar marcha atrás:
+  **"una ruta tiene que ser una única fila, y aparece todos los días tenga viajes o no"**, más una
+  **herramienta para ver el resumen de un día concreto**. Se rediseñó invirtiendo qué tabla es "la
+  ruta": ya no se crea una `TruckAssignment` aparte — la propia `Route` pasa a ser la ficha permanente,
+  y lo que antes era `Route` (una fila por camión+día) pasa a ser `RouteDay`.
+- **`App\Models\Route`** = la ficha permanente: `truck_id`, `driver_id`, `service_kind`, `valid_from`,
+  `valid_until` (nullable = sin fin), `name`, `notes`, `created_by`, `SoftDeletes`. **Sin `code`
+  propio** (se muestra como `{truck.code} · {driver.name} · {service_kind label}` — un código con
+  fecha no tiene sentido en una ficha sin fecha). `Route::overlaps(column, id, from, until, ignoreId)`
+  es el helper estático de solape de fechas (trata `valid_until = null` como "sin fin"), usado por
+  `RouteForm` para rechazar dos rutas solapadas del mismo camión **o** del mismo chofer — así se seguía
+  cumpliendo "1 camión = 1 ruta a la vez" sin depender de una fecha. CRUD en `/rutas/listado`
+  (`App\Livewire\Routes\Index` + `RouteForm`), con **"Finalizar"** (fija `valid_until = hoy` sin abrir
+  el modal). Borrar una `Route` la deja `SoftDeletes` pero **no toca su historial de `RouteDay`** —
+  solo deja de generar días nuevos a partir de hoy.
+- **`App\Models\RouteDay`** (antes `App\Models\Route`, tabla `route_days`) = la actividad de una ruta
+  permanente **un día concreto**: paradas, jornada (litros inicio/fin), GPS, estado — todo lo que antes
+  vivía en `Route` sigue igual aquí (`code`, `route_date`, `status`, `started_at`/`completed_at`,
+  `liter_meter_*`, `deliveredLiters()`/`literMeterExpected()`/`literDiscrepancy()`, `scopeForDate()`,
+  `scopeOperational()`). Tiene **`route_id`** (FK a la `Route` permanente que lo generó,
+  `restrictOnDelete` — no se puede borrar en duro una ruta con historial). **`route_stops.route_id`,
+  `odometer_readings.route_id` y `gps_positions.route_id` NO cambiaron de nombre de columna ni de
+  relación** (`RouteStop::route()`, etc. — siguen llamándose igual): solo cambió a qué modelo apunta
+  esa relación (`RouteDay`, no `Route`). Índice único `(route_id, route_date)` — sustituye al viejo
+  `(truck_id, route_date)`.
+- **`App\Services\RecurringRouteService`** sigue el mismo concepto que antes (y que `RecurringStopService`,
+  paradas recurrentes, Bloque 9): `generateForDate`/`generateHorizon(14)`, aditivo e idempotente
+  (`RouteDay::firstOrCreate(['route_id'=>, 'route_date'=>], …)` — **nunca pisa un `RouteDay` ya creado o
+  editado a mano** para esa ruta y esa fecha). Solo cambió el objetivo: antes creaba `Route` a partir de
+  `TruckAssignment`, ahora crea `RouteDay` a partir de `Route`. Mismo comando `rutas:generar-rutas
+  {fecha?}` (scheduler diario 05:25) + disparo desde `Routes\Board` al cambiar de fecha. Días generados:
+  `status = Published`, `service_kind` = el de la ruta permanente. Si se borra/edita la `Route` después,
+  los `RouteDay` ya generados no se tocan.
+- `App\Support\RouteCode::build()` — fórmula del código (`{R|V}-{Ymd}-{camión}`), ahora usada **solo**
+  por `RecurringRouteService` (y `ensureForDate()`, red de seguridad) para el `code` de cada `RouteDay`
+  — la `Route` permanente no tiene código.
+- **Herramienta nueva — "Historial"** (`App\Livewire\Routes\History`, `/rutas/{route}/historial`,
+  enlazada desde cada fila de `/rutas/listado`): lista paginada de los `RouteDay` de esa ruta permanente
+  (fecha, estado, paradas completadas/falladas/pendientes, litros repartidos vs. contador inicio→fin,
+  horario de jornada), con filtro de rango de fechas. "Ver detalle" abre un modal con la lista de
+  paradas de ese día (enlace al PDF del albarán si lo tiene); "Ver recorrido" reutiliza
+  `RouteGeometry::payloadFor()` + `<x-route-map-modal>` (misma infra que el tablero) para el mapa de
+  ese día si hay GPS/paradas con coordenadas. Autorización = `RoutePolicy::view` (la misma de la ficha
+  permanente); `RouteDayPolicy` gobierna el día individual dentro (`viewDay`/`showDayMap`).
+- **Reparto de las Policies**: `RoutePolicy` (permanente) se quedó con `viewAny/view/create/update/
+  delete/restore`. Lo que antes eran acciones "del día" (`reorderStops`, `optimizeOwn`, `operate`)
+  pasó a **`App\Policies\RouteDayPolicy`** (auto-descubierta, sobre `RouteDay`) — mismo criterio de
+  permiso + `owns()` que antes.
+- **Migración de datos** (`2026_09_10_160000_redefine_route_as_permanent_entity.php`, un solo fichero):
+  quita las FK de `route_stops`/`odometer_readings`/`gps_positions` → renombra `routes` a `route_days`
+  → renombra `truck_assignments` a `routes` (+ añade `name`/`notes`/`service_kind`) → añade
+  `route_days.route_id` → **backfill**: empareja cada `route_days` huérfano con la `routes` de su mismo
+  `truck_id` cuyo `[valid_from, valid_until]` cubra esa fecha; si ninguna cubre (instalaciones con
+  historial suelto sin asignación permanente detrás), crea automáticamente una ruta "histórica" por
+  cada `(truck_id, driver_id)` distinto entre los huérfanos restantes → NOT NULL + FK + índice único
+  nuevo → vuelve a crear las FK de las tres tablas hacia `route_days`. Si tocas esta zona del modelo de
+  datos otra vez, este es el patrón a seguir (renombrar tablas + columna puente + backfill en la misma
+  migración, no en dos).
 
 ### Panel estadístico (Bloque 5)
 - **`/dashboard` es ahora un componente Livewire** (`App\Livewire\Dashboard\Index`), ya no un
@@ -367,10 +409,10 @@ Backed enums con `->label()` en español; casteados en los modelos.
   $from, Carbon $to)` devuelve un array con `kpis`, `operations` (serie diaria + estados de ruta),
   `volume` (planificado vs entregado + por tipo de reparto), `by_driver`, `by_truck`. Todo con
   **agregación en BD** (Query Builder + `filter (where ...)` de Postgres), no trayendo filas. Como
-  `routes`/`route_stops` usan SoftDeletes y el Query Builder no las scopea, cada consulta añade
+  `route_days`/`route_stops` usan SoftDeletes y el Query Builder no las scopea, cada consulta añade
   `whereNull('...deleted_at')` a mano — si tocas el service, no lo olvides.
-- Toda la operativa se cuenta por la **fecha de la ruta** (`routes.route_date`), no por `completed_at`,
-  para que "el periodo" sea coherente entre paradas completadas y falladas.
+- Toda la operativa se cuenta por la **fecha del día de ruta** (`route_days.route_date`), no por
+  `completed_at`, para que "el periodo" sea coherente entre paradas completadas y falladas.
 - Rango de fechas: `#[Url] $range` en `{7d,30d,90d,year}` (constante `Index::RANGES`), def. `30d`.
 - **Gráficos = Chart.js** (`npm install --save-exact chart.js`, `import Chart from 'chart.js/auto'` en
   `app.js`). Componente Alpine `window.statsCharts(initial)`:
@@ -384,7 +426,9 @@ Backed enums con `->label()` en español; casteados en los modelos.
   - Colores fijos que funcionan en claro y oscuro (slate-400 semitransparente para ejes) → no hace
     falta reconstruir los charts al cambiar de tema.
 - El `DatabaseSeeder` genera ~90 días de rutas históricas (`seedHistory()`, con guarda de idempotencia)
-  para que el panel tenga datos. `migrate:fresh --seed` deja ~230 rutas y ~1100 paradas.
+  para que el panel tenga datos. `migrate:fresh --seed` deja **4 rutas permanentes** (una por camión;
+  C-04 sale con `service_kind = viaje`, para el demo del filtro Reparto/Viajes) y sus **~250
+  `RouteDay`** con ~1200 paradas.
 
 ### Panel de Mantenimiento (Bloque 6)
 - **Exclusivo del rol `mantenimiento`** (no `administrador`). Grupo `maintenance.*` en `routes/web.php`
@@ -450,7 +494,7 @@ Backed enums con `->label()` en español; casteados en los modelos.
 
 ### Web operativa del Chofer (Bloque 7)
 - **`/chofer/ruta` (`chofer.today`) es `App\Livewire\Chofer\Today`** (ya no un placeholder). Muestra
-  **la ruta del chofer para un día** (`routes` donde `driver_id` = su `driver->id` y `route_date` =
+  **la ruta del chofer para un día** (`route_days` donde `driver_id` = su `driver->id` y `route_date` =
   `#[Url] $date`, def. hoy) como una columna de paradas. Mobile-first, `.surface`, **nunca `.glass`**.
 - **Selector de día = carrusel "coverflow" sobre scroll nativo** (`.day-carousel*` en `app.css`,
   `Alpine.data('dayCarousel')` en `app.js`). El día en foco va grande y centrado; los vecinos, cada
@@ -553,7 +597,7 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `(fin − inicio) − repartido` supera `config('servalillo.liter_meter_tolerance')` (def. 0), el modal
   avisa ("el contador marca N L más/menos de lo repartido") y **obliga a un motivo del ajuste** antes
   de cerrar; toast `warning` al finalizar con ajuste. Al terminar, `trucks.liter_meter` = lectura de
-  fin. Helpers en `Route`: `deliveredLiters()`, `literMeterExpected()`, `literDiscrepancy()`. El
+  fin. Helpers en `RouteDay`: `deliveredLiters()`, `literMeterExpected()`, `literDiscrepancy()`. El
   tablero Kanban del admin marca la columna con aviso ámbar si hay `liter_discrepancy_note`.
 - **`<x-ui.digit-wheel unit="…">`** = selector numérico tipo "ruleta" (una columna scroll-snap por
   dígito) para las lecturas del contador de litros. `wire:model` **diferido** (no `.live`): el valor
@@ -753,7 +797,7 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `runOptimize('base')`, con `wire:confirm`) para cuando el camión tiene que volver a la nave a
   rellenar. Un toque = reordena las pendientes saliendo de la base **sin** pasar por el modal; las
   completadas se quedan en su sitio. Visible si `operable() && ! finished && pendingCount > 1`.
-- **`App\Services\RouteOptimizer` es el único punto.** `optimize(Route, ?array $origin = null): array`
+- **`App\Services\RouteOptimizer` es el único punto.** `optimize(RouteDay, ?array $origin = null): array`
   + `toast(array): array` + `baseOrigin(): array`.
   - Motor: **OSRM `/table`** (`?annotations=distance`) → matriz N×N de distancias reales por carretera.
     Sobre esa matriz, **vecino más cercano + 2-opt** (camino abierto). Config `servalillo.routing`
@@ -764,7 +808,7 @@ Backed enums con `->label()` en español; casteados en los modelos.
     del camión**) → se antepone como índice 0 fijo y la primera pendiente pasa a ser la más cercana.
     Si **no se pasa `$origin`** (llamada directa / tests), se toma la **última parada cerrada** con
     coordenadas; si tampoco hay, la optimización es **libre** (NN desde cada inicio, el camino más corto).
-  - **"Ubicación actual del camión"** (Bloque 11): `RouteOptimizer::latestVehiclePosition(Route, $maxAgeMin=60)`
+  - **"Ubicación actual del camión"** (Bloque 11): `RouteOptimizer::latestVehiclePosition(RouteDay, $maxAgeMin=60)`
     devuelve `[lat,lon]` de la última `GpsPosition` de la ruta (match por `route_id`, o `driver_id` +
     `route_date`) si es reciente; `vehiclePositionAge()` da el "hace X min". El modal
     `<x-route-optimize-modal :vehicle-age>` muestra esa opción **destacada** cuando hay señal reciente
@@ -783,16 +827,16 @@ Backed enums con `->label()` en español; casteados en los modelos.
   - **Gotcha resuelto**: NO usar una arrow-fn `fn () => array_shift($queue)` dentro de `map()` para
     drenar una cola — las arrow functions capturan **por valor** y `array_shift` no persiste entre
     iteraciones. Usar un `foreach` normal.
-- Permiso nuevo **`routes.optimize.own`** (chofer + admin + mantenimiento). `RoutePolicy::optimizeOwn`
-  (chofer, con propiedad de la ruta) y `RoutePolicy::reorderStops` (oficina — **ahora cableado** desde
-  `Board::startOptimize` con `$this->authorize('reorderStops', $route)`, antes estaba sin usar).
+- Permiso nuevo **`routes.optimize.own`** (chofer + admin + mantenimiento). `RouteDayPolicy::optimizeOwn`
+  (chofer, con propiedad del día) y `RouteDayPolicy::reorderStops` (oficina — cableado desde
+  `Board::startOptimize` con `$this->authorize('reorderStops', $route)`).
 - Primer uso del **`Http` facade** de la app. En tests: `phpunit.xml` fija `ROUTING_OSRM_ENABLED=false`
   (heurística local determinista, sin red); los tests de OSRM hacen `config()->set(...)` + `Http::fake()`.
 - **"Ver recorrido"** (mismo bloque): botón que abre un mapa **Leaflet** (`npm i leaflet`, mosaicos
   de OpenStreetMap, sin API key) con las paradas numeradas y el **trazado real por carretera**.
   - `App\Services\RouteGeometry`: `for(array $points): ?array` pide a OSRM `/route/v1/driving/{lon,lat…}
     ?overview=full&geometries=geojson` y devuelve `{ line: [[lat,lon]…], distance_m, duration_s }` o
-    null (el mapa cae a línea recta entre paradas). `payloadFor(Route): array` arma
+    null (el mapa cae a línea recta entre paradas). `payloadFor(RouteDay): array` arma
     `{ stops:[{n,name,lat,lng,status}], meta, skipped, vehicle }` (numeración por posición real,
     aparta las paradas sin coordenadas).
   - **`vehicle`** (Bloque 11): última `GpsPosition` de la ruta (sin límite de antigüedad, se muestra
@@ -832,7 +876,7 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `bootstrap/app.php`): `{ positions: [{lat, lng, recorded_at, accuracy_m?, speed_mps?, heading_deg?,
   battery_level?}] }`, máx **500** por lote. `StoreGpsBatchRequest` + `App\Services\GpsIngestService`:
   descarta posiciones con `recorded_at > now()+1h`; por cada fecha resuelve
-  `$route = Route::forDate($d)->where('driver_id', $device->driver_id)->first()` → `driver_id` (del
+  `$route = RouteDay::forDate($d)->where('driver_id', $device->driver_id)->first()` → `driver_id` (del
   device), `truck_id`/`route_id` (de la ruta, **null si el device no tiene chofer o el chofer no tiene
   ruta ese día**); `GpsPosition::insert()` en bloque (sin eventos, no auditada); bumpea
   `device.last_seen_at`. `abort_unless($device instanceof Device, 403)` en el controlador (un token de
@@ -898,7 +942,9 @@ Backed enums con `->label()` en español; casteados en los modelos.
 
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
-- Regla de negocio: **1 camión = 1 ruta por día** (índice único `routes.truck_id + route_date`).
+- Regla de negocio: **1 camión = 1 ruta permanente vigente a la vez** (`Route::overlaps()`, sin fechas
+  solapadas del mismo `truck_id` ni del mismo `driver_id`); cada ruta permanente genera como mucho
+  **1 `RouteDay` por fecha** (índice único `route_days.route_id + route_date`).
 - Tablas de alto volumen (`gps_positions`) y de log (`error_logs`) son append-only: `UPDATED_AT = null`, sin auditar.
 - Los listados del panel deben tener búsqueda + filtro + orden + paginación, y en móvil convertirse en
   tarjetas (nada de scroll horizontal). Mobile-first.
@@ -906,7 +952,7 @@ Backed enums con `->label()` en español; casteados en los modelos.
 
 ## Tests
 Pest. `tests/Pest.php` siembra `RolePermissionSeeder` en cada test Feature (`beforeEach`).
-Factories: `User`, `Driver`, `Truck`, `DeliveryType`, `Route`, `RouteStop`.
+Factories: `User`, `Driver`, `Truck`, `DeliveryType`, `Route` (permanente), `RouteDay`, `RouteStop`.
 
 ## Despliegue (producción)
 Runbook completo en **`docs/04-despliegue-vps.md`**. Resumen:
