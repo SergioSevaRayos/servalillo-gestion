@@ -3,11 +3,12 @@
 @php
 $id = $attributes->get('id', $name);
 $errorMsg = $error ?? ($errors->first($name) ?: null);
+$isRequired = (bool) $attributes->get('required');
 @endphp
 
 <div>
     @if ($label)
-        <x-input-label :for="$id" :value="$label" />
+        <x-input-label :for="$id" :value="$label" :required="$isRequired" />
     @endif
 
     <input
