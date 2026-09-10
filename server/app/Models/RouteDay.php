@@ -33,6 +33,9 @@ class RouteDay extends Model implements Auditable
         'liter_meter_start', 'liter_meter_end', 'liter_discrepancy_note',
     ];
 
+    /** `dwell_recalculated_at` es un sello de proceso interno — no aporta nada a la auditoría. */
+    protected array $auditExclude = ['dwell_recalculated_at'];
+
     protected function casts(): array
     {
         return [
@@ -41,9 +44,17 @@ class RouteDay extends Model implements Auditable
             'service_kind' => ServiceKind::class,
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
+            'dwell_recalculated_at' => 'datetime',
             'liter_meter_start' => 'integer',
             'liter_meter_end' => 'integer',
         ];
+    }
+
+    /** ¿Toca recalcular el tiempo de permanencia en las paradas de este día? */
+    public function dwellIsStale(): bool
+    {
+        return $this->dwell_recalculated_at === null
+            || $this->dwell_recalculated_at->lt(now()->subSeconds((int) config('servalillo.dwell.recompute_every_seconds')));
     }
 
     /**
@@ -137,6 +148,12 @@ class RouteDay extends Model implements Auditable
     public function odometerReadings(): HasMany
     {
         return $this->hasMany(OdometerReading::class, 'route_id');
+    }
+
+    /** Visitas a paradas (tiempo de permanencia) de todas las paradas de este día. */
+    public function stopVisits(): HasMany
+    {
+        return $this->hasMany(StopVisit::class, 'route_id');
     }
 
     public function scopeForDate(Builder $query, mixed $date): Builder

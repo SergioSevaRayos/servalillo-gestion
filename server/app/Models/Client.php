@@ -180,7 +180,7 @@ class Client extends Model implements Auditable
     public function pastStops(): Builder
     {
         return RouteStop::query()
-            ->with(['route.driver.user', 'deliveryType', 'deliveryNote'])
+            ->with(['route.driver.user', 'deliveryType', 'deliveryNote', 'visits'])
             ->join('route_days', 'route_days.id', '=', 'route_stops.route_id')
             ->when(
                 $this->tax_id,

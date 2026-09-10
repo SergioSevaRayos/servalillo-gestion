@@ -10,8 +10,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
 
@@ -67,9 +69,47 @@ class RouteStop extends Model implements Auditable
         return $this->hasOne(DeliveryNote::class);
     }
 
+    /** Tramos en los que el camión estuvo dentro de la geocerca de la parada (StopDwellService). */
+    public function visits(): HasMany
+    {
+        return $this->hasMany(StopVisit::class, 'route_stop_id')->orderBy('entered_at');
+    }
+
     /** Paradas del "backlog": creadas pero sin ruta/camión/chofer asignado todavía. */
     public function scopeUnassigned(Builder $query): Builder
     {
         return $query->whereNull('route_id');
+    }
+
+    /**
+     * Segundos totales que el camión ha estado en la parada (suma de las visitas). Una visita
+     * abierta ("en parada ahora") cuenta lo transcurrido hasta ahora. null = no hay datos de GPS.
+     */
+    public function onSiteSeconds(): ?int
+    {
+        if ($this->visits->isEmpty()) {
+            return null;
+        }
+
+        return (int) $this->visits->sum(
+            fn (StopVisit $v) => $v->seconds ?? $v->entered_at->diffInSeconds(now()),
+        );
+    }
+
+    public function firstArrivalAt(): ?Carbon
+    {
+        return $this->visits->first()?->entered_at;
+    }
+
+    /** Hora de la última salida del radio (null si sigue dentro o no hay datos). */
+    public function lastDepartureAt(): ?Carbon
+    {
+        return $this->visits->last()?->left_at;
+    }
+
+    /** El camión está ahora mismo dentro del radio de esta parada (visita sin cerrar). */
+    public function isOnSiteNow(): bool
+    {
+        return $this->visits->contains(fn (StopVisit $v) => $v->left_at === null);
     }
 }

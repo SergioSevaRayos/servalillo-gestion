@@ -49,6 +49,8 @@
             @if ($stop->failure_reason)
                 <p class="mt-1 text-sm text-rose-600 dark:text-rose-400">{{ $stop->failure_reason }}</p>
             @endif
+
+            <x-stop-dwell :stop="$stop" variant="line" />
         </div>
     </div>
 </button>

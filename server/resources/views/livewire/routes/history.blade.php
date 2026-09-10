@@ -34,6 +34,7 @@
                 <th>{{ __('Paradas') }}</th>
                 <th>{{ __('Litros') }}</th>
                 <th>{{ __('Jornada') }}</th>
+                <th>{{ __('En paradas') }}</th>
                 <th class="text-right">{{ __('Acciones') }}</th>
             </tr>
         </thead>
@@ -82,6 +83,13 @@
                             <span class="text-slate-400">{{ __('Sin empezar') }}</span>
                         @endif
                     </td>
+                    <td data-label="{{ __('En paradas') }}">
+                        @if ($day->on_site_seconds)
+                            {{ \App\Support\Duration::humanShort((int) $day->on_site_seconds) }}
+                        @else
+                            <span class="text-slate-400">—</span>
+                        @endif
+                    </td>
                     <td data-label="{{ __('Acciones') }}" class="text-right">
                         <div class="flex justify-end gap-2">
                             <x-ui.button variant="ghost" size="sm" wire:click="viewDay({{ $day->id }})">{{ __('Ver detalle') }}</x-ui.button>
@@ -93,7 +101,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6">
+                    <td colspan="7">
                         <x-ui.empty-state title="{{ __('Sin historial') }}" description="{{ __('Todavía no hay días registrados para esta ruta.') }}" />
                     </td>
                 </tr>
@@ -116,6 +124,7 @@
                             <div class="min-w-0">
                                 <p class="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{{ $stop->customer_name }}</p>
                                 <p class="truncate text-xs text-slate-500 dark:text-slate-400">{{ $stop->address }}</p>
+                                <x-stop-dwell :stop="$stop" variant="line" />
                             </div>
                             <div class="flex shrink-0 items-center gap-2">
                                 <x-ui.badge :variant="$stop->status->badgeVariant()">{{ $stop->status->label() }}</x-ui.badge>

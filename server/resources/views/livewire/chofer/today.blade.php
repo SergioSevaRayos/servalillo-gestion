@@ -416,6 +416,8 @@
                     </p>
                 @endif
 
+                <x-stop-dwell :stop="$s" variant="line" />
+
                 {{-- Selector de resultado --}}
                 <div class="mt-4 grid grid-cols-3 gap-2">
                     @foreach (['completed' => __('Entregada'), 'failed' => __('Fallida'), 'skipped' => __('Cancelada')] as $value => $label)

@@ -1060,6 +1060,49 @@ Backed enums con `->label()` en español; casteados en los modelos.
   administrador y mantenimiento los tienen, chofer no (no está en `CHOFER_PERMISSIONS`).
   `DriverLogPolicy` auto-descubierta.
 
+### Tiempo de permanencia en parada (Bloque 15, 2026-09-11)
+- **Cuánto tiempo está el camión parado en cada cliente**, a partir del GPS y una **geocerca**
+  (radio configurable, 100 m por defecto). Cálculo por **"replay"**, NO máquina de estados en la
+  ingesta: `App\Services\StopDwellService::recomputeForRouteDay(RouteDay)` reprocesa el track
+  completo del día y reconstruye la tabla `stop_visits` (borra + reinserta por día → idempotente,
+  aguanta lotes de GPS desordenados / de recuperación). No toca `GpsIngestService`.
+- **`stop_visits`** (`route_stop_id` cascade, `route_id` → `route_days` nullOnDelete, `entered_at`,
+  `left_at` nullable, `seconds` unsignedInteger nullable). `left_at`/`seconds` null = **visita
+  abierta** ("en parada ahora"). Modelo `App\Models\StopVisit`, **no auditado** (dato derivado,
+  mismo criterio que `gps_positions`). `RouteStop::visits()` + accesores `onSiteSeconds()` (suma;
+  una visita abierta cuenta lo transcurrido hasta ahora), `firstArrivalAt()`, `lastDepartureAt()`,
+  `isOnSiteNow()`. `RouteDay::stopVisits()` (hasMany por `route_id`) para el total por día.
+- **Reglas** en `config('servalillo.dwell')` (`DWELL_*` env): `radius_meters` 100, `min_seconds`
+  120 (por debajo no cuenta como parada — "pasaba por la calle"), `merge_gap_seconds` 180 (hueco
+  que parte una visita en dos), `max_gap_seconds` 600 (tope de cada hueco al sumar — un apagón GPS
+  no infla el número), `accuracy_reject_meters` 150 (se ignoran fixes con mala precisión;
+  `accuracy_m` null se acepta), `exclude_base_radius_meters` 150 (se ignoran fixes junto a la nave),
+  `clamp_to_shift` true (se ignora lo de fuera del horario de jornada ±30 min). Cada posición se
+  atribuye a la parada **más cercana dentro del radio** (dos geocercas solapadas no cuentan doble).
+- **Cuándo se recalcula**: (1) comando **`paradas:calcular-permanencia {fecha?}`** — sin argumento
+  ayer + hoy (todas las rutas, no solo operativas: de madrugada los días de ayer ya están
+  "Completada" y son justo los que hay que cerrar); scheduler `dailyAt('03:30')` (antes de
+  `gps:purgar`). (2) **Recálculo perezoso al ver**: `Board::render()` / `Chofer\Today::route()` /
+  `History::viewDay()` recalculan los días visibles recientes (`route_date >= hoy −
+  `recompute_max_age_days` (2)`) cuyo sello `route_days.dwell_recalculated_at` esté caducado
+  (`recompute_every_seconds`, 90 s). Doble barrera contra estampida de polls: el sello + un
+  `Cache::lock("dwell:routeday:{id}")` **no bloqueante** dentro del servicio (si está tomado, se
+  sale sin tocar nada; el siguiente poll trae datos frescos). Latencia del "en parada ahora": ~2-3
+  min (ping 45 s + poll + throttle). `dwell_recalculated_at` está en `RouteDay::$auditExclude`.
+- **UI**: `<x-stop-dwell :stop variant="badge|line" />` (componente compartido, usa
+  `App\Support\Duration::humanShort()`). `badge` (`⏱ 14 min`, o `● En parada 6 min` ámbar si
+  abierta) en las tarjetas del tablero y del chofer; `line` (`Llegada 10:32 · Salida 10:49 · 17 min
+  en parada`) en el modal `stop-action` del chofer y en `day-detail` del Historial. Resúmenes:
+  columna "En paradas" por día en el Historial (`withSum('stopVisits as on_site_seconds', 'seconds')`)
+  y stat "Media en parada" en la ficha del cliente (`Client::pastStops()` ya trae `visits`).
+- **Fuera de alcance** (posible fase posterior): detección de entrada/salida en tiempo real en la
+  ingesta; interpolación del cruce exacto del radio; `speed_mps ≈ 0` como filtro extra; media por
+  chofer en `FleetStatsService`; aviso "parada completada pero el camión nunca entró en su radio".
+- Tests: `StopDwellServiceTest` (15 casos: conteo, drive-by, split, apagón, geocercas solapadas,
+  base, precisión, re-entrada, visita abierta, idempotencia, lote desordenado, sin coords,
+  clamp_to_shift), `RecomputeStopDwellCommandTest`, `StopDwellOnViewTest`, `RouteStopDwellAccessorsTest`.
+  Helpers en `tests/Pest.php`: `metersOffset()`, `gpsTrack()`.
+
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
 - Regla de negocio: **1 camión = 1 ruta permanente vigente a la vez** (`Route::overlaps()`, sin fechas

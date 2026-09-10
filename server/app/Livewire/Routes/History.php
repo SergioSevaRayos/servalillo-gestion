@@ -7,6 +7,7 @@ use App\Enums\RouteStopStatus;
 use App\Models\Route;
 use App\Models\RouteDay;
 use App\Services\RouteGeometry;
+use App\Services\StopDwellService;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
@@ -86,6 +87,13 @@ class History extends Component
         $day = RouteDay::where('route_id', $this->route->id)->findOrFail($routeDayId);
         $this->authorize('view', $day);
 
+        // Los días recientes (aún dentro de la ventana de recálculo) se ponen al día bajo demanda;
+        // los viejos ya los cerró el pase nocturno `paradas:calcular-permanencia`.
+        $oldest = today()->subDays((int) config('servalillo.dwell.recompute_max_age_days'));
+        if ($day->route_date->gte($oldest) && $day->dwellIsStale()) {
+            app(StopDwellService::class)->recomputeForRouteDay($day);
+        }
+
         $this->viewingDayId = $day->id;
         $this->dispatch('open-modal', 'day-detail');
     }
@@ -106,7 +114,7 @@ class History extends Component
             return null;
         }
 
-        return RouteDay::with(['stops.deliveryType', 'stops.deliveryNote'])
+        return RouteDay::with(['stops.deliveryType', 'stops.deliveryNote', 'stops.visits'])
             ->where('route_id', $this->route->id)
             ->find($this->viewingDayId);
     }
@@ -121,6 +129,7 @@ class History extends Component
                 'stops as failed_stops_count' => fn ($q) => $q->whereIn('status', [RouteStopStatus::Failed, RouteStopStatus::Skipped]),
                 'stops as pending_stops_count' => fn ($q) => $q->where('status', RouteStopStatus::Pending),
             ])
+            ->withSum('stopVisits as on_site_seconds', 'seconds')
             ->when($this->from, fn ($q) => $q->whereDate('route_date', '>=', $this->from))
             ->when($this->to, fn ($q) => $q->whereDate('route_date', '<=', $this->to))
             ->orderByDesc('route_date')

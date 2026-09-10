@@ -13,6 +13,7 @@ use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
 use App\Services\RouteGeometry;
 use App\Services\RouteOptimizer;
+use App\Services\StopDwellService;
 use App\Support\GoogleMaps;
 use App\Support\Notifications\RouteChangeNotifier;
 use Illuminate\Support\Carbon;
@@ -67,12 +68,32 @@ class Today extends Component
             return null;
         }
 
-        return RouteDay::query()
+        $route = RouteDay::query()
             ->with(['truck', 'stops.deliveryType', 'odometerReadings', 'driver.user'])
             ->where('driver_id', $driver->id)
             ->whereDate('route_date', $this->date)
             ->orderByDesc('id')
             ->first();
+
+        if ($route !== null) {
+            $this->recomputeDwell($route);
+            $route->load('stops.visits');
+        }
+
+        return $route;
+    }
+
+    /**
+     * Recalcula el tiempo de permanencia de las paradas de la ruta del chofer si el día es
+     * reciente y el cálculo está caducado (mismo mecanismo que el tablero de oficina).
+     */
+    private function recomputeDwell(RouteDay $route): void
+    {
+        $oldest = today()->subDays((int) config('servalillo.dwell.recompute_max_age_days'));
+
+        if ($route->route_date->gte($oldest) && $route->dwellIsStale()) {
+            app(StopDwellService::class)->recomputeForRouteDay($route);
+        }
     }
 
     #[Computed]

@@ -47,9 +47,10 @@
 
     {{-- KPIs del histórico (solo clientes reales) --}}
     @unless ($client->isProspect())
-        <div class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <x-ui.stat-card label="{{ __('Repartos') }}" :value="$this->stats['count']" />
             <x-ui.stat-card label="{{ __('Litros servidos') }}" :value="number_format($this->stats['total_liters'], 0, ',', '.').' L'" />
+            <x-ui.stat-card label="{{ __('Media en parada') }}" :value="$this->stats['avg_on_site_seconds'] !== null ? \App\Support\Duration::humanShort($this->stats['avg_on_site_seconds']) : '—'" />
             <x-ui.stat-card label="{{ __('Último reparto') }}" :value="$this->stats['last_on']?->format('d/m/Y') ?? $client->last_served_on?->format('d/m/Y') ?? '—'" />
             <x-ui.stat-card label="{{ __('Próximo estimado') }}" :value="$client->nextDeliveryOn()?->format('d/m/Y') ?? '—'" />
         </div>

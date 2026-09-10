@@ -16,6 +16,7 @@ use App\Services\RecurringRouteService;
 use App\Services\RecurringStopService;
 use App\Services\RouteGeometry;
 use App\Services\RouteOptimizer;
+use App\Services\StopDwellService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -469,6 +470,29 @@ class Board extends Component
         return $this->deliveryTypes->firstWhere('id', (int) $this->form->delivery_type_id);
     }
 
+    /**
+     * Recalcula (perezosamente) el tiempo de permanencia de las paradas de los días visibles
+     * recientes cuyo cálculo esté caducado. El sello `dwell_recalculated_at` + el lock no
+     * bloqueante del servicio evitan que varios gestores haciendo poll lo rehagan a la vez.
+     *
+     * @param  Collection<int, RouteDay>  $routes
+     */
+    private function recomputeDwell($routes): void
+    {
+        if (! auth()->user()?->can('routes.view')) {
+            return;
+        }
+
+        $oldest = today()->subDays((int) config('servalillo.dwell.recompute_max_age_days'));
+        $service = app(StopDwellService::class);
+
+        foreach ($routes as $route) {
+            if ($route->route_date->gte($oldest) && $route->dwellIsStale()) {
+                $service->recomputeForRouteDay($route);
+            }
+        }
+    }
+
     public function render()
     {
         // generateRecurringRoutes() (mount/updatedDate/previousDay/nextDay/today) ya garantiza
@@ -479,6 +503,11 @@ class Board extends Component
             ->where('service_kind', $this->kind)
             ->get()
             ->sortBy(fn (RouteDay $route) => $route->truck->code);
+
+        $this->recomputeDwell($routes);
+
+        // El recálculo ha podido reescribir stop_visits: se cargan ahora, ya frescas.
+        $routes->load('stops.visits');
 
         // "Sin asignar": todo lo que sigue sin ruta, tenga o no fecha de servicio — el día que
         // se esté viendo en el tablero no la vacía ni la filtra, es la misma columna siempre.

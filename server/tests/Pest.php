@@ -1,12 +1,15 @@
 <?php
 
+use App\Models\Device;
 use App\Models\Driver;
+use App\Models\GpsPosition;
 use App\Models\Route;
 use App\Models\RouteDay;
 use App\Models\Truck;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /*
@@ -102,4 +105,38 @@ function makeRouteDay(Route $route, string $date = '2026-09-10'): RouteDay
 function fakeSignature(): string
 {
     return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+}
+
+/**
+ * Un punto GPS desplazado N metros al norte / M metros al este de (lat, lng).
+ *
+ * @return array{0: float, 1: float} [lat, lng]
+ */
+function metersOffset(float $lat, float $lng, float $north, float $east): array
+{
+    return [
+        $lat + $north / 111_320,
+        $lng + $east / (111_320 * cos(deg2rad($lat))),
+    ];
+}
+
+/**
+ * Inserta un track GPS para un día de ruta. Cada fix: [lat, lng, 'Y-m-d H:i:s', accuracy?, speed?].
+ */
+function gpsTrack(RouteDay $day, array $fixes): void
+{
+    $device = Device::factory()->create(['driver_id' => $day->driver_id]);
+
+    GpsPosition::insert(array_map(fn (array $f) => [
+        'device_id' => $device->id,
+        'driver_id' => $day->driver_id,
+        'truck_id' => $day->truck_id,
+        'route_id' => $day->id,
+        'latitude' => $f[0],
+        'longitude' => $f[1],
+        'recorded_at' => Carbon::parse($f[2]),
+        'accuracy_m' => $f[3] ?? 10,
+        'speed_mps' => $f[4] ?? null,
+        'created_at' => now(),
+    ], $fixes));
 }

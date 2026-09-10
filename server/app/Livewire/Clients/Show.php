@@ -117,11 +117,15 @@ class Show extends Component
     public function stats(): array
     {
         $done = $this->history()->where('status', RouteStopStatus::Completed);
+        $withDwell = $this->history()->filter(fn (RouteStop $s) => $s->onSiteSeconds() !== null);
 
         return [
             'count' => $this->history()->count(),
             'total_liters' => (float) $done->sum('delivered_quantity'),
             'last_on' => $this->history()->first()?->route?->route_date,
+            'avg_on_site_seconds' => $withDwell->isEmpty()
+                ? null
+                : (int) round($withDwell->avg(fn (RouteStop $s) => $s->onSiteSeconds())),
         ];
     }
 
