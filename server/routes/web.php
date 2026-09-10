@@ -11,6 +11,7 @@ use App\Livewire\Drivers\Index as DriversIndex;
 use App\Livewire\Maintenance\Audits as MaintenanceAudits;
 use App\Livewire\Maintenance\Devices as MaintenanceDevices;
 use App\Livewire\Maintenance\Errors as MaintenanceErrors;
+use App\Livewire\Maintenance\LoginLogs as MaintenanceLoginLogs;
 use App\Livewire\Maintenance\Overview as MaintenanceOverview;
 use App\Livewire\Maintenance\Support as MaintenanceSupport;
 use App\Livewire\Maintenance\SystemLog as MaintenanceSystemLog;
@@ -94,6 +95,7 @@ Route::middleware(['auth', 'role:mantenimiento'])->prefix('mantenimiento')->name
     Route::get('auditoria', MaintenanceAudits::class)->middleware('permission:audits.view')->name('audits');
     Route::get('errores', MaintenanceErrors::class)->middleware('permission:system_logs.view')->name('errors');
     Route::get('log', MaintenanceSystemLog::class)->middleware('permission:system_logs.view')->name('logs');
+    Route::get('accesos', MaintenanceLoginLogs::class)->middleware('permission:system_logs.view')->name('logins');
     Route::get('soporte', MaintenanceSupport::class)->middleware('permission:support.manage')->name('support');
     Route::get('dispositivos', MaintenanceDevices::class)->middleware('permission:devices.manage')->name('devices');
 });

@@ -36,6 +36,7 @@ describe('acceso', function () {
         $this->get('/mantenimiento/auditoria')->assertOk();
         $this->get('/mantenimiento/errores')->assertOk();
         $this->get('/mantenimiento/log')->assertOk();
+        $this->get('/mantenimiento/accesos')->assertOk();
         $this->get('/mantenimiento')->assertOk()->assertSee('Resumen');
     });
 

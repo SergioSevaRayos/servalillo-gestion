@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Forms;
 
+use App\Models\LoginLog;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -40,7 +41,15 @@ class LoginForm extends Form
 
         RateLimiter::clear($this->throttleKey());
 
-        Auth::user()->forceFill(['last_login_at' => now()])->saveQuietly();
+        $now = now();
+        Auth::user()->forceFill(['last_login_at' => $now])->saveQuietly();
+
+        LoginLog::create([
+            'user_id' => Auth::id(),
+            'ip' => request()->ip(),
+            'user_agent' => substr((string) request()->userAgent(), 0, 255),
+            'logged_in_at' => $now,
+        ]);
     }
 
     /**

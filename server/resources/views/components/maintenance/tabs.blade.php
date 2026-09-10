@@ -4,6 +4,7 @@
         'maintenance.audits' => __('Auditoría'),
         'maintenance.errors' => __('Errores del sistema'),
         'maintenance.logs' => __('Log de la aplicación'),
+        'maintenance.logins' => __('Accesos'),
         'maintenance.support' => __('Soporte'),
         'maintenance.devices' => __('Dispositivos'),
     ];

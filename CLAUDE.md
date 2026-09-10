@@ -417,6 +417,14 @@ Backed enums con `->label()` en español; casteados en los modelos.
     archivo (`TAIL_BYTES`) para no cargar logs enormes, parte las entradas por la cabecera con fecha,
     filtra por nivel y texto. `safePath()` valida que el nombre sea `*.log` dentro de `storage/logs`
     (sin path traversal) — si tocas esto, mantén esa comprobación.
+  - **`/mantenimiento/accesos`** (`App\Livewire\Maintenance\LoginLogs`, 2026-09-10) — quién y cuándo ha
+    iniciado sesión: tabla `login_logs` (append-only, `UPDATED_AT = null`, mismo criterio que
+    `ErrorLog`), una fila por login correcto (usuario, IP, user-agent, `logged_in_at`). Se registra en
+    el único punto de login real, `LoginForm::authenticate()` (Volt `pages.auth.login`), junto al
+    `last_login_at` que ya existía. `user_id` es `nullOnDelete` (no cascade) a propósito: el acceso
+    histórico sobrevive aunque la cuenta se borre de verdad más adelante — la vista muestra "Cuenta
+    eliminada" cuando `$login->user` es `null`. Filtros: nombre/email + rango de fechas. Reutiliza el
+    permiso `system_logs.view` (mismo que Errores/Log) — no hizo falta un permiso nuevo.
 - El auditing real está **desactivado en consola** (`config/audit.php` → `console => false`), así que
   el seeder inserta filas de `audits` a mano (`seedMaintenanceData()`) imitando eventos web, además
   de unos cuantos `ErrorLog` de ejemplo.
