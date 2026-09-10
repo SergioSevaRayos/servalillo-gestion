@@ -316,6 +316,35 @@ Backed enums con `->label()` en español; casteados en los modelos.
   scroll propio una barra fina a juego con el sistema de diseño (claro/oscuro), en vez de la nativa del
   navegador. Úsala en cualquier `overflow-y-auto`/`overflow-x-auto` nuevo antes de dejar la del sistema.
 
+### Asignación permanente camión↔chofer (2026-09-10)
+
+- Antes, oficina tenía que crear a mano una `Route` cada día para cada camión+chofer. El usuario pidió
+  poder configurar "Sergio lleva el camión C-01" **una vez, sin fecha de fin**, y que la `Route` de
+  cada día se genere sola — lo que varía día a día son los clientes (paradas fijas/esporádicas/
+  reprogramadas), no quién lleva el camión. **`Route` sigue siendo una fila por camión+día** (jornada,
+  GPS, estadísticas y el tablero Kanban no se tocaron); solo se añadió la plantilla que la genera.
+- Reutiliza la tabla **`truck_assignments`** / `App\Models\TruckAssignment` (`truck_id`, `driver_id`,
+  `valid_from`, `valid_until` nullable = sin fin), que ya existía pero estaba vestigial (sin CRUD, sin
+  validación de solapes, nada la leía). Se le añadió `created_by` + `SoftDeletes`.
+  `TruckAssignment::overlaps(column, id, from, until, ignoreId)` es el helper estático de solape de
+  fechas (trata `valid_until = null` como "sin fin"), usado por `TruckAssignmentForm` para rechazar dos
+  asignaciones solapadas del mismo camión **o** del mismo chofer.
+- **`App\Services\RecurringRouteService`** — mismo patrón que `RecurringStopService` (paradas
+  recurrentes, Bloque 9): `generateForDate`/`generateHorizon(14)`, aditivo e idempotente
+  (`Route::firstOrCreate` — **nunca pisa una ruta ya creada a mano** ese camión+día). Comando
+  `rutas:generar-rutas {fecha?}` (scheduler diario 05:25, antes que `rutas:generar-recurrentes`) +
+  disparo desde `Routes\Board` al cambiar de fecha (mismos puntos que `generateRecurringStops()`).
+  Rutas generadas: `status = Published`, `service_kind = reparto` (Viajes sigue sin operarse; si algún
+  día se necesita, se crea esa ruta a mano como siempre). Si se borra/edita la asignación después, las
+  rutas ya generadas no se tocan.
+- `App\Support\RouteCode::build()` — fórmula del código de ruta (`{R|V}-{Ymd}-{camión}`), extraída de
+  `RouteForm::buildCode()` (que ahora delega en ella) para que el generador automático no se
+  desincronice del alta manual.
+- Panel `/rutas/asignaciones` (`App\Livewire\Routes\Assignments`, enlazado desde `/rutas/listado`):
+  listado + alta/edición + **"Finalizar"** (fija `valid_until = hoy` sin abrir el modal) + eliminar
+  (soft delete). Permisos: reutiliza `routes.view/create/update/delete` (sin permiso nuevo);
+  `TruckAssignmentPolicy` auto-descubierta.
+
 ### Panel estadístico (Bloque 5)
 - **`/dashboard` es ahora un componente Livewire** (`App\Livewire\Dashboard\Index`), ya no un
   `Route::view`. Sigue siendo la landing de gestión (redirección post-login de admin/mantenimiento) pero

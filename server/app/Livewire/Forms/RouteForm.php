@@ -6,6 +6,7 @@ use App\Enums\RouteStatus;
 use App\Enums\ServiceKind;
 use App\Models\Route;
 use App\Models\Truck;
+use App\Support\RouteCode;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Form;
@@ -95,9 +96,8 @@ class RouteForm extends Form
     /** @param  array<string, mixed>  $validated */
     private function buildCode(array $validated): string
     {
-        $prefix = $validated['service_kind'] === ServiceKind::Viaje->value ? 'V-' : 'R-';
         $truckCode = Truck::findOrFail($validated['truck_id'])->code;
 
-        return $prefix.str_replace('-', '', $validated['route_date']).'-'.$truckCode;
+        return RouteCode::build(ServiceKind::from($validated['service_kind']), $validated['route_date'], $truckCode);
     }
 }

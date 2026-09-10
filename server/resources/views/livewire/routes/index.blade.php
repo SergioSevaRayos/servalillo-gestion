@@ -20,9 +20,16 @@
             </select>
         </div>
 
-        @can('create', \App\Models\Route::class)
-            <x-ui.button wire:click="create">{{ __('Nueva ruta') }}</x-ui.button>
-        @endcan
+        <div class="flex items-center gap-2">
+            @can('viewAny', \App\Models\TruckAssignment::class)
+                <a href="{{ route('routes.assignments') }}" wire:navigate>
+                    <x-ui.button variant="secondary">{{ __('Asignaciones permanentes') }}</x-ui.button>
+                </a>
+            @endcan
+            @can('create', \App\Models\Route::class)
+                <x-ui.button wire:click="create">{{ __('Nueva ruta') }}</x-ui.button>
+            @endcan
+        </div>
     </div>
 
     <x-ui.table>

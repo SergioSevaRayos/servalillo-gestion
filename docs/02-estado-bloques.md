@@ -844,6 +844,45 @@ Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
 
 ---
 
+## Punto de continuación (última sesión: 2026-09-10)
+
+**Estado:** app **en producción** en `https://geosafety.es` (Hetzner CX23, aprovisionado y
+desplegado esta sesión — detalle completo en `docs/04-despliegue-vps.md`). Servidor: **299 tests en
+verde**. `develop`/`test`/`main` sincronizadas en el VPS tras cada cambio.
+
+**Gotchas de producción encontrados y arreglados** (los tres en la tabla de Troubleshooting de
+`docs/04`): PHP 8.3 no basta (Symfony 8 de Laravel 13 exige ≥8.4, VPS pasó a `ppa:ondrej/php`);
+`opcache.validate_timestamps=0` exige `systemctl reload php8.4-fpm` tras cualquier cambio de código
+que no pase por `deploy.sh`; `R2_ACCESS_KEY_ID=???` (placeholder no vacío) rompía firmas/PDFs al ser
+*truthy*; permisos `0700` en directorios nuevos de `storage/app/private/r2` (Flysystem por defecto)
+bloqueaban a `www-data` si los creaba `deploy` o viceversa — arreglado con `'permissions'` en
+`config/filesystems.php`. SMTP real: Hostinger, puerto **587 + STARTTLS** (Hetzner bloquea 25/465
+salientes por defecto en VPS nuevos).
+
+**Bugs de negocio encontrados en la primera prueba de campo real y arreglados:**
+- "Litros pedidos" (campo obligatorio del schema de agua, redundante con "Litros entregados") hacía
+  fallar el guardado del albarán sin que el chofer entendiera por qué, y de rebote la firma se veía
+  borrada en pantalla al re-renderizar. **Quitado** del `field_schema` de producción.
+- Mapas Leaflet a veces se abrían mostrando toda la Península: `fitBounds()`/`setView()` se llamaban
+  **antes** de `invalidateSize()`, así que usaban el tamaño de contenedor cacheado (de antes de que el
+  modal fuera visible). Invertido el orden en `routeMap` y `deviceMap` (`resources/js/app.js`).
+- Reprogramar una parada fallida/cancelada a otro día **se colaba directamente en una ruta existente**
+  del chofer ese día si la había, saltándose la revisión de oficina. Ahora `rescheduleStop()` va
+  siempre a "Sin asignar".
+
+**Nuevo: asignación permanente camión↔chofer** (misma sesión, detalle en `CLAUDE.md` →
+"Asignación permanente camión↔chofer"). Reutiliza `truck_assignments`/`TruckAssignment` (existía
+vestigial) + `App\Services\RecurringRouteService` (mismo patrón que `RecurringStopService`) para que
+la `Route` de cada día se genere sola a partir de una asignación sin fecha de fin. Panel
+`/rutas/asignaciones`. 17 tests nuevos.
+
+**Falta** (necesita datos externos, no bloquea el uso normal): SMTP ya funciona; Cloudflare R2 sigue
+sin configurar (PDFs/firmas van a disco local del VPS, decisión consciente — un albarán no tiene los
+plazos de conservación fiscal de una factura); APK de producción ya compilada apuntando al dominio,
+pendiente de instalar en más camiones según se necesite.
+
+---
+
 ## Punto de continuación (última sesión: 2026-09-09, noche)
 
 **Estado:** Bloques 1–13 terminados. Servidor: **277 tests en verde**

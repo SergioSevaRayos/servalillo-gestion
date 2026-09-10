@@ -9,6 +9,7 @@ use App\Models\DeliveryType;
 use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryTypeSchemaValidator;
+use App\Services\RecurringRouteService;
 use App\Services\RecurringStopService;
 use App\Services\RouteGeometry;
 use App\Services\RouteOptimizer;
@@ -45,12 +46,22 @@ class Board extends Component
             $this->kind = ServiceKind::Reparto->value;
         }
 
+        $this->generateRecurringRoutes();
         $this->generateRecurringStops();
     }
 
     public function updatedDate(): void
     {
+        $this->generateRecurringRoutes();
         $this->generateRecurringStops();
+    }
+
+    /** Crea, si falta, la ruta del día para cada asignación camión↔chofer vigente. */
+    private function generateRecurringRoutes(): void
+    {
+        if (auth()->user()?->can('routes.update')) {
+            app(RecurringRouteService::class)->generateForDate(Carbon::parse($this->date));
+        }
     }
 
     /** Crea las paradas de los clientes con calendario fijo para el día que se está viendo. */
@@ -69,18 +80,21 @@ class Board extends Component
     public function previousDay(): void
     {
         $this->date = Carbon::parse($this->date)->subDay()->toDateString();
+        $this->generateRecurringRoutes();
         $this->generateRecurringStops();
     }
 
     public function nextDay(): void
     {
         $this->date = Carbon::parse($this->date)->addDay()->toDateString();
+        $this->generateRecurringRoutes();
         $this->generateRecurringStops();
     }
 
     public function today(): void
     {
         $this->date = now()->toDateString();
+        $this->generateRecurringRoutes();
         $this->generateRecurringStops();
     }
 

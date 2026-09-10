@@ -8,6 +8,9 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+// Ruta del día para cada asignación camión↔chofer vigente (permanente, sin fin determinado).
+Schedule::command('rutas:generar-rutas')->dailyAt('05:25');
+
 // Paradas de clientes con calendario fijo (L·X·V…): se generan cada madrugada.
 Schedule::command('rutas:generar-recurrentes')->dailyAt('05:30');
 
