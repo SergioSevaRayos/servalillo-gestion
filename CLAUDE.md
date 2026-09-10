@@ -208,6 +208,19 @@ Backed enums con `->label()` en español; casteados en los modelos.
   no reabre ni cierra nada después del primer paint. Esto es el mismo mecanismo que ya usaba Breeze
   para el modal de borrar cuenta; todos los módulos de gestión lo siguen.
 - Borrado = `wire:confirm="..."` (nativo de Livewire 3) + `$this->dispatch('toast', message:, variant:)`.
+- **`users.email` tiene un índice único parcial** (`WHERE deleted_at IS NULL`, migración
+  `2026_09_10_130000_...`), no un `unique()` normal — con `SoftDeletes` en `User`, un `unique()` a
+  secas bloquea ese email **para siempre** aunque la cuenta esté borrada (bug real en producción:
+  borrar un usuario por error dejaba su email inservible). `UserForm`/`DriverForm` ignoran
+  `deleted_at` al validar (`Rule::unique(...)->whereNull('deleted_at')`) para que ambas capas
+  coincidan. Mismo riesgo latente sin arreglar (a valorar si molesta) en `drivers.employee_code` y
+  `clients.external_ref`, que sí son `unique()` normales sobre modelos con `SoftDeletes`.
+- **`<x-ui.password-input>`** (usado en `/usuarios` y `/chofers`): botón de ojo mostrar/ocultar +
+  botón opcional `suggest` que genera una contraseña de 12 caracteres (letras+dígitos garantizados,
+  cumple `Password::defaults()`: mín. 10, letras y números — `AppServiceProvider::boot()`). Todo en
+  JS local del componente (`x-data` inline, sin registrar nada en `app.js`); el botón "generar"
+  escribe en el `<input>` y dispara un evento `input` para que `wire:model` (diferido) lo recoja,
+  sin tocar `$wire` directamente.
 - Helpers de test centralizados en `tests/Pest.php` (no los dupliques en archivos individuales):
   `makeUser(string $role): User`, `makeRoute(string $date = '2026-09-10'): Route` (con truck+driver ya
   creados).
