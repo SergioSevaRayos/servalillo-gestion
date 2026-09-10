@@ -6,18 +6,33 @@ use App\Models\DeliveryType;
 use Illuminate\Database\Seeder;
 
 /**
- * Los dos tipos de reparto base (gasóleo y agua) con su `field_schema`. Idempotente
- * (`updateOrCreate` por slug). Se usa tanto en el seed de desarrollo como en el de
- * producción (`ProductionSeeder`), que solo siembra roles + estos tipos.
+ * Tipos de reparto con su `field_schema`. Idempotente (`updateOrCreate` por slug).
+ *
+ * En **producción** (`ProductionSeeder` → `run()`) solo se siembra **agua**: la flota
+ * reparte agua. El tipo `gasóleo` solo existe en el seed de **desarrollo** (`seed()`),
+ * para tener datos históricos variados en el panel de estadísticas.
  */
 class DeliveryTypeSeeder extends Seeder
 {
-    /**
-     * @return array{gasoleo: DeliveryType, agua: DeliveryType}
-     */
-    public static function seed(): array
+    public static function water(): DeliveryType
     {
-        $gasoleo = DeliveryType::updateOrCreate(['slug' => 'gasoleo'], [
+        return DeliveryType::updateOrCreate(['slug' => 'agua'], [
+            'name' => 'Suministro de agua',
+            'description' => 'Llenado de depósitos y aljibes.',
+            'is_active' => true,
+            'field_schema' => [
+                ['key' => 'litros_pedido', 'label' => 'Litros pedidos', 'type' => 'number', 'required' => true, 'unit' => 'L', 'min' => 0],
+                ['key' => 'tipo_deposito', 'label' => 'Tipo de depósito', 'type' => 'select', 'required' => false,
+                    'options' => ['Aljibe', 'Piscina', 'Depósito agrícola', 'Otro']],
+                ['key' => 'potable', 'label' => 'Agua potable', 'type' => 'boolean', 'required' => false],
+                ['key' => 'observaciones', 'label' => 'Observaciones', 'type' => 'textarea', 'required' => false],
+            ],
+        ]);
+    }
+
+    public static function gasoleo(): DeliveryType
+    {
+        return DeliveryType::updateOrCreate(['slug' => 'gasoleo'], [
             'name' => 'Reparto de gasóleo',
             'description' => 'Entrega de gasóleo A/B/C a domicilio o industria.',
             'is_active' => true,
@@ -31,25 +46,23 @@ class DeliveryTypeSeeder extends Seeder
                 ['key' => 'requiere_bomba', 'label' => 'Requiere bomba propia', 'type' => 'boolean', 'required' => false],
             ],
         ]);
-
-        $agua = DeliveryType::updateOrCreate(['slug' => 'agua'], [
-            'name' => 'Suministro de agua',
-            'description' => 'Llenado de depósitos y aljibes.',
-            'is_active' => true,
-            'field_schema' => [
-                ['key' => 'litros_pedido', 'label' => 'Litros pedidos', 'type' => 'number', 'required' => true, 'unit' => 'L', 'min' => 0],
-                ['key' => 'tipo_deposito', 'label' => 'Tipo de depósito', 'type' => 'select', 'required' => false,
-                    'options' => ['Aljibe', 'Piscina', 'Depósito agrícola', 'Otro']],
-                ['key' => 'potable', 'label' => 'Agua potable', 'type' => 'boolean', 'required' => false],
-                ['key' => 'observaciones', 'label' => 'Observaciones', 'type' => 'textarea', 'required' => false],
-            ],
-        ]);
-
-        return ['gasoleo' => $gasoleo, 'agua' => $agua];
     }
 
+    /**
+     * Seed de desarrollo: ambos tipos.
+     *
+     * @return array{gasoleo: DeliveryType, agua: DeliveryType}
+     */
+    public static function seed(): array
+    {
+        return ['gasoleo' => self::gasoleo(), 'agua' => self::water()];
+    }
+
+    /**
+     * Seed de producción: solo agua.
+     */
     public function run(): void
     {
-        self::seed();
+        self::water();
     }
 }
