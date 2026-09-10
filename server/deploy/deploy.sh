@@ -60,7 +60,7 @@ ssh "$VPS" "
   php artisan migrate --force &&
   php artisan optimize &&
   { php artisan storage:link || true; } &&
-  chmod -R ug+rwX storage bootstrap/cache &&
+  { chmod -R ug+rwX storage bootstrap/cache 2>/dev/null || true; } &&
   php artisan queue:restart &&
   sudo systemctl reload php8.4-fpm || rc=\$?
   php artisan up
