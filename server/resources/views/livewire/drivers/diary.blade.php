@@ -119,10 +119,12 @@
                             <ul class="mt-2 space-y-1 text-xs">
                                 @forelse ($modified as $field => $values)
                                     <li>
+                                        {{-- json_encode, no (string): un valor casteado (p. ej. la categoría, un enum
+                                        nativo) no implementa __toString() y (string) $enum revienta la vista. --}}
                                         <span class="font-medium text-slate-600 dark:text-slate-300">{{ $field }}:</span>
-                                        <span class="text-rose-600 dark:text-rose-400">{{ \Illuminate\Support\Str::limit((string) ($values['old'] ?? '—'), 80) }}</span>
+                                        <span class="text-rose-600 dark:text-rose-400">{{ \Illuminate\Support\Str::limit(json_encode($values['old'] ?? null, JSON_UNESCAPED_UNICODE), 80) }}</span>
                                         →
-                                        <span class="text-emerald-700 dark:text-emerald-400">{{ \Illuminate\Support\Str::limit((string) ($values['new'] ?? '—'), 80) }}</span>
+                                        <span class="text-emerald-700 dark:text-emerald-400">{{ \Illuminate\Support\Str::limit(json_encode($values['new'] ?? null, JSON_UNESCAPED_UNICODE), 80) }}</span>
                                     </li>
                                 @empty
                                     <li class="text-slate-400">{{ __('Sin cambios de campos registrados.') }}</li>

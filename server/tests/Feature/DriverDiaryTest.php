@@ -5,6 +5,7 @@ use App\Models\Driver;
 use App\Models\DriverLog;
 use App\Models\User;
 use Livewire\Livewire;
+use OwenIt\Auditing\Models\Audit;
 
 function driverFor(): Driver
 {
@@ -91,4 +92,36 @@ test('el filtro de categoría y la búsqueda funcionan', function () {
 
     $c->set('category', 'positive')->assertSee('felicitó')->assertDontSee('Queja');
     $c->set('category', 'all')->set('search', 'retraso')->assertDontSee('felicitó')->assertSee('Queja');
+});
+
+test('"Ver cambios" no revienta cuando el campo tocado es un enum (categoría)', function () {
+    // El auditing real está desactivado en consola (config/audit.php), así que se inserta el
+    // Audit a mano — igual que MaintenancePanelTest::seedAudit() — para poder probar que la
+    // vista renderiza un cambio de "category" (casteado a DriverLogCategory, un enum nativo) sin
+    // que (string) $enum reviente la plantilla — bug real visto en producción.
+    $driver = driverFor();
+    $log = DriverLog::factory()->for($driver)->create(['category' => 'neutral']);
+
+    Audit::create([
+        'user_type' => User::class,
+        'user_id' => null,
+        'event' => 'updated',
+        'auditable_type' => DriverLog::class,
+        'auditable_id' => $log->id,
+        'old_values' => ['category' => 'negative'],
+        'new_values' => ['category' => 'neutral'],
+        'url' => 'http://localhost/chofers',
+        'ip_address' => '127.0.0.1',
+        'user_agent' => 'Test',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Diary::class, ['driver' => $driver])
+        ->call('viewHistory', $log->id)
+        ->assertOk()
+        ->assertSee('category')
+        ->assertSee('negative')
+        ->assertSee('neutral');
 });
