@@ -81,6 +81,15 @@ return [
             'root' => storage_path('app/private/r2'),
             'throw' => true,
             'report' => true,
+            // Sin esto, Flysystem crea ficheros/carpetas en 0600/0700 (solo el dueño). En
+            // el VPS el proceso web (www-data) y el de despliegue (deploy) son usuarios
+            // distintos que comparten acceso vía ACL de grupo — un directorio 0700 anula
+            // esa ACL (el mask se recalcula a "---"), así que cualquiera de los dos que NO
+            // haya creado la carpeta se queda sin poder escribir en ella.
+            'permissions' => [
+                'file' => ['private' => 0660, 'public' => 0664],
+                'dir' => ['private' => 0770, 'public' => 0775],
+            ],
         ],
 
     ],
