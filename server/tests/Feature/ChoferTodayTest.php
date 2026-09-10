@@ -371,10 +371,10 @@ it('el chofer reprograma una parada fallida para otro día', function () {
         ->assertSee('Bar Central');
 });
 
-it('reprogramar a un día con ruta propia mete la parada en esa ruta', function () {
+it('reprogramar va siempre a "Sin asignar", aunque el chofer ya tenga ruta ese día', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 1);
     $manana = today()->addDay()->toDateString();
-    $rutaManana = Route::factory()->create(['driver_id' => $driver->id, 'route_date' => $manana]);
+    Route::factory()->create(['driver_id' => $driver->id, 'route_date' => $manana]);
     $stop = $route->stops->first();
     $stop->update(['customer_name' => 'Taller Gómez']);
 
@@ -386,7 +386,7 @@ it('reprogramar a un día con ruta propia mete la parada en esa ruta', function 
         ->call('saveStop');
 
     $nueva = RouteStop::where('customer_name', 'Taller Gómez')->where('status', RouteStopStatus::Pending)->first();
-    expect($nueva->route_id)->toBe($rutaManana->id)
+    expect($nueva->route_id)->toBeNull()
         ->and($nueva->scheduled_for->toDateString())->toBe($manana);
 });
 

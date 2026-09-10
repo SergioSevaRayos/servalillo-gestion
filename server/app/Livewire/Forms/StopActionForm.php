@@ -3,7 +3,6 @@
 namespace App\Livewire\Forms;
 
 use App\Enums\RouteStopStatus;
-use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
@@ -160,22 +159,15 @@ class StopActionForm extends Form
 
     /**
      * Crea una parada nueva (pendiente) para otro día con los datos de esta.
-     * Va a la ruta del mismo chofer para esa fecha si existe; si no, a "Sin asignar".
+     * Siempre va a "Sin asignar": aunque el chofer ya tenga ruta ese día, la reprogramación
+     * la tiene que revisar y colocar oficina (no se asigna sola a una ruta existente).
      */
     private function rescheduleStop(RouteStop $stop, string $date): void
     {
-        $driverId = $stop->route?->driver_id;
-
-        $targetRoute = $driverId
-            ? Route::where('driver_id', $driverId)->whereDate('route_date', $date)->orderByDesc('id')->first()
-            : null;
-
-        $position = RouteStop::query()
-            ->when($targetRoute, fn ($q) => $q->where('route_id', $targetRoute->id), fn ($q) => $q->whereNull('route_id'))
-            ->max('position');
+        $position = RouteStop::query()->whereNull('route_id')->max('position');
 
         RouteStop::create([
-            'route_id' => $targetRoute?->id,
+            'route_id' => null,
             'position' => ($position ?? 0) + 1,
             'scheduled_for' => $date,
             'rescheduled_by' => auth()->id(),
