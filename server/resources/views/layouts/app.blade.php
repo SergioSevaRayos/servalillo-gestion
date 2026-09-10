@@ -8,6 +8,7 @@
         <title>{{ isset($header) ? Str::of($header)->toString() : config('app.name') }}</title>
 
         @include('partials.theme-init')
+        @include('partials.pwa-meta')
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
