@@ -31,7 +31,7 @@ class UserForm extends Form
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)->whereNull('deleted_at')],
             'password' => [$this->editing ? 'nullable' : 'required', 'string', Password::defaults()],
             'phone' => ['nullable', 'string', 'max:30'],
             'is_active' => ['boolean'],

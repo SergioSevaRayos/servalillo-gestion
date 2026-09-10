@@ -83,12 +83,12 @@
             <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <x-ui.input name="name" label="{{ __('Nombre completo') }}" wire:model="form.name" />
                 <x-ui.input name="email" label="{{ __('Email') }}" type="email" wire:model="form.email" />
-                <x-ui.input
+                <x-ui.password-input
                     name="password"
                     label="{{ __('Contraseña') }}"
-                    type="password"
                     wire:model="form.password"
-                    :help="$this->editing() ? __('Déjalo en blanco para no cambiarla.') : null"
+                    suggest
+                    :help="$this->editing() ? __('Déjalo en blanco para no cambiarla.') : __('Mínimo 10 caracteres, con letras y números.')"
                 />
                 <x-ui.input name="phone" label="{{ __('Teléfono') }}" wire:model="form.phone" />
                 <x-ui.select name="role" label="{{ __('Rol') }}" wire:model="form.role">

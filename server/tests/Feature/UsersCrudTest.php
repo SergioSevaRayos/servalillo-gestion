@@ -32,3 +32,20 @@ test('el administrador crea una cuenta de mantenimiento', function () {
 test('un chofer no puede acceder al listado de usuarios', function () {
     $this->actingAs(makeUser('chofer'))->get('/usuarios')->assertForbidden();
 });
+
+test('se puede reutilizar el email de una cuenta ya borrada', function () {
+    $borrado = User::factory()->create(['email' => 'reciclado@servalillo.test']);
+    $borrado->assignRole('administrador');
+    $borrado->delete();
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->set('form.name', 'Cuenta Nueva')
+        ->set('form.email', 'reciclado@servalillo.test')
+        ->set('form.password', 'clave-segura-123')
+        ->set('form.role', 'administrador')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(User::where('email', 'reciclado@servalillo.test')->count())->toBe(1);
+});

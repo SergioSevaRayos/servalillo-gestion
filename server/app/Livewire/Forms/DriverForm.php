@@ -30,7 +30,7 @@ class DriverForm extends Form
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)->whereNull('deleted_at')],
             'password' => [$this->editing ? 'nullable' : 'required', 'string', Password::defaults()],
             'employee_code' => ['required', 'string', 'max:50', Rule::unique('drivers', 'employee_code')->ignore($driverId)],
             'license_number' => ['nullable', 'string', 'max:50'],
