@@ -90,6 +90,25 @@ it('payloadFor añade el camión y el trazado hasta la primera parada si hay pos
         ->and($payload['vehicle']['approach']['line'][0])->toBe([28.40, -16.40]);
 });
 
+it('el camión se ve en el mapa aunque la posición GPS sea de otro día distinto al que se está viendo', function () {
+    config()->set('servalillo.routing.enabled', true);
+    Http::fake(['*/route/*' => Http::response(osrmRouteOk())]);
+
+    $route = makeRoute('2026-09-15'); // día futuro, sin actividad registrada todavía ese día
+    RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'customer_name' => 'Primera', 'latitude' => 28.40, 'longitude' => -16.40]);
+
+    $device = Device::factory()->create();
+    GpsPosition::insert([
+        // posición real de "ahora" (hoy), no del día 15 que se está mirando en el tablero
+        ['device_id' => $device->id, 'route_id' => null, 'driver_id' => $route->driver_id, 'latitude' => 28.35, 'longitude' => -16.35, 'accuracy_m' => 12.0, 'recorded_at' => now(), 'created_at' => now()],
+    ]);
+
+    $payload = app(RouteGeometry::class)->payloadFor($route);
+
+    expect($payload['vehicle'])->not->toBeNull()
+        ->and($payload['vehicle']['lat'])->toBe(28.35);
+});
+
 it('el trazado del camión apunta a la primera parada PENDIENTE, no a una ya cerrada', function () {
     config()->set('servalillo.routing.enabled', true);
     Http::fake(['*/route/*' => Http::response(osrmRouteOk())]);

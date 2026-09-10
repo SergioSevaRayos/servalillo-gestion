@@ -876,11 +876,14 @@ Backed enums con `->label()` en español; casteados en los modelos.
     null (el mapa cae a línea recta entre paradas). `payloadFor(RouteDay): array` arma
     `{ stops:[{n,name,lat,lng,status}], meta, skipped, vehicle }` (numeración por posición real,
     aparta las paradas sin coordenadas).
-  - **`vehicle`** (Bloque 11): última `GpsPosition` de la ruta (sin límite de antigüedad, se muestra
-    "hace X") + `approach` = trazado por carretera desde el camión hasta la **primera parada
-    pendiente** (`next_stop`). `routeMap` lo pinta como marcador 🚚 ámbar con "ping" + línea ámbar
-    discontinua ("cómo llegar a la 1ª parada", con km/min en `approachNote`). `.route-map-vehicle`
-    en `app.css`.
+  - **`vehicle`** (Bloque 11): última `GpsPosition` **del chofer** (`where('driver_id', ...)`, sin
+    filtrar por fecha — 2026-09-10: antes exigía `route_id` de ese `RouteDay` o `recorded_at` de
+    ese `route_date` concreto, así que un día sin actividad todavía [futuro] o ya pasado no
+    mostraba camión; ahora es siempre "dónde está el dispositivo ahora mismo", da igual qué día se
+    esté mirando en el tablero) + sin límite de antigüedad (se muestra "hace X") + `approach` =
+    trazado por carretera desde el camión hasta la **primera parada pendiente** (`next_stop`) de
+    ese día. `routeMap` lo pinta como marcador 🚚 ámbar con "ping" + línea ámbar discontinua ("cómo
+    llegar a la 1ª parada", con km/min en `approachNote`). `.route-map-vehicle` en `app.css`.
   - `Board::showRouteMap(int $routeId)` (`authorize('view')`) y `Today::showRouteMap()`
     (`authorize('operate')` — la ruta propia, cualquier día) emiten el evento **`open-route-map`**
     con ese payload.

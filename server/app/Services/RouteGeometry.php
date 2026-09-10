@@ -82,9 +82,10 @@ class RouteGeometry
     }
 
     /**
-     * Última posición GPS conocida del camión de la ruta (la manda la APK tracker del chofer)
-     * + el trazado por carretera desde ahí hasta la primera parada ("cómo llegar"). Sin
-     * límite de antigüedad — se muestra "hace X".
+     * Última posición GPS conocida del camión (la manda la APK tracker del chofer), sea cual
+     * sea el día que se esté viendo — "dónde está el dispositivo ahora mismo", no "por dónde
+     * pasó ese día concreto" — + el trazado por carretera desde ahí hasta la primera parada
+     * ("cómo llegar"). Sin límite de antigüedad — se muestra "hace X".
      *
      * @param  Collection<int, array{n: int, name: string, lat: float, lng: float, status: string}>  $located
      * @return array{lat: float, lng: float, recorded_at: string, age: string, accuracy_m: ?float, approach: array|null, next_stop: array{n: int, name: string}|null}|null
@@ -96,11 +97,7 @@ class RouteGeometry
         }
 
         $position = GpsPosition::query()
-            ->where(function ($query) use ($route): void {
-                $query->where('route_id', $route->id)
-                    ->orWhere(fn ($q) => $q->where('driver_id', $route->driver_id)
-                        ->whereDate('recorded_at', $route->route_date));
-            })
+            ->where('driver_id', $route->driver_id)
             ->orderByDesc('recorded_at')
             ->first();
 
