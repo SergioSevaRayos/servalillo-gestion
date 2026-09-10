@@ -202,7 +202,11 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - **Chofers vs Usuarios**: un chofer es un `User` (rol `chofer`) + `Driver`. Se crea/edita **solo** desde
   `/chofers` (transacción User+Driver en `DriverForm::save()`). `/usuarios` gestiona exclusivamente
   `administrador`/`mantenimiento` y nunca lista ni toca chofers — evita dos pantallas escribiendo la
-  misma fila de `users`.
+  misma fila de `users`. Coherente con eso, **el chofer no puede borrar su propia cuenta desde
+  "Mi perfil"**: la tarjeta "Eliminar cuenta" de `profile.blade.php` va dentro de
+  `@unless (auth()->user()->isDriver())` y el `deleteUser()` de `livewire/profile/delete-user-form`
+  hace `abort_if(Auth::user()->isDriver(), 403)` (los otros bloques del perfil —nombre, email,
+  contraseña— sí los usa). El gestor sí puede autoborrarse (el Breeze de serie).
 - **Patrón de modal** (`<x-modal name="...">`): abrir/cerrar SIEMPRE con
   `$this->dispatch('open-modal'|'close-modal', 'nombre-del-modal')` desde el componente Livewire.
   Nunca uses un `:show="$propiedadLivewire"` para controlar apertura tras el primer render — Alpine

@@ -10,6 +10,9 @@ new class extends Component
 
     public function deleteUser(Logout $logout): void
     {
+        // El chofer no gestiona su propia cuenta: se crea, edita y borra solo desde /chofers.
+        abort_if(Auth::user()->isDriver(), 403);
+
         $this->validate([
             'password' => ['required', 'string', 'current_password'],
         ]);

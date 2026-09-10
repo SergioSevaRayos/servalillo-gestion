@@ -87,3 +87,19 @@ test('correct password must be provided to delete account', function () {
 
     $this->assertNotNull($user->fresh());
 });
+
+test('un chofer no puede eliminar su cuenta ni ve la sección para hacerlo', function () {
+    $chofer = makeUser('chofer');
+
+    $this->actingAs($chofer)->get('/profile')
+        ->assertOk()
+        ->assertDontSeeVolt('profile.delete-user-form');
+
+    Volt::test('profile.delete-user-form')
+        ->set('password', 'password')
+        ->call('deleteUser')
+        ->assertForbidden();
+
+    expect($chofer->fresh())->not->toBeNull();
+    $this->assertNotSoftDeleted($chofer);
+});
