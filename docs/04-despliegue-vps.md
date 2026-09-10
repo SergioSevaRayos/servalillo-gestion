@@ -5,9 +5,29 @@ es bare-metal (nginx + PHP-FPM + PostgreSQL), sin Docker y **sin Node** (los ass
 el portátil y se suben).
 
 - **VPS**: Hetzner CX23 (2 vCPU / 4 GB / 40 GB) o CAX11 (ARM), **Ubuntu 24.04 LTS**.
+- **PHP 8.4** vía PPA `ondrej/php` (el `composer.lock` trae Symfony 8 por Laravel 13, exige ≥ 8.4.1).
 - **Ficheros** (PDF de albarán + firmas): Cloudflare R2 (bucket privado).
 - **Despliegue**: `server/deploy/deploy.sh`, se ejecuta **desde el portátil**.
 - **Coste**: ~€6-9/mes (VPS + dominio; R2 gratis a esta escala).
+
+---
+
+## Estado del despliegue (2026-09-10)
+
+`servalillo-prod` (Hetzner CX23, **IPv4 `2.28.64.188`**, Nuremberg) **aprovisionado y en pie**:
+
+- Sistema, usuario `deploy` (SSH solo por clave `~/.ssh/servalillo`; root deshabilitado; contraseña
+  hex de `deploy` como break-glass de consola), UFW + fail2ban + unattended-upgrades.
+- Stack: nginx + PHP 8.4-FPM + PostgreSQL 16. BD `servalillo` + rol `servalillo`.
+- Repo en `/var/www/servalillo`, `.env` con `APP_KEY`/`DB_PASSWORD`/`DEVICE_ENROLMENT_SECRET`,
+  30 migraciones + `ProductionSeeder`. Worker systemd (`servalillo-worker`) + cron `schedule:run`.
+- **La app responde en `http://2.28.64.188`**. Primer usuario creado (rol `mantenimiento`).
+- **Provisional mientras no hay dominio**: `APP_URL=http://2.28.64.188` y
+  `SESSION_SECURE_COOKIE=false` (sobre http la cookie `Secure` no vuelve → login da 419).
+
+**Falta** (necesita datos externos): dominio + DNS + `certbot` (→ volver a `https` y
+`SESSION_SECURE_COOKIE=true`, ver §9); SMTP real (`MAIL_*`); bucket Cloudflare R2 (§7); APK release
+con el dominio (§8).
 
 ---
 
@@ -115,11 +135,16 @@ composer install --no-dev --optimize-autoloader --no-interaction
 php artisan key:generate
 ```
 
-Permisos de escritura para php-fpm (usuario `www-data`):
+Permisos de escritura para php-fpm (usuario `www-data`). Con setgid + ACL por defecto, los ficheros
+que cree luego `deploy` (`optimize`, caché de vistas) ya nacen escribibles por `www-data`:
 
 ```bash
-sudo chown -R deploy:www-data /var/www/servalillo/server/storage /var/www/servalillo/server/bootstrap/cache
-sudo chmod -R g+rwX /var/www/servalillo/server/storage /var/www/servalillo/server/bootstrap/cache
+sudo apt -y install acl
+cd /var/www/servalillo/server
+sudo chown -R deploy:www-data storage bootstrap/cache
+sudo chmod -R ug+rwX storage bootstrap/cache
+sudo find storage bootstrap/cache -type d -exec chmod g+s {} +
+sudo setfacl -R -m g:www-data:rwX -m d:g:www-data:rwX storage bootstrap/cache
 ```
 
 ---
@@ -140,15 +165,33 @@ bash server/deploy/deploy.sh
 
 ---
 
-## 4. Semilla y usuario admin (en el VPS)
+## 4. Semilla y primer usuario (en el VPS)
 
 ```bash
 cd /var/www/servalillo/server
-php artisan db:seed --class=ProductionSeeder --force     # roles + tipos de reparto
-php artisan servalillo:crear-usuario                     # el admin (rol administrador)
+php artisan db:seed --class=ProductionSeeder --force     # roles + permisos + tipo de reparto "agua"
+php artisan servalillo:crear-usuario                     # el PRIMER usuario (arranque)
 ```
 
-El resto (choferes, camiones, clientes) se da de alta desde la web una vez dentro.
+`servalillo:crear-usuario` pregunta nombre, email, contraseña (mín. 10) y rol
+(`administrador` | `mantenimiento`). Necesita una TTY, así que desde el portátil:
+
+```bash
+ssh -t -i ~/.ssh/servalillo deploy@LA_IP
+cd /var/www/servalillo/server && php artisan servalillo:crear-usuario
+```
+
+O sin preguntas (para scripts): `--name=… --email=… --password=… --rol=administrador`.
+
+**A partir del primer usuario, todo se crea desde la web** — el comando es solo el arranque:
+
+| Quién | Dónde | Notas |
+|---|---|---|
+| Gestión / mantenimiento | panel **`/usuarios`** | roles `administrador` y `mantenimiento`; nunca lista choferes |
+| Choferes | panel **`/chofers`** | crea `User` (rol `chofer`) + `Driver` en una transacción |
+| Camiones, clientes, rutas | sus paneles | — |
+
+El comando `servalillo:crear-usuario` **no** crea choferes (solo `administrador`/`mantenimiento`).
 
 ---
 
@@ -213,6 +256,33 @@ permisos (ubicación siempre + batería sin restricción + ajustes anti-cierre d
 
 ---
 
+## 9. Pasar de «por IP en http» a dominio + HTTPS
+
+Cuando haya dominio (A-record → `2.28.64.188`, AAAA → IPv6):
+
+```bash
+# --- en el VPS ---
+sudo sed -i 's/server_name 2.28.64.188;/server_name TU_DOMINIO;/' /etc/nginx/sites-available/servalillo
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d TU_DOMINIO          # añade 443 + redirect + renovación automática
+
+cd /var/www/servalillo/server
+sed -i 's|^APP_URL=.*|APP_URL=https://TU_DOMINIO|' .env
+sed -i 's/^SESSION_SECURE_COOKIE=.*/SESSION_SECURE_COOKIE=true/' .env
+php artisan config:cache
+sudo systemctl reload php8.4-fpm
+```
+
+```bash
+# --- en el portátil ---
+sed -i 's/^DOMAIN=.*/DOMAIN=TU_DOMINIO/' server/deploy/deploy.env
+```
+
+`AppServiceProvider` fuerza `https` en las URLs generadas en cuanto `APP_URL` empieza por `https://`.
+Recompila el APK release apuntando al dominio (§8).
+
+---
+
 ## Día a día: redeploy
 
 ```bash
@@ -252,6 +322,10 @@ bash server/deploy/deploy.sh
 |---|---|
 | 502 Bad Gateway | `sudo systemctl status php8.4-fpm`; ruta del socket en `nginx.conf` (`/run/php/php8.4-fpm.sock`). |
 | 500 en todo | `.env` mal (falta `APP_KEY`, DB); `php artisan config:clear && php artisan config:cache`; `storage/logs/laravel.log`. |
+| Cambié código/`.env` y no surte efecto | `opcache.validate_timestamps=0` (prod): hay que `sudo systemctl reload php8.4-fpm`. `deploy.sh` ya lo hace; en cambios manuales, hazlo tú. |
+| Login da "page expired" / 419 | `SESSION_SECURE_COOKIE=true` sobre http → la cookie no vuelve. Ponlo a `false` mientras no haya HTTPS. |
+| 500 solo en páginas con HTML (`/up` va) | falta `public/build/manifest.json` — sube los assets (`deploy.sh` o `rsync server/public/build/`). |
+| `Permission denied` en `storage/logs/*.log` al desplegar | logs creados por `www-data`; el `chmod` de `deploy.sh` los ignora (`|| true`). Los ACL por defecto ya dan grupo `www-data:rwX`. |
 | Assets sin estilo / 404 en `/build/` | no se subió `public/build`; re-lanza `deploy.sh`; comprueba `rsync` en la salida. |
 | Albarán se queda en `Failed` | worker parado (`systemctl status servalillo-worker`) o SMTP mal; `php artisan queue:failed`. |
 | Enlaces `http://` en correos/PDF | `APP_URL` no es `https://…`, o falta `APP_ENV=production` (activa `URL::forceScheme`). |
