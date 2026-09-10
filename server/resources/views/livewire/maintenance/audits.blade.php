@@ -4,6 +4,7 @@
         'updated' => ['label' => __('Modificado'), 'variant' => 'warning'],
         'deleted' => ['label' => __('Eliminado'), 'variant' => 'danger'],
         'restored' => ['label' => __('Restaurado'), 'variant' => 'primary'],
+        'login' => ['label' => __('Inicio de sesión'), 'variant' => 'neutral'],
     ];
     $labelFor = fn (?string $class) => $class ? (array_search($class, $models, true) ?: class_basename($class)) : '—';
 @endphp
@@ -30,6 +31,7 @@
             <option value="updated">{{ __('Modificado') }}</option>
             <option value="deleted">{{ __('Eliminado') }}</option>
             <option value="restored">{{ __('Restaurado') }}</option>
+            <option value="login">{{ __('Inicio de sesión') }}</option>
         </select>
         <div class="w-40"><x-ui.date-input name="from" wire:model.live="from" placeholder="{{ __('Desde') }}" /></div>
         <div class="w-40"><x-ui.date-input name="to" wire:model.live="to" placeholder="{{ __('Hasta') }}" /></div>

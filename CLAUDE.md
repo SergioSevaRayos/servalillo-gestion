@@ -425,6 +425,20 @@ Backed enums con `->label()` en español; casteados en los modelos.
     histórico sobrevive aunque la cuenta se borre de verdad más adelante — la vista muestra "Cuenta
     eliminada" cuando `$login->user` es `null`. Filtros: nombre/email + rango de fechas. Reutiliza el
     permiso `system_logs.view` (mismo que Errores/Log) — no hizo falta un permiso nuevo.
+    **Ampliado (2026-09-10, feedback del usuario tras ver la Auditoría con "Modificado Usuario" sin
+    cambios):** (1) el login **también** crea una fila en `audits` (`event = 'login'`, `auditable_type
+    = User::class`, `old/new_values` vacíos) — aparece en `/mantenimiento/auditoria` con su propia
+    etiqueta "Inicio de sesión" (`$eventMeta['login']` en `audits.blade.php`, con fallback genérico si
+    algún día se te olvida añadir un evento nuevo ahí). (2) Selección múltiple + **"Eliminar
+    seleccionados"** (checkboxes solo de la página actual — `toggleSelectAll()` no toca otras páginas)
+    y **purga manual/automática** por retención (`config('servalillo.login_log_retention_days')`,
+    def. 90; comando `accesos:purgar {--dias=}`, scheduler diario 04:10, detrás de `gps:purgar`).
+    (3) **"Conectados ahora"**: `users.last_seen_at` (nullable, excluido de auditoría en
+    `$auditExclude` — si no, cada visita generaría ruido), actualizado por `EnsureUserIsActive`
+    (middleware global `web`) con `saveQuietly()` y limitado a **una escritura por minuto por
+    usuario** (evita machacar la BD en cada petición/poll). Un usuario es "conectado" si su
+    `last_seen_at` cae dentro de `config('servalillo.online_window_minutes')` (def. 3 min) —
+    `LoginLogs::onlineUsers()`, franja verde arriba del todo con `wire:poll.30s`.
 - El auditing real está **desactivado en consola** (`config/audit.php` → `console => false`), así que
   el seeder inserta filas de `audits` a mano (`seedMaintenanceData()`) imitando eventos web, además
   de unos cuantos `ErrorLog` de ejemplo.

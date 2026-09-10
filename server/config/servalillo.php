@@ -26,6 +26,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Retención del registro de accesos (login_logs)
+    |--------------------------------------------------------------------------
+    */
+    'login_log_retention_days' => (int) env('LOGIN_LOG_RETENTION_DAYS', 90),
+
+    /*
+    |--------------------------------------------------------------------------
+    | "Conectado ahora" en Mantenimiento → Accesos
+    |--------------------------------------------------------------------------
+    | Un usuario se considera activo si su última petición (users.last_seen_at,
+    | actualizado por EnsureUserIsActive con este mismo margen de tolerancia)
+    | quedó dentro de esta ventana.
+    */
+    'online_window_minutes' => (int) env('ONLINE_WINDOW_MINUTES', 3),
+
+    /*
+    |--------------------------------------------------------------------------
     | Contador de litros
     |--------------------------------------------------------------------------
     | Al terminar la jornada, si (lectura fin − lectura inicio) del contador no

@@ -25,13 +25,14 @@ class User extends Authenticatable implements Auditable
     use AuditableTrait, HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes;
 
     /** Atributos que NO se auditan. */
-    protected array $auditExclude = ['password', 'remember_token'];
+    protected array $auditExclude = ['password', 'remember_token', 'last_seen_at'];
 
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'last_seen_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
             'theme_preference' => ThemePreference::class,

@@ -16,3 +16,6 @@ Schedule::command('rutas:generar-recurrentes')->dailyAt('05:30');
 
 // Retención de posiciones GPS (Bloque 10): purga las anteriores a gps_retention_days.
 Schedule::command('gps:purgar')->dailyAt('04:00');
+
+// Retención del registro de accesos (Mantenimiento → Accesos).
+Schedule::command('accesos:purgar')->dailyAt('04:10');

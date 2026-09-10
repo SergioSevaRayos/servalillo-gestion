@@ -67,6 +67,18 @@ describe('auditoría', function () {
             ->assertSet('event', 'created');
     });
 
+    it('filtra por el evento "Inicio de sesión"', function () {
+        $login = seedAudit(['event' => 'login', 'auditable_type' => User::class, 'old_values' => [], 'new_values' => []]);
+        seedAudit(['auditable_type' => Route::class, 'event' => 'updated']);
+
+        Livewire::test(Audits::class)
+            ->assertSee('Inicio de sesión')
+            ->set('event', 'login')
+            ->assertSee('Inicio de sesión')
+            ->assertSee('Usuario')
+            ->assertViewHas('audits', fn ($audits) => $audits->pluck('id')->all() === [$login->id]);
+    });
+
     it('busca por nombre de usuario', function () {
         $ana = makeUser('administrador');
         $ana->update(['name' => 'Ana Buscable']);
