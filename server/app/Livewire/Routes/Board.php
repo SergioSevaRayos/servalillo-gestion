@@ -6,6 +6,7 @@ use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
 use App\Livewire\Forms\RouteStopForm;
+use App\Models\Client;
 use App\Models\DeliveryType;
 use App\Models\Route;
 use App\Models\RouteDay;
@@ -37,6 +38,9 @@ class Board extends Component
 
     /** Ruta que se está reordenando con "Ruta eficiente" (mientras se elige el origen). */
     public ?int $optimizingRouteId = null;
+
+    /** Término del buscador de clientes para añadir a "Sin asignar". */
+    public string $clientSearch = '';
 
     public function mount(): void
     {
@@ -114,6 +118,71 @@ class Board extends Component
 
         $this->form->setStop($stop);
         $this->dispatch('open-modal', 'stop-form');
+    }
+
+    /**
+     * Buscar un cliente ya registrado y meterlo en "Sin asignar" de un toque, sin rellenar el
+     * formulario de parada — oficina solo tiene que arrastrarlo luego a la columna del camión.
+     */
+    public function openClientSearch(): void
+    {
+        $this->authorize('create', RouteStop::class);
+        abort_unless(auth()->user()->can('routes.update'), 403);
+
+        $this->clientSearch = '';
+        $this->dispatch('open-modal', 'client-search');
+    }
+
+    /** Clientes reales del tipo de servicio activo que coinciden con la búsqueda (mín. 2 caracteres). */
+    #[Computed]
+    public function clientMatches()
+    {
+        $term = trim($this->clientSearch);
+
+        if (mb_strlen($term) < 2) {
+            return collect();
+        }
+
+        return Client::query()
+            ->customers()
+            ->active()
+            ->kind($this->kind)
+            ->search($term)
+            ->orderBy('name')
+            ->limit(8)
+            ->get();
+    }
+
+    /**
+     * Añade el cliente elegido a "Sin asignar" como parada pendiente — mismo copiado de datos que
+     * `Clients\Show::planDelivery()`.
+     */
+    public function addClientToBacklog(Client $client): void
+    {
+        $this->authorize('create', RouteStop::class);
+        abort_unless(auth()->user()->can('routes.update'), 403);
+        abort_if($client->isProspect(), 422, 'Ese registro es un pre-cliente sin valorar.');
+
+        RouteStop::create([
+            'route_id' => null,
+            'position' => (RouteStop::whereNull('route_id')->max('position') ?? 0) + 1,
+            'service_kind' => $client->service_kind->value,
+            'customer_name' => $client->name,
+            'customer_tax_id' => $client->tax_id,
+            'address' => $client->address,
+            'latitude' => $client->latitude,
+            'longitude' => $client->longitude,
+            'contact_name' => $client->contact_name,
+            'contact_phone' => $client->phone,
+            'delivery_type_id' => DeliveryType::waterId(),
+            'status' => RouteStopStatus::Pending,
+            'planned_quantity' => $client->typical_quantity,
+            'data' => [],
+        ]);
+
+        $this->clientSearch = '';
+        $this->dispatch('close-modal', 'client-search');
+        $this->dispatch('toast', message: $client->name.' '.__('añadido a "Sin asignar".'), variant: 'success');
     }
 
     public function saveStop(): void

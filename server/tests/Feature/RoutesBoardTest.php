@@ -4,6 +4,7 @@ use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
 use App\Livewire\Routes\Board;
+use App\Models\Client;
 use App\Models\Driver;
 use App\Models\RouteDay;
 use App\Models\RouteStop;
@@ -423,4 +424,53 @@ test('un chofer no puede cambiar el estado de una ruta', function () {
         ->assertForbidden();
 
     expect($route->fresh()->status)->not->toBe(RouteStatus::Cancelled);
+});
+
+test('oficina busca un cliente y lo añade a "Sin asignar" sin rellenar la ficha de parada', function () {
+    $client = Client::factory()->create([
+        'name' => 'Aguas del Sur SL',
+        'service_kind' => ServiceKind::Reparto->value,
+        'is_active' => true,
+        'typical_quantity' => 4000,
+    ]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('openClientSearch')
+        ->set('clientSearch', 'Aguas del Sur')
+        ->assertSee('Aguas del Sur SL')
+        ->call('addClientToBacklog', $client->id)
+        ->assertHasNoErrors()
+        ->assertDispatched('toast');
+
+    $stop = RouteStop::query()->where('customer_name', 'Aguas del Sur SL')->first();
+    expect($stop)->not->toBeNull()
+        ->and($stop->route_id)->toBeNull()
+        ->and($stop->status)->toBe(RouteStopStatus::Pending)
+        ->and((float) $stop->planned_quantity)->toBe(4000.0);
+});
+
+test('el buscador de clientes del tablero respeta el filtro Repartos/Viajes', function () {
+    Client::factory()->create(['name' => 'Trans Viajes SL', 'service_kind' => ServiceKind::Viaje->value, 'is_active' => true]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->set('kind', ServiceKind::Reparto->value)
+        ->set('clientSearch', 'Trans Viajes')
+        ->assertDontSee('Trans Viajes SL')
+        ->set('kind', ServiceKind::Viaje->value)
+        ->assertSee('Trans Viajes SL');
+});
+
+test('un chofer no puede añadir clientes al backlog del tablero', function () {
+    $client = Client::factory()->create();
+    $chofer = makeUser('chofer');
+    Driver::factory()->create(['user_id' => $chofer->id]);
+
+    Livewire::actingAs($chofer)
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('addClientToBacklog', $client->id)
+        ->assertForbidden();
+
+    expect(RouteStop::query()->where('customer_name', $client->name)->exists())->toBeFalse();
 });

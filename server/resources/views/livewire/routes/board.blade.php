@@ -66,11 +66,19 @@
                 @endforeach
             </ul>
 
-            @can('create', \App\Models\RouteStop::class)
-                <button wire:click="openCreateStop(null)" type="button" class="mt-2 w-full shrink-0 rounded-xl border border-dashed border-slate-300 py-2 text-sm text-slate-400 hover:border-primary-400 hover:text-primary-600 dark:border-slate-700 dark:hover:border-primary-500">
-                    {{ __('+ Añadir parada') }}
-                </button>
-            @endcan
+            <div class="mt-2 shrink-0 space-y-1.5">
+                @can('routes.update')
+                    <button wire:click="openClientSearch" type="button" class="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-primary-300 py-2 text-sm font-medium text-primary-600 hover:border-primary-500 hover:bg-primary-50/60 dark:border-primary-500/50 dark:text-primary-400 dark:hover:bg-primary-500/10">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+                        {{ __('Buscar cliente') }}
+                    </button>
+                @endcan
+                @can('create', \App\Models\RouteStop::class)
+                    <button wire:click="openCreateStop(null)" type="button" class="w-full rounded-xl border border-dashed border-slate-300 py-2 text-sm text-slate-400 hover:border-primary-400 hover:text-primary-600 dark:border-slate-700 dark:hover:border-primary-500">
+                        {{ __('+ Añadir parada manual') }}
+                    </button>
+                @endcan
+            </div>
         </div>
 
         {{-- Una columna por ruta del día --}}
@@ -264,6 +272,40 @@
                 </div>
             </div>
         </form>
+    </x-modal>
+
+    {{-- Buscar un cliente registrado y meterlo en "Sin asignar" sin rellenar la ficha de parada --}}
+    <x-modal name="client-search" max-width="lg">
+        <div class="p-6">
+            <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ __('Buscar cliente') }}</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {{ __('Elige un cliente y se añade a "Sin asignar" con sus datos; luego lo arrastras a la columna del camión.') }}
+            </p>
+
+            <input type="search" wire:model.live.debounce.300ms="clientSearch" autofocus
+                placeholder="{{ __('Nombre, CIF, teléfono o población…') }}"
+                class="mt-4 block w-full rounded-lg border-slate-300 shadow-soft-sm placeholder:text-slate-400 focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
+
+            <div class="mt-3 max-h-72 space-y-1.5 overflow-y-auto themed-scrollbar">
+                @forelse ($this->clientMatches as $c)
+                    <button type="button" wire:click="addClientToBacklog({{ $c->id }})" wire:key="cs-{{ $c->id }}"
+                        class="flex w-full flex-col rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-primary-400 hover:bg-primary-50/60 dark:border-slate-700 dark:hover:border-primary-500 dark:hover:bg-primary-500/10">
+                        <span class="font-medium text-slate-800 dark:text-slate-100">{{ $c->name }}</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400">
+                            {{ collect([$c->city, $c->tax_id, $c->phone])->filter()->join(' · ') ?: '—' }}
+                        </span>
+                    </button>
+                @empty
+                    <p class="py-8 text-center text-sm text-slate-400">
+                        {{ mb_strlen(trim($clientSearch)) < 2 ? __('Escribe al menos 2 caracteres.') : __('Ningún cliente coincide.') }}
+                    </p>
+                @endforelse
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cerrar') }}</x-ui.button>
+            </div>
+        </div>
     </x-modal>
 
     <x-route-map-modal />

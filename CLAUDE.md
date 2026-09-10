@@ -242,6 +242,15 @@ Backed enums con `->label()` en español; casteados en los modelos.
   ahora sobre la ruta *permanente* — ver "Route permanente / RouteDay").
 - `route_stops.route_id` es **nullable** desde la migración `2026_09_06_090000_...` (antes era
   obligatorio) y su FK es `nullOnDelete()` (antes `cascadeOnDelete()`); apunta a `route_days`.
+- **Buscar cliente y meterlo en "Sin asignar" (2026-09-11)**: la columna "Sin asignar" tiene un
+  botón **"Buscar cliente"** (además del "+ Añadir parada manual") → modal `client-search` con
+  buscador incremental (`Board::clientMatches`, `Client::customers()->active()->kind($this->kind)
+  ->search()`, mín. 2 caracteres, filtrado por el filtro Repartos/Viajes activo). Elegir un
+  resultado llama a `Board::addClientToBacklog(Client)` que crea la `RouteStop` con `route_id = null`
+  copiando los datos del cliente — **mismo copiado que `Clients\Show::planDelivery()`** (nombre, CIF,
+  dirección, coords, contacto, `typical_quantity`, `delivery_type = agua`). Autorización:
+  `create` sobre `RouteStop` + permiso `routes.update`. Oficina solo tiene que arrastrarlo luego a
+  la columna del camión. El `RouteStopObserver` no notifica (route_id null).
 - **`RouteDay` es `SoftDeletes`**, así que el FK `nullOnDelete` NO se dispara al borrar desde la UI —
   pero hoy no hay ninguna acción de UI que borre un `RouteDay` suelto (solo la ruta *permanente* se
   borra desde `/rutas/listado`, y eso no toca sus `RouteDay` — ver esa sección). Este dato queda por
