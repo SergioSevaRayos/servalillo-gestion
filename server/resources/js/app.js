@@ -548,6 +548,13 @@ document.addEventListener('alpine:init', () => {
                 bounds.push(vpos);
             }
 
+            // invalidateSize() PRIMERO: fitBounds() calcula el zoom a partir del tamaño
+            // actual del contenedor, y si el modal acaba de pasar de display:none a
+            // visible, Leaflet aún tiene en caché el tamaño de antes (0 o el de la última
+            // vez) — fitBounds con ese tamaño da un zoom mucho más alejado del real (se
+            // veía la Península entera en vez de la zona de la ruta).
+            this.map.invalidateSize();
+
             if (bounds.length === 1) {
                 this.map.setView(bounds[0], 15);
             } else if (bounds.length > 1) {
@@ -555,8 +562,6 @@ document.addEventListener('alpine:init', () => {
             } else {
                 this.map.setView([28.46, -16.25], 10); // Tenerife, sin paradas ubicadas
             }
-
-            this.map.invalidateSize();
 
             this.summary = meta && meta.distance_m
                 ? `~${(meta.distance_m / 1000).toFixed(1)} km · ~${Math.round((meta.duration_s || 0) / 60)} min`
@@ -659,8 +664,8 @@ document.addEventListener('alpine:init', () => {
                 }),
             }).addTo(this.layer);
 
-            this.map.setView(pos, 16);
             this.map.invalidateSize();
+            this.map.setView(pos, 16);
 
             this.age = this._age(last.recorded_at);
 
