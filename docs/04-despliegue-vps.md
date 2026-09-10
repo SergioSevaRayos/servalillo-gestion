@@ -347,3 +347,4 @@ bash server/deploy/deploy.sh
 | Hora de las tareas/fechas mal | `APP_TIMEZONE=Europe/Madrid` en `.env` + `php artisan config:cache`. |
 | El APK no conecta | ¿es build **release**? (release solo habla HTTPS). ¿`SERVER_URL` con el dominio? ¿cert OK? |
 | "Ruta eficiente" lenta o falla | OSRM demo saturado; usa el fallback local igualmente. Considerar autoalojar OSRM. |
+| Añadiste un permiso nuevo (`RolePermissionSeeder::PERMISSIONS`) y el rol no ve la pantalla (403) aunque el código ya esté desplegado | `deploy.sh` solo hace `migrate --force`, **nunca** re-siembra roles/permisos. Tras cualquier cambio en `RolePermissionSeeder`: `php artisan db:seed --class="Database\Seeders\RolePermissionSeeder" --force` a mano en el VPS (idempotente, `findOrCreate`/`syncPermissions` — seguro repetirlo). |
