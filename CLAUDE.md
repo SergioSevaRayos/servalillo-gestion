@@ -265,12 +265,15 @@ Backed enums con `->label()` en español; casteados en los modelos.
     en una ruta. **No cambia si la parada se ve o no en "Sin asignar"** (esa columna ya no filtra
     por fecha, ver "Gestión de clientes" más abajo) — solo importa mientras siga sin ruta.
     **`RouteStopForm::autoAssignToRouteDay()`**: si tras guardar la parada sigue sin ruta
-    (`route_id = null`) y se le ha puesto fecha, se busca entre las rutas *permanentes* del mismo
-    `service_kind` vigentes esa fecha — con **una sola candidata**, se coloca sola en la columna de
-    esa ruta ese día (`RecurringRouteService::ensureForDate()` + `RouteDay::reopenIfCompleted()` si
-    hacía falta); con cero o varias, no hay forma de adivinar cuál y se queda en "Sin asignar" (ya
-    con la fecha puesta) para que oficina la arrastre a mano. Poner fecha, en el caso normal de un
-    solo camión activo de ese tipo, sustituye entonces al arrastre manual.
+    (`route_id = null`) y se le ha puesto fecha, delega en
+    **`RecurringRouteService::findRouteDayForAutoAssign(serviceKind, fecha)`** — punto único
+    compartido con `RecurringStopService` (ver "Gestión de clientes" más abajo). Busca entre las
+    rutas *permanentes* del mismo `service_kind` vigentes esa fecha: con **una sola candidata**,
+    garantiza su `RouteDay` (`ensureForDate()`, reabriéndolo con `RouteDay::reopenIfCompleted()`
+    si hacía falta) y la parada se coloca sola ahí; con cero o varias, no hay forma de adivinar
+    cuál y devuelve `null` — la parada se queda en "Sin asignar" (ya con la fecha puesta) para que
+    oficina la arrastre a mano. Poner fecha, en el caso normal de un solo camión activo de ese
+    tipo, sustituye entonces al arrastre manual.
 - **Drag & drop = SortableJS** (`npm install sortablejs`, importado en `resources/js/app.js`,
   función `initKanbanColumns`), no el plugin `@alpinejs/sort` — se descartó por no poder verificar con
   certeza su API exacta de arrastre multi-columna sin acceso a la documentación en vivo; SortableJS es
@@ -678,8 +681,13 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `nextDeliveryOn()`, `isDeliveryDue()` (todos ramifican weekday vs frequency), `frequencyLabel()`
   ("L·X·V · abr.–jun." / "Quincenal" / …). `Client::WEEKDAY_LABELS` (1→L … 7→D).
 - **Generación automática de paradas recurrentes** (`App\Services\RecurringStopService`): para los
-  clientes con `delivery_weekdays`, crea la parada del día (`route_id = null`, `scheduled_for` = ese
-  día, `delivery_type_id` = agua). Idempotente (`stopExists` por CIF/nombre + `scheduled_for`). Se
+  clientes con `delivery_weekdays`, crea la parada del día (`scheduled_for` = ese día,
+  `delivery_type_id` = agua) — con `RecurringRouteService::findRouteDayForAutoAssign()` (2026-09-10,
+  ver "Panel Administrador" más arriba) ya nace **colocada en la columna de la ruta de ese día** si
+  hay una única ruta permanente candidata de ese `service_kind`; si no, nace sin ruta (`route_id =
+  null`) en "Sin asignar". Así un cliente diario (p. ej. L-V) aparece solo, cada día que le toca, en
+  la columna del camión correspondiente — sin que oficina tenga que arrastrarlo a mano cada vez.
+  Idempotente (`stopExists` por CIF/nombre + `scheduled_for`). Se
   dispara desde `Routes\Board` al abrir/cambiar de día (`generateRecurringStops()`, guardado con
   `can('routes.update')`) y desde el comando `rutas:generar-recurrentes {fecha?}` (scheduler diario
   05:30, horizonte +14 días). **"Sin asignar" ya NO se filtra por fecha** (decisión revertida,

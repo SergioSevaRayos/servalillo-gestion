@@ -85,4 +85,32 @@ class RecurringRouteService
             ],
         );
     }
+
+    /**
+     * Busca la única ruta permanente candidata (mismo tipo de servicio, vigente esa fecha) para
+     * colocar ahí, sola, una parada que todavía no tiene ruta — reprogramada, con fecha puesta a
+     * mano, o recurrente de un cliente. Con cero o varias candidatas no hay forma de adivinar
+     * cuál, y devuelve null (la parada se queda en "Sin asignar" para que oficina la coloque).
+     * Si la hay, garantiza su RouteDay para esa fecha (lo crea si falta) y lo reabre si ya
+     * estaba con la jornada terminada.
+     */
+    public function findRouteDayForAutoAssign(string $serviceKind, Carbon|string $date): ?RouteDay
+    {
+        $date = Carbon::parse($date);
+
+        $candidates = Route::query()
+            ->where('service_kind', $serviceKind)
+            ->whereDate('valid_from', '<=', $date)
+            ->where(fn ($q) => $q->whereNull('valid_until')->orWhereDate('valid_until', '>=', $date))
+            ->get();
+
+        if ($candidates->count() !== 1) {
+            return null;
+        }
+
+        $routeDay = $this->ensureForDate($candidates->first(), $date);
+        $routeDay->reopenIfCompleted();
+
+        return $routeDay;
+    }
 }

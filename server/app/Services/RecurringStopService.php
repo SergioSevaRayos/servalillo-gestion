@@ -10,9 +10,11 @@ use Illuminate\Support\Carbon;
 
 /**
  * Genera automáticamente la parada de los clientes con calendario por días de la semana
- * (`clients.delivery_weekdays`). La parada nace sin ruta (`route_id = null`) y con
- * `scheduled_for` = el día que le toca; el tablero la muestra en "Sin asignar" solo ese día.
- * Es idempotente: no crea una segunda parada si el cliente ya tiene una para esa fecha.
+ * (`clients.delivery_weekdays`), con `scheduled_for` = el día que le toca. Si ese día hay una
+ * única ruta permanente candidata para su tipo de servicio, nace ya colocada en su columna
+ * (`RecurringRouteService::findRouteDayForAutoAssign()`); si no, nace sin ruta (`route_id =
+ * null`) en "Sin asignar" para que oficina la coloque a mano. Es idempotente: no crea una
+ * segunda parada si el cliente ya tiene una para esa fecha.
  */
 class RecurringStopService
 {
@@ -41,9 +43,12 @@ class RecurringStopService
                     return;
                 }
 
+                $routeDay = app(RecurringRouteService::class)
+                    ->findRouteDayForAutoAssign($client->service_kind->value, $date);
+
                 RouteStop::create([
-                    'route_id' => null,
-                    'position' => (RouteStop::whereNull('route_id')->max('position') ?? 0) + 1,
+                    'route_id' => $routeDay?->id,
+                    'position' => (RouteStop::where('route_id', $routeDay?->id)->max('position') ?? 0) + 1,
                     'scheduled_for' => $date->toDateString(),
                     'service_kind' => $client->service_kind->value,
                     'customer_name' => $client->name,

@@ -5,7 +5,6 @@ namespace App\Livewire\Forms;
 use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
 use App\Models\DeliveryType;
-use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryTypeSchemaValidator;
 use App\Services\RecurringRouteService;
@@ -129,18 +128,11 @@ class RouteStopForm extends Form
 
     private function autoAssignToRouteDay(RouteStop $stop, string $date): void
     {
-        $candidates = Route::query()
-            ->where('service_kind', $stop->service_kind->value)
-            ->whereDate('valid_from', '<=', $date)
-            ->where(fn ($q) => $q->whereNull('valid_until')->orWhereDate('valid_until', '>=', $date))
-            ->get();
+        $routeDay = app(RecurringRouteService::class)->findRouteDayForAutoAssign($stop->service_kind->value, $date);
 
-        if ($candidates->count() !== 1) {
+        if ($routeDay === null) {
             return;
         }
-
-        $routeDay = app(RecurringRouteService::class)->ensureForDate($candidates->first(), $date);
-        $routeDay->reopenIfCompleted();
 
         $stop->update([
             'route_id' => $routeDay->id,

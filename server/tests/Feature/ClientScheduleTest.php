@@ -4,6 +4,8 @@ use App\Livewire\Clients\Index;
 use App\Livewire\Routes\Board;
 use App\Models\Client;
 use App\Models\DeliveryType;
+use App\Models\Route;
+use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Services\RecurringStopService;
 use Illuminate\Support\Carbon;
@@ -64,6 +66,37 @@ it('genera la parada del cliente recurrente para el día que toca, una sola vez'
         ->and((float) $stop->planned_quantity)->toBe(900.0);
 
     expect(RouteStop::whereIn('customer_name', ['Otro Martes', 'Sin calendario', 'Inactivo Lunes', 'Prospecto Lunes'])->count())->toBe(0);
+});
+
+it('un cliente diario (L-V) aparece ya colocado en la columna de la ruta cada uno de esos días', function () {
+    $route = Route::factory()->create([
+        'service_kind' => 'reparto',
+        'valid_from' => '2026-01-01',
+        'valid_until' => null,
+    ]);
+    Client::factory()->weekly([1, 2, 3, 4, 5])->create(['name' => 'Comunidad Vista Alegre']);
+
+    // Horizonte de 4 días por delante de hoy (lunes) = lunes..viernes, los 5 días que le tocan.
+    app(RecurringStopService::class)->generateHorizon(4);
+
+    $stops = RouteStop::where('customer_name', 'Comunidad Vista Alegre')->get();
+    expect($stops)->toHaveCount(5);
+
+    foreach ($stops as $stop) {
+        $day = RouteDay::where('route_id', $route->id)->whereDate('route_date', $stop->scheduled_for)->first();
+        expect($day)->not->toBeNull()
+            ->and($stop->route_id)->toBe($day->id);
+    }
+});
+
+it('con varias rutas de reparto vigentes, la parada recurrente se queda en "Sin asignar"', function () {
+    Route::factory()->create(['service_kind' => 'reparto', 'valid_from' => '2026-01-01', 'valid_until' => null]);
+    Route::factory()->create(['service_kind' => 'reparto', 'valid_from' => '2026-01-01', 'valid_until' => null]);
+    Client::factory()->weekly([1])->create(['name' => 'Comunidad Ambigua']);
+
+    app(RecurringStopService::class)->generateForDate(Carbon::parse('2026-03-02'));
+
+    expect(RouteStop::firstWhere('customer_name', 'Comunidad Ambigua')->route_id)->toBeNull();
 });
 
 it('la parada recurrente se genera para el día que le toca y sigue en "Sin asignar" cualquier día', function () {
