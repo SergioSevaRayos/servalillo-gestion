@@ -8,7 +8,7 @@ use App\Livewire\Clients\Show;
 use App\Models\Client;
 use Livewire\Livewire;
 
-it('crea un pre-cliente desde el modal con el toggle', function () {
+it('crea un pre-cliente desde el modal con el toggle y ofrece el resumen para WhatsApp', function () {
     $this->actingAs(makeUser('administrador'));
 
     Livewire::test(Index::class)
@@ -22,7 +22,13 @@ it('crea un pre-cliente desde el modal con el toggle', function () {
         ->set('form.quantity_unit', 'm3')
         ->set('form.tank_distance_m', 25)
         ->call('save')
-        ->assertHasNoErrors();
+        ->assertHasNoErrors()
+        ->assertDispatched('open-prospect-summary', function ($event, $params) {
+            return str_contains($params['text'], 'Llamada de María')
+                && str_contains($params['text'], '600 111 222')
+                && str_contains($params['text'], 'Camino del Pozo 3')
+                && str_contains($params['text'], '25 m');
+        });
 
     $c = Client::firstWhere('name', 'Llamada de María');
     expect($c->status)->toBe(ClientStatus::Prospect)
@@ -43,6 +49,17 @@ it('un pre-cliente puede ser de tipo viaje', function () {
         ->assertHasNoErrors();
 
     expect(Client::firstWhere('name', 'Viaje puntual')->service_kind)->toBe(ServiceKind::Viaje);
+});
+
+it('crear un cliente normal (no pre-cliente) no abre el resumen de WhatsApp', function () {
+    $this->actingAs(makeUser('administrador'));
+
+    Livewire::test(Index::class)
+        ->call('create')
+        ->set('form.name', 'Cliente Directo')
+        ->call('save')
+        ->assertHasNoErrors()
+        ->assertNotDispatched('open-prospect-summary');
 });
 
 it('guarda el precio como tarifa fija o por litro', function () {

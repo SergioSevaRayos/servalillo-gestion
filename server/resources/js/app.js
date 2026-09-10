@@ -695,6 +695,34 @@ document.addEventListener('alpine:init', () => {
     }));
 
     /*
+    | Resumen para copiar y mandar por WhatsApp al registrar un pre-cliente (pendiente de
+    | valoración). El componente Livewire (Clients\Index) emite `open-prospect-summary` con
+    | { text }.
+    */
+    Alpine.data('prospectSummary', () => ({
+        text: '',
+        copied: false,
+
+        open(detail) {
+            this.$dispatch('open-modal', 'prospect-summary');
+            this.text = (detail && detail.text) || '';
+            this.copied = false;
+        },
+
+        async copy() {
+            try {
+                await navigator.clipboard.writeText(this.text);
+            } catch {
+                // Sin permiso/API de portapapeles (http no seguro, navegador antiguo…): selecciona
+                // el texto para que el usuario pueda copiarlo a mano con Ctrl/Cmd+C.
+                this.$refs.text?.select();
+            }
+            this.copied = true;
+            setTimeout(() => { this.copied = false; }, 2000);
+        },
+    }));
+
+    /*
     | Selector de fecha propio (<x-ui.date-input>). El calendario nativo del navegador no se
     | puede estilar, así que se sustituye por este popover con los tokens del sistema. Se integra
     | con Livewire vía x-modelable + wire:model; `value` es la fecha ISO ('YYYY-MM-DD') o ''.

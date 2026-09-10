@@ -151,4 +151,6 @@
             </div>
         </form>
     </x-modal>
+
+    <x-prospect-summary-modal />
 </div>

@@ -98,9 +98,14 @@ class Index extends Component
 
         $wasNewProspect = ! $this->form->editing && $this->form->status === 'prospect';
 
-        $this->form->save();
+        $client = $this->form->save();
 
         $this->dispatch('close-modal', 'client-form');
+
+        if ($wasNewProspect) {
+            $this->dispatch('open-prospect-summary', text: $client->prospectSummary());
+        }
+
         $this->dispatch('toast',
             message: $wasNewProspect ? 'Pre-cliente registrado. Queda pendiente de valoración.' : 'Cliente guardado correctamente.',
             variant: 'success',

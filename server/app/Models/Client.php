@@ -101,6 +101,34 @@ class Client extends Model implements Auditable
         return $litersFmt;
     }
 
+    /**
+     * Texto listo para copiar y mandar por WhatsApp a los encargados, con los datos de la
+     * llamada de un pre-cliente recién registrado (solo las líneas que tengan dato).
+     */
+    public function prospectSummary(): string
+    {
+        $lines = ['📋 Nuevo pre-cliente (pendiente de valoración)', ''];
+
+        $fields = [
+            'Nombre' => $this->name,
+            'Teléfono' => $this->phone,
+            'Tipo de servicio' => $this->service_kind->label(),
+            'Dirección' => $this->address,
+            'Tipo de agua' => $this->water_type?->label(),
+            'Cantidad habitual' => $this->quantityLabel(),
+            'Distancia depósito–camión' => $this->tank_distance_m ? "{$this->tank_distance_m} m" : null,
+            'Observaciones' => $this->notes,
+        ];
+
+        foreach ($fields as $label => $value) {
+            if (filled($value)) {
+                $lines[] = "{$label}: {$value}";
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
     /** "45,00 € (tarifa fija)" / "0,9500 €/L" / null. */
     public function priceLabel(): ?string
     {
