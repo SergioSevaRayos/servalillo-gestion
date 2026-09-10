@@ -577,7 +577,16 @@ Backed enums con `->label()` en español; casteados en los modelos.
   viceversa, sin recargar. `wire:poll` se salta el ciclo si hay props "sucias" (formulario abierto en
   el tablero), lo que evita pisar la edición. Push instantáneo con Reverb queda como mejora futura
   (la infra está en `.env.example`/compose pero Echo no está cableado en `app.js`).
-- Autorización: `RoutePolicy::operate` y `RouteStopPolicy::complete` (permiso + `owns()`), ya existían.
+  - **Recuperación de sesión caducada en el poll (2026-09-10):** Livewire ya pausa el poll solo
+    mientras la pestaña está en segundo plano (y sigue el `setInterval` corriendo por debajo, sin
+    gap al volver) — pero un móvil que pasa horas con la pantalla bloqueada puede dejar la
+    sesión/CSRF caducar de verdad, y entonces cada tick del poll falla **en silencio** (419/401):
+    el chofer se queda viendo datos congelados sin ningún aviso ("no cuadra con lo que ve
+    oficina"). `Livewire.hook('request', ({ fail }) => fail(({ status }) => …))` en `app.js`:
+    ante un 419/401 de **cualquier** petición Livewire (poll o acción), `window.location.reload()`
+    — reautentica (a login si hace falta) y trae el estado real desde cero, en vez de reintentar
+    contra una sesión que ya no vale.
+- Autorización: `RouteDayPolicy::operate` y `RouteStopPolicy::complete` (permiso + `owns()`), ya existían.
 - `<x-chofer.stop-card>` es la tarjeta táctil del chofer (grande, sin drag), distinta de
   `<x-routes.stop-card>` (Kanban del admin).
 - **Navegar con Google Maps** (`App\Support\GoogleMaps`, helper estático puro): botón **"Seguir
@@ -602,8 +611,8 @@ Backed enums con `->label()` en español; casteados en los modelos.
   modal `add-stop` con buscador (`clientMatches`, `Client::scopeSearch`, mín. 2 caracteres) →
   `addClientStop(Client)` crea una `RouteStop` `Pending` al final de la ruta con los datos del cliente
   (mismo copiado que `Clients\Show::planDelivery`, incl. `service_kind`). Autorización:
-  `authorizeRoute()` (= `RoutePolicy::operate` + `operable()`); no hace falta permiso nuevo, el chofer
-  ya tiene `routes.view.own`.
+  `authorizeRoute()` (= `RouteDayPolicy::operate` + `operable()`); no hace falta permiso nuevo, el
+  chofer ya tiene `routes.view.own`.
   - **Si la jornada ya está terminada** (`finished`), añadir un cliente **la reabre**: `route`
     vuelve a `InProgress`, se limpian `completed_at` / `liter_meter_end` / `liter_discrepancy_note` y
     `trucks.liter_meter` se revierte a `liter_meter_start`, para que el chofer haga el reparto extra

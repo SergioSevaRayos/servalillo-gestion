@@ -186,6 +186,22 @@ document.addEventListener('livewire:init', () => {
             });
         }));
     });
+
+    /*
+    | La web del chofer vive abierta horas en el móvil (wire:poll.15s), con el teléfono
+    | bloqueándose y desbloqueándose sin parar. Si la sesión/CSRF caduca mientras estaba de
+    | fondo, cada petición del poll falla en silencio (419/401) y el chofer se queda viendo
+    | datos congelados sin ningún aviso — "no cuadra con lo que ve oficina". En vez de reintentar
+    | contra una sesión que ya no vale, recarga la página entera: reautentica (redirige a login
+    | si hace falta) y vuelve a traer el estado real desde cero.
+    */
+    Livewire.hook('request', ({ fail }) => {
+        fail(({ status }) => {
+            if (status === 419 || status === 401) {
+                window.location.reload();
+            }
+        });
+    });
 });
 
 /*
