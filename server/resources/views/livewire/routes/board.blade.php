@@ -79,7 +79,15 @@
                 <div class="glass mb-2 shrink-0 rounded-2xl px-4 py-3">
                     <div class="flex items-center justify-between">
                         <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ $route->truck->code }} · {{ $route->driver->user->name }}</p>
-                        <x-ui.badge :variant="$route->status->badgeVariant()">{{ $route->status->label() }}</x-ui.badge>
+                        @can('update', $route->route)
+                            <button type="button" wire:click="openStatusModal({{ $route->id }})" title="{{ __('Cambiar estado') }}"
+                                class="inline-flex items-center gap-1 rounded-full transition hover:opacity-75">
+                                <x-ui.badge :variant="$route->status->badgeVariant()">{{ $route->status->label() }}</x-ui.badge>
+                                <svg class="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+                            </button>
+                        @else
+                            <x-ui.badge :variant="$route->status->badgeVariant()">{{ $route->status->label() }}</x-ui.badge>
+                        @endcan
                     </div>
                     <p class="text-xs text-slate-400">{{ __(':n paradas', ['n' => $route->stops->count()]) }}</p>
                     <div class="mt-1.5 flex flex-wrap gap-1">
@@ -260,4 +268,5 @@
 
     <x-route-map-modal />
     <x-route-optimize-modal :stops="$this->optimizingStops" :vehicle-age="$this->optimizingVehicleAge" />
+    <x-routes.status-picker-modal :route="$this->statusRoute" />
 </div>

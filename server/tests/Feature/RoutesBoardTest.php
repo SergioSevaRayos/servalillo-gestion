@@ -4,6 +4,7 @@ use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
 use App\Livewire\Routes\Board;
+use App\Models\Driver;
 use App\Models\RouteDay;
 use App\Models\RouteStop;
 use Illuminate\Support\Facades\Http;
@@ -385,4 +386,41 @@ test('"Ruta eficiente": sin paradas con coordenadas avisa y no cambia nada', fun
         ->assertDispatched('toast', fn ($event, $params) => $params['variant'] === 'warning');
 
     expect($a->fresh()->position)->toBe(1)->and($b->fresh()->position)->toBe(2);
+});
+
+test('oficina cambia el estado de una ruta desde el tablero y deshace el cierre de jornada', function () {
+    $route = makeRoute('2026-09-10');
+    $route->update([
+        'status' => RouteStatus::Completed,
+        'liter_meter_start' => 1000, 'liter_meter_end' => 1300, 'completed_at' => now(),
+        'liter_discrepancy_note' => 'merma',
+    ]);
+    $route->truck->update(['liter_meter' => 1300]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('openStatusModal', $route->id)
+        ->call('setStatus', $route->id, 'in_progress')
+        ->assertHasNoErrors()
+        ->assertDispatched('toast');
+
+    expect($route->fresh())
+        ->status->toBe(RouteStatus::InProgress)
+        ->completed_at->toBeNull()
+        ->liter_meter_end->toBeNull()
+        ->liter_discrepancy_note->toBeNull()
+        ->and($route->fresh()->truck->liter_meter)->toBe(1000);
+});
+
+test('un chofer no puede cambiar el estado de una ruta', function () {
+    $route = makeRoute('2026-09-10');
+    $chofer = makeUser('chofer');
+    Driver::factory()->create(['user_id' => $chofer->id]);
+
+    Livewire::actingAs($chofer)
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('setStatus', $route->id, 'cancelled')
+        ->assertForbidden();
+
+    expect($route->fresh()->status)->not->toBe(RouteStatus::Cancelled);
 });

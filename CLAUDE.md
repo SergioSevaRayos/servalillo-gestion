@@ -405,6 +405,14 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `RouteGeometry::payloadFor()` + `<x-route-map-modal>` (misma infra que el tablero) para el mapa de
   ese día si hay GPS/paradas con coordenadas. Autorización = `RoutePolicy::view` (la misma de la ficha
   permanente); `RouteDayPolicy` gobierna el día individual dentro (`viewDay`/`showDayMap`).
+- **Cambiar el estado del día a mano (2026-09-10)**: el badge de estado del `RouteDay` es un botón
+  (para quien tiene `routes.update`) tanto en la cabecera de columna del tablero como en la fila del
+  Historial → abre `<x-routes.status-picker-modal>` (compartido) con los 5 `RouteStatus`. `Board::
+  setStatus()` / `History::setStatus()` → **`RouteDay::changeStatus(RouteStatus $to)`**: si el día
+  **sale** de `Completed` deshace el cierre de jornada (borra `completed_at`/`liter_meter_end`/la
+  nota de descuadre y revierte `trucks.liter_meter` a la lectura de inicio) — misma lógica que
+  `reopenIfCompleted()`, que ahora delega en `changeStatus(InProgress)`. Sirve para reabrir una
+  ruta que el chofer cerró por error o cancelar la de un día que no salió.
 - **Reparto de las Policies**: `RoutePolicy` (permanente) se quedó con `viewAny/view/create/update/
   delete/restore`. Lo que antes eran acciones "del día" (`reorderStops`, `optimizeOwn`, `operate`)
   pasó a **`App\Policies\RouteDayPolicy`** (auto-descubierta, sobre `RouteDay`) — mismo criterio de

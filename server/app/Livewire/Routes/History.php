@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Routes;
 
+use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Models\Route;
 use App\Models\RouteDay;
@@ -32,11 +33,42 @@ class History extends Component
 
     public ?int $viewingDayId = null;
 
+    public ?int $statusRouteId = null;
+
     public function mount(Route $route): void
     {
         $this->authorize('view', $route);
 
         $this->route = $route;
+    }
+
+    public function openStatusModal(int $routeDayId): void
+    {
+        $day = RouteDay::where('route_id', $this->route->id)->findOrFail($routeDayId);
+        $this->authorize('update', $this->route);
+
+        $this->statusRouteId = $day->id;
+        $this->dispatch('open-modal', 'route-status');
+    }
+
+    #[Computed]
+    public function statusRoute(): ?RouteDay
+    {
+        return $this->statusRouteId
+            ? RouteDay::with('truck')->where('route_id', $this->route->id)->find($this->statusRouteId)
+            : null;
+    }
+
+    public function setStatus(int $routeDayId, string $status): void
+    {
+        $day = RouteDay::where('route_id', $this->route->id)->findOrFail($routeDayId);
+        $this->authorize('update', $this->route);
+
+        $day->changeStatus(RouteStatus::from($status));
+
+        $this->statusRouteId = null;
+        $this->dispatch('close-modal', 'route-status');
+        $this->dispatch('toast', message: 'Estado de la ruta cambiado a "'.$day->status->label().'".', variant: 'success');
     }
 
     public function updatingFrom(): void

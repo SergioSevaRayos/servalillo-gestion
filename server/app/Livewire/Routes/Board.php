@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Routes;
 
+use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
 use App\Livewire\Forms\RouteStopForm;
@@ -251,6 +252,40 @@ class Board extends Component
         }
     }
 
+    public ?int $statusRouteId = null;
+
+    public function openStatusModal(int $routeId): void
+    {
+        $route = RouteDay::findOrFail($routeId);
+        $this->authorize('update', $route->route);
+
+        $this->statusRouteId = $routeId;
+        $this->dispatch('open-modal', 'route-status');
+    }
+
+    #[Computed]
+    public function statusRoute(): ?RouteDay
+    {
+        return $this->statusRouteId ? RouteDay::with('truck')->find($this->statusRouteId) : null;
+    }
+
+    /**
+     * Oficina cambia a mano el estado del día (p. ej. reabrir una ruta que el chofer cerró por
+     * error, o cancelar la de un día que no salió). Salir de "Completada" deshace el cierre de
+     * jornada — ver `RouteDay::changeStatus()`.
+     */
+    public function setStatus(int $routeId, string $status): void
+    {
+        $route = RouteDay::findOrFail($routeId);
+        $this->authorize('update', $route->route);
+
+        $route->changeStatus(RouteStatus::from($status));
+
+        $this->statusRouteId = null;
+        $this->dispatch('close-modal', 'route-status');
+        $this->dispatch('toast', message: 'Estado de la ruta cambiado a "'.$route->status->label().'".', variant: 'success');
+    }
+
     /** Paso 1 de "Ruta eficiente": abre el modal para elegir el punto de partida. */
     public function startOptimize(int $routeId): void
     {
@@ -370,7 +405,7 @@ class Board extends Component
         // generateRecurringRoutes() (mount/updatedDate/previousDay/nextDay/today) ya garantiza
         // el RouteDay de hoy para cada Route vigente antes de llegar aquí.
         $routes = RouteDay::query()
-            ->with(['truck', 'driver.user', 'stops.deliveryType'])
+            ->with(['truck', 'driver.user', 'stops.deliveryType', 'route'])
             ->whereDate('route_date', $this->date)
             ->where('service_kind', $this->kind)
             ->get()

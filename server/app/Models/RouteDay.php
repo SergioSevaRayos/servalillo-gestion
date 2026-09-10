@@ -47,6 +47,25 @@ class RouteDay extends Model implements Auditable
     }
 
     /**
+     * Cambia el estado del día. Si **sale** de "Completada", deshace el cierre de jornada: borra
+     * `completed_at` / `liter_meter_end` / la nota de descuadre y revierte `trucks.liter_meter` a
+     * la lectura de inicio — para que si el chofer vuelve a operar, cierre con el contador bien.
+     */
+    public function changeStatus(RouteStatus $to): void
+    {
+        $undoClose = $this->status === RouteStatus::Completed && $to !== RouteStatus::Completed;
+
+        $this->update([
+            'status' => $to,
+            ...($undoClose ? ['completed_at' => null, 'liter_meter_end' => null, 'liter_discrepancy_note' => null] : []),
+        ]);
+
+        if ($undoClose && $this->liter_meter_start !== null) {
+            $this->truck?->update(['liter_meter' => $this->liter_meter_start]);
+        }
+    }
+
+    /**
      * Si el día ya estaba cerrado (jornada terminada) y le llega una parada nueva — un cliente
      * que llama tarde, o la oficina que asigna algo desde "Sin asignar" — lo reabre para que el
      * chofer pueda hacer el reparto extra y volver a cerrar la jornada con la lectura correcta
@@ -58,16 +77,7 @@ class RouteDay extends Model implements Auditable
             return false;
         }
 
-        $this->update([
-            'status' => RouteStatus::InProgress,
-            'completed_at' => null,
-            'liter_meter_end' => null,
-            'liter_discrepancy_note' => null,
-        ]);
-
-        if ($this->liter_meter_start !== null) {
-            $this->truck?->update(['liter_meter' => $this->liter_meter_start]);
-        }
+        $this->changeStatus(RouteStatus::InProgress);
 
         return true;
     }

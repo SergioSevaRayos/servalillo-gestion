@@ -41,7 +41,17 @@
             @forelse ($days as $day)
                 <tr wire:key="route-day-{{ $day->id }}">
                     <td data-label="{{ __('Fecha') }}" class="font-medium text-slate-800 dark:text-slate-100">{{ $day->route_date->format('d/m/Y') }}</td>
-                    <td data-label="{{ __('Estado') }}"><x-ui.badge :variant="$day->status->badgeVariant()">{{ $day->status->label() }}</x-ui.badge></td>
+                    <td data-label="{{ __('Estado') }}">
+                        @can('update', $route)
+                            <button type="button" wire:click="openStatusModal({{ $day->id }})" title="{{ __('Cambiar estado') }}"
+                                class="inline-flex items-center gap-1 rounded-full transition hover:opacity-75">
+                                <x-ui.badge :variant="$day->status->badgeVariant()">{{ $day->status->label() }}</x-ui.badge>
+                                <svg class="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+                            </button>
+                        @else
+                            <x-ui.badge :variant="$day->status->badgeVariant()">{{ $day->status->label() }}</x-ui.badge>
+                        @endcan
+                    </td>
                     <td data-label="{{ __('Paradas') }}">
                         <span class="text-emerald-600 dark:text-emerald-400">{{ $day->completed_stops_count }}</span>
                         /
@@ -127,4 +137,5 @@
     </x-modal>
 
     <x-route-map-modal />
+    <x-routes.status-picker-modal :route="$this->statusRoute" />
 </div>
