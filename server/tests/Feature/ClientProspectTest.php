@@ -21,13 +21,16 @@ it('crea un pre-cliente desde el modal con el toggle y ofrece el resumen para Wh
         ->set('form.quantity_input', 3)
         ->set('form.quantity_unit', 'm3')
         ->set('form.tank_distance_m', 25)
+        ->set('form.latitude', '38.172')
+        ->set('form.longitude', '-0.839')
         ->call('save')
         ->assertHasNoErrors()
         ->assertDispatched('open-prospect-summary', function ($event, $params) {
             return str_contains($params['text'], 'Llamada de María')
                 && str_contains($params['text'], '600 111 222')
                 && str_contains($params['text'], 'Camino del Pozo 3')
-                && str_contains($params['text'], '25 m');
+                && str_contains($params['text'], '25 m')
+                && str_contains($params['text'], 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=38.172,-0.839');
         });
 
     $c = Client::firstWhere('name', 'Llamada de María');

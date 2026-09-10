@@ -7,6 +7,7 @@ use App\Enums\ClientType;
 use App\Enums\PriceType;
 use App\Enums\ServiceKind;
 use App\Enums\WaterType;
+use App\Support\GoogleMaps;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -124,6 +125,10 @@ class Client extends Model implements Auditable
             if (filled($value)) {
                 $lines[] = "{$label}: {$value}";
             }
+        }
+
+        if ($this->latitude !== null && $this->longitude !== null) {
+            $lines[] = 'Ubicación: '.GoogleMaps::pointUrl((float) $this->latitude, (float) $this->longitude);
         }
 
         return implode("\n", $lines);
