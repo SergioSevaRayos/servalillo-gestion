@@ -92,9 +92,15 @@ class RecurringStopService
         return $created;
     }
 
+    /**
+     * ¿Ya se ha tratado la parada de este cliente para esta fecha? Cuenta también las
+     * **eliminadas** (`withTrashed()`): si oficina borró la parada recurrente de un día concreto
+     * desde el tablero, esa decisión manda — no se vuelve a generar en el siguiente refresco ni
+     * en el planificador. El calendario del cliente sigue vigente para el resto de días.
+     */
     private function stopExists(Client $client, Carbon $date): bool
     {
-        return RouteStop::query()
+        return RouteStop::withTrashed()
             ->where('scheduled_for', $date->toDateString())
             ->when(
                 $client->tax_id,

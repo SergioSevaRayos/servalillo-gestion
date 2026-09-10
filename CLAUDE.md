@@ -717,7 +717,10 @@ Backed enums con `->label()` en español; casteados en los modelos.
   hay una única ruta permanente candidata de ese `service_kind`; si no, nace sin ruta (`route_id =
   null`) en "Sin asignar". Así un cliente diario (p. ej. L-V) aparece solo, cada día que le toca, en
   la columna del camión correspondiente — sin que oficina tenga que arrastrarlo a mano cada vez.
-  Idempotente (`stopExists` por CIF/nombre + `scheduled_for`). Se
+  Idempotente (`stopExists` por CIF/nombre + `scheduled_for`) — y **cuenta las paradas borradas
+  (`withTrashed()`)**: si oficina elimina desde el tablero la parada recurrente de un día concreto,
+  esa decisión manda y NO se regenera ese día (ni en el refresco del tablero ni en el planificador);
+  el calendario del cliente sigue vigente para el resto de días (2026-09-11). Se
   dispara desde `Routes\Board` al abrir/cambiar de día (`generateRecurringStops()`, guardado con
   `can('routes.update')`) y desde el comando `rutas:generar-recurrentes {fecha?}` (scheduler diario
   05:30, horizonte +14 días). **"Sin asignar" ya NO se filtra por fecha** (decisión revertida,

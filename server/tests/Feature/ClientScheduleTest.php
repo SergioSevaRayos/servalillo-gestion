@@ -68,6 +68,22 @@ it('genera la parada del cliente recurrente para el día que toca, una sola vez'
     expect(RouteStop::whereIn('customer_name', ['Otro Martes', 'Sin calendario', 'Inactivo Lunes', 'Prospecto Lunes'])->count())->toBe(0);
 });
 
+it('si oficina borra la parada recurrente de un día, no se vuelve a generar ese día', function () {
+    $c = Client::factory()->weekly([1])->create(['name' => 'Comunidad Lunes']); // todos los lunes
+    $svc = app(RecurringStopService::class);
+
+    // Lunes 02/03: se genera y oficina la borra desde el tablero (soft delete).
+    expect($svc->generateForDate(Carbon::parse('2026-03-02')))->toBe(1);
+    RouteStop::firstWhere('customer_name', 'Comunidad Lunes')->delete();
+
+    // Cualquier refresco posterior del tablero / planificador NO la resucita.
+    expect($svc->generateForDate(Carbon::parse('2026-03-02')))->toBe(0);
+    expect(RouteStop::withTrashed()->where('customer_name', 'Comunidad Lunes')->count())->toBe(1);
+
+    // Pero el lunes siguiente sí le toca: el calendario del cliente sigue vigente.
+    expect($svc->generateForDate(Carbon::parse('2026-03-09')))->toBe(1);
+});
+
 it('un cliente diario (L-V) aparece ya colocado en la columna de la ruta cada uno de esos días', function () {
     $route = Route::factory()->create([
         'service_kind' => 'reparto',
