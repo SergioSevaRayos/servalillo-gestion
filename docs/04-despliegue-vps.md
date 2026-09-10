@@ -28,9 +28,17 @@ el portátil y se suben).
 - `server/deploy/deploy.env` (portátil): `VPS=deploy@2.28.64.188`, `APP_DIR=/var/www/servalillo`,
   `DOMAIN=geosafety.es`.
 
-**Falta** (necesita datos externos): SMTP real (`MAIL_*` → los albaranes por email fallan); bucket
-Cloudflare R2 + `rclone config` (§7 — ficheros y backup nocturno, `servalillo-backup.timer` sin
-activar); APK release apuntando a `https://geosafety.es` (§8).
+- **SMTP**: buzón `soporte@geosafety.es` (Hostinger/Titan). **Hetzner bloquea saliente los puertos
+  25 y 465 por defecto** (anti-spam en VPS nuevos) → usar **587 con STARTTLS**
+  (`MAIL_PORT=587`, `MAIL_SCHEME=smtp`, no `smtps`). Envío de prueba OK.
+- **APK release**: compilada apuntando a `https://geosafety.es` (`mobile/dart_define.production.json`,
+  gitignored). Lista para instalar en los móviles de los camiones.
+
+**Falta** (necesita datos externos): Cloudflare R2 — **decisión pendiente**: los PDFs/firmas ya
+funcionan en local (`storage/app/private/r2`, fallback automático sin `R2_ACCESS_KEY_ID`) y un
+albarán no tiene los plazos de conservación fiscal de una factura, así que puede que no haga falta.
+Si se quiere backup de esos ficheros sin montar R2 completo, alternativa: `rclone` a algún destino
+gratuito (Google Drive, etc.) solo para la copia, sin cambiar el disco de servicio.
 
 ---
 
