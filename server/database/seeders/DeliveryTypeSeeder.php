@@ -21,7 +21,6 @@ class DeliveryTypeSeeder extends Seeder
             'description' => 'Llenado de depósitos y aljibes.',
             'is_active' => true,
             'field_schema' => [
-                ['key' => 'litros_pedido', 'label' => 'Litros pedidos', 'type' => 'number', 'required' => true, 'unit' => 'L', 'min' => 0],
                 ['key' => 'tipo_deposito', 'label' => 'Tipo de depósito', 'type' => 'select', 'required' => false,
                     'options' => ['Aljibe', 'Piscina', 'Depósito agrícola', 'Otro']],
                 ['key' => 'potable', 'label' => 'Agua potable', 'type' => 'boolean', 'required' => false],
