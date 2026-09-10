@@ -14,20 +14,23 @@ el portátil y se suben).
 
 ## Estado del despliegue (2026-09-10)
 
-`servalillo-prod` (Hetzner CX23, **IPv4 `2.28.64.188`**, Nuremberg) **aprovisionado y en pie**:
+`servalillo-prod` (Hetzner CX23, **IPv4 `2.28.64.188`**, Nuremberg) **en producción con HTTPS**:
 
 - Sistema, usuario `deploy` (SSH solo por clave `~/.ssh/servalillo`; root deshabilitado; contraseña
   hex de `deploy` como break-glass de consola), UFW + fail2ban + unattended-upgrades.
 - Stack: nginx + PHP 8.4-FPM + PostgreSQL 16. BD `servalillo` + rol `servalillo`.
 - Repo en `/var/www/servalillo`, `.env` con `APP_KEY`/`DB_PASSWORD`/`DEVICE_ENROLMENT_SECRET`,
   30 migraciones + `ProductionSeeder`. Worker systemd (`servalillo-worker`) + cron `schedule:run`.
-- **La app responde en `http://2.28.64.188`**. Primer usuario creado (rol `mantenimiento`).
-- **Provisional mientras no hay dominio**: `APP_URL=http://2.28.64.188` y
-  `SESSION_SECURE_COOKIE=false` (sobre http la cookie `Secure` no vuelve → login da 419).
+- **Dominio `geosafety.es`** (registrado en Hostinger, DNS ahí: `A @` → `2.28.64.188`,
+  `CNAME www` → `geosafety.es`). Cert Let's Encrypt vía `certbot --nginx` (sin email, renovación
+  automática por timer); http → https 301. `APP_URL=https://geosafety.es`, `SESSION_SECURE_COOKIE=true`.
+- **La app responde en `https://geosafety.es`**. Primer usuario creado (rol `mantenimiento`).
+- `server/deploy/deploy.env` (portátil): `VPS=deploy@2.28.64.188`, `APP_DIR=/var/www/servalillo`,
+  `DOMAIN=geosafety.es`.
 
-**Falta** (necesita datos externos): dominio + DNS + `certbot` (→ volver a `https` y
-`SESSION_SECURE_COOKIE=true`, ver §9); SMTP real (`MAIL_*`); bucket Cloudflare R2 (§7); APK release
-con el dominio (§8).
+**Falta** (necesita datos externos): SMTP real (`MAIL_*` → los albaranes por email fallan); bucket
+Cloudflare R2 + `rclone config` (§7 — ficheros y backup nocturno, `servalillo-backup.timer` sin
+activar); APK release apuntando a `https://geosafety.es` (§8).
 
 ---
 
