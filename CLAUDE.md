@@ -980,6 +980,30 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - `flutter analyze` limpio + `dart format` + `flutter test` antes de dar por bueno. Detalle de
   instalación, permisos y mataprocesos OEM en `mobile/README.md`.
 
+### Diario de incidencias del chofer (Bloque 14, 2026-09-10)
+- **`/chofers/{driver}/diario`** (`App\Livewire\Drivers\Diary`, enlazada desde la fila de cada
+  chofer en `/chofers` con un botón **"Diario"**): notas de oficina sobre lo que hace un chofer,
+  bueno o malo — no lo escribe el chofer, es para uso interno de administración/mantenimiento.
+  Filtros: categoría, rango de fechas, búsqueda en el texto.
+- **`App\Models\DriverLog`** (`driver_id`, `occurred_on`, `category`, `body`, `created_by`,
+  `updated_by` nullable, `SoftDeletes`, `Auditable`). `App\Enums\DriverLogCategory` (positiva /
+  negativa / neutra, con `->badgeVariant()`) para distinguir de un vistazo lo bueno de lo malo en
+  el listado.
+- **Quién y qué ha cambiado**: `updated_by` se queda `null` mientras nadie la ha tocado tras
+  crearla (`DriverLog::wasEdited()`); `DriverLogForm::save()` lo rellena con el usuario actual
+  **solo** al editar, nunca al crear. El listado muestra "Anotado por X el ..." siempre y, si se ha
+  editado, además "Editado por Y el ..." + un enlace **"Ver cambios"** que abre un modal con el
+  detalle campo a campo (`Audit::getModified()`, mismo patrón que el modal de
+  `/mantenimiento/auditoria`) — como cualquier modelo `Auditable`, el rastro completo (quién, qué
+  campo, antes/después, cuándo) también aparece solo en la Auditoría general
+  (`Audits::MODELS` incluye `'Incidencia de chofer' => DriverLog::class`), esto en la propia ficha
+  es solo un atajo a lo mismo. **No se puede probar en Pest** que el `Audit` se cree de verdad —
+  `config/audit.php` → `console => false` desactiva el auditing automático en cualquier ejecución
+  por consola, tests incluidos (mismo límite que el resto de modelos `Auditable` de la app).
+- Permisos nuevos `driver_logs.{view,create,update,delete}` (`RolePermissionSeeder::PERMISSIONS`) —
+  administrador y mantenimiento los tienen, chofer no (no está en `CHOFER_PERMISSIONS`).
+  `DriverLogPolicy` auto-descubierta.
+
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
 - Regla de negocio: **1 camión = 1 ruta permanente vigente a la vez** (`Route::overlaps()`, sin fechas

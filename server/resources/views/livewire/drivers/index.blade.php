@@ -49,6 +49,11 @@
                     </td>
                     <td data-label="{{ __('Acciones') }}" class="text-right">
                         <div class="flex justify-end gap-2">
+                            @can('viewAny', \App\Models\DriverLog::class)
+                                <a href="{{ route('drivers.diary', $driver) }}" wire:navigate>
+                                    <x-ui.button variant="ghost" size="sm">{{ __('Diario') }}</x-ui.button>
+                                </a>
+                            @endcan
                             @can('update', $driver)
                                 <x-ui.button variant="ghost" size="sm" wire:click="edit({{ $driver->id }})">{{ __('Editar') }}</x-ui.button>
                             @endcan

@@ -7,6 +7,7 @@ use App\Models\DeliveryNote;
 use App\Models\DeliveryType;
 use App\Models\Device;
 use App\Models\Driver;
+use App\Models\DriverLog;
 use App\Models\OdometerReading;
 use App\Models\Route;
 use App\Models\RouteDay;
@@ -33,6 +34,7 @@ class Audits extends Component
         'Día de ruta' => RouteDay::class,
         'Parada' => RouteStop::class,
         'Chofer' => Driver::class,
+        'Incidencia de chofer' => DriverLog::class,
         'Camión' => Truck::class,
         'Tipo de reparto' => DeliveryType::class,
         'Albarán' => DeliveryNote::class,

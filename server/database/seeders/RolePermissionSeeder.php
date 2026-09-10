@@ -14,6 +14,7 @@ class RolePermissionSeeder extends Seeder
     public const PERMISSIONS = [
         'clients.view', 'clients.create', 'clients.update', 'clients.delete',
         'drivers.view', 'drivers.create', 'drivers.update', 'drivers.delete',
+        'driver_logs.view', 'driver_logs.create', 'driver_logs.update', 'driver_logs.delete',
         'trucks.view', 'trucks.create', 'trucks.update', 'trucks.delete',
         'delivery_types.view', 'delivery_types.create', 'delivery_types.update', 'delivery_types.delete',
         'routes.view', 'routes.create', 'routes.update', 'routes.delete', 'routes.reorder_stops',

@@ -7,6 +7,7 @@ use App\Livewire\Clients\Index as ClientsIndex;
 use App\Livewire\Clients\Show as ClientsShow;
 use App\Livewire\Dashboard\Index as DashboardIndex;
 use App\Livewire\DeliveryNotes\Index as DeliveryNotesIndex;
+use App\Livewire\Drivers\Diary as DriversDiary;
 use App\Livewire\Drivers\Index as DriversIndex;
 use App\Livewire\Maintenance\Audits as MaintenanceAudits;
 use App\Livewire\Maintenance\Devices as MaintenanceDevices;
@@ -65,6 +66,7 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
     Route::get('clientes/{client}', ClientsShow::class)->middleware('permission:clients.view')->name('clients.show');
 
     Route::get('chofers', DriversIndex::class)->name('drivers.index');
+    Route::get('chofers/{driver}/diario', DriversDiary::class)->name('drivers.diary');
     Route::get('camiones', TrucksIndex::class)->name('trucks.index');
     Route::get('usuarios', UsersIndex::class)->name('users.index');
 
