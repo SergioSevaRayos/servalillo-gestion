@@ -874,20 +874,25 @@ device #16, ~50 posiciones en 40 min). Bugs de campo corregidos esta sesión:
   icono de navegación por parada, "Cómo llegar" en el modal de parada, y "Abrir en Google Maps" en
   "Ver recorrido". `App\Support\GoogleMaps` (sin API key, sin origin → GPS del móvil). (`38fd457`, `94b1f7a`)
 
-### SIGUIENTE (retomar): despliegue a producción en VPS
-**Plan aprobado** en `~/.claude/plans/harmonic-twirling-dove.md` — sin empezar aún. Resumen:
-- VPS bare-metal (Hetzner CX22 ~€5/mes, Ubuntu 24.04), nginx + PHP 8.3-FPM + PostgreSQL 16 + Node 22.
-  Sin Docker en prod, sin Reverb. ~€6/mes total.
-- Decisiones del usuario: **Cloudflare R2** para PDFs/firmas (solo backup de BD); **deploy manual**
-  con `server/deploy/deploy.sh` por SSH.
-- Crear: `docs/04-despliegue-vps.md`, `server/deploy/` (nginx.conf, deploy.sh, worker+backup systemd
-  units, crontab), `server/.env.production.example`.
-- Código: `config/app.php` timezone → `env('APP_TIMEZONE')`; `AppServiceProvider` → `URL::forceScheme('https')`
-  en prod; `DeliveryTypeSeeder` + `ProductionSeeder` (NO ejecutar `DatabaseSeeder`, usa faker); comando
-  `php artisan servalillo:crear-usuario`.
-- APK prod: `network_security_config.xml` → cleartext solo en `<debug-overrides>`; quitar
-  `usesCleartextTraffic` del manifest; `dart_define.production.example.json`. Pruebas LAN pasan a
-  `flutter build apk --debug`.
+### EN MARCHA: despliegue a producción en VPS (`edce4d7`)
+**Plan** en `~/.claude/plans/harmonic-twirling-dove.md`. Runbook completo en
+**`docs/04-despliegue-vps.md`**.
+- VPS bare-metal (Hetzner CX22/CAX11, Ubuntu 24.04): nginx + PHP 8.3-FPM + PostgreSQL 16. **Sin
+  Docker, sin Node, sin Reverb** (`BROADCAST_CONNECTION=log`). ~€6-9/mes.
+- Decisiones: **Cloudflare R2** para PDFs/firmas (solo backup de BD); **assets se compilan en el
+  portátil y se suben** — `server/deploy/deploy.sh` **se ejecuta en el portátil** (build + `rsync`
+  de `public/build` + `composer/migrate/optimize` por SSH).
+- **Ya hecho (suite 282 verde)**: `server/deploy/*` (deploy.sh, nginx.conf, worker+backup systemd,
+  crontab), `server/.env.production.example`, `docs/04`. Código: `config/app.php` timezone →
+  `env('APP_TIMEZONE','UTC')`; `AppServiceProvider` fuerza `https` en prod. `DeliveryTypeSeeder` +
+  `ProductionSeeder` (`DatabaseSeeder` NO se ejecuta en prod). Comando `servalillo:crear-usuario`.
+  APK: `network_security_config.xml` deja cleartext solo en `<debug-overrides>` → **release = solo
+  HTTPS**; LAN = `flutter build apk --debug`; `dart_define.production.example.json`.
+- **Prerequisito**: subir el trabajo (40+ commits en `develop` sin pushear, `origin/main` atrás):
+  `git push origin develop` → merge `develop`→`test`→`main` → push. El VPS sigue `main` (repo público).
+- **Falta**: crear el VPS en Hetzner (cuenta y clave SSH ya listas), aprovisionar (§2 de `docs/04`),
+  primer deploy, `ProductionSeeder` + `crear-usuario`, nginx + certbot, systemd + cron, bucket R2,
+  recompilar el APK release con el dominio.
 
 **Pendiente transversal** (sin relación): paginación Livewire sale en inglés (ver Bloque 6).
 
