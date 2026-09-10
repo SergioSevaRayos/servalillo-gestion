@@ -60,12 +60,13 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | will be used by the PHP date and date-time functions. La BD guarda todo
+    | en UTC (Laravel convierte); esto solo afecta a now()/scheduler y a cómo
+    | se muestran las fechas. En producción: APP_TIMEZONE=Europe/Madrid.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     /*
     |--------------------------------------------------------------------------

@@ -1,0 +1,23 @@
+# /etc/systemd/system/servalillo-worker.service
+#
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now servalillo-worker
+#
+# Procesa la cola `database` (único job: ProcessDeliveryNote → PDF + email del albarán).
+# --max-time=3600 recicla el proceso cada hora (evita fugas de memoria); systemd lo relanza.
+# `php artisan queue:restart` (en deploy.sh) le pide un reinicio suave al recoger código nuevo.
+
+[Unit]
+Description=Servalillo queue worker
+After=network.target postgresql.service
+
+[Service]
+User=deploy
+Group=deploy
+Restart=always
+RestartSec=3
+WorkingDirectory=/var/www/servalillo/server
+ExecStart=/usr/bin/php artisan queue:work --sleep=1 --tries=3 --max-time=3600 --rest=0.1
+
+[Install]
+WantedBy=multi-user.target

@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <!--
-      El servidor de desarrollo (Laravel en la LAN) se sirve por HTTP sin cifrar.
-      Android bloquea el tráfico en claro por defecto desde API 28; esto lo permite.
-      En producción el servidor va por HTTPS y esto es irrelevante.
+      Release (produccion): SOLO HTTPS. El servidor va tras nginx + Let's Encrypt.
+      Debug (pruebas en LAN): se permite HTTP en claro para apuntar a http://IP-DEL-PC:8000
+      desde el movil. "debug-overrides" solo aplica cuando android:debuggable es true, o sea
+      en las builds debug ("flutter build apk debug" / "flutter run"). Ver mobile/README.md.
     -->
-    <base-config cleartextTrafficPermitted="true" />
+    <base-config cleartextTrafficPermitted="false" />
+    <debug-overrides>
+        <base-config cleartextTrafficPermitted="true" />
+    </debug-overrides>
 </network-security-config>

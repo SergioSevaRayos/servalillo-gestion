@@ -8,6 +8,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use OwenIt\Auditing\Models\Audit;
@@ -21,6 +22,12 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Tras nginx + Let's Encrypt: forzamos https en las URLs generadas (enlaces de PDF
+        // de albarán, correos de recuperación…) por si falta la cabecera X-Forwarded-Proto.
+        if ($this->app->isProduction()) {
+            URL::forceScheme('https');
+        }
+
         // Mantenimiento = superusuario técnico. Se sigue auditando cada acción.
         Gate::before(function ($user, string $ability) {
             return $user->hasRole('mantenimiento') ? true : null;

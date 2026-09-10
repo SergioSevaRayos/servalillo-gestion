@@ -55,23 +55,28 @@ Edita `dart_define.json` (gitignored):
 En el servidor: `DEVICE_ENROLMENT_SECRET` en `.env`, `php artisan config:clear`. Tras nginx/proxy,
 `APP_URL` correcto y `trustProxies` activo (ya lo está).
 
-### HTTP en claro (solo pruebas en LAN)
+### HTTP en claro: solo en la build **debug**
 
-El APK trae `android:usesCleartextTraffic="true"` + `res/xml/network_security_config.xml` para poder
-apuntar a un servidor de desarrollo por `http://`. **El túnel de VS Code no vale** para el tracker
-(latencia >100 s por petición, supera el timeout de 25 s del cliente) — para probar sin VPS hay que
-usar la Wi-Fi local. **Para la build de producción** (servidor por HTTPS) quita esas dos líneas del
-`AndroidManifest.xml` antes de compilar; con HTTPS no hacen falta y es un cierre de seguridad.
+`res/xml/network_security_config.xml` permite tráfico HTTP sin cifrar **únicamente** en builds
+`debug` (`<debug-overrides>`). La build **release solo habla HTTPS**. Por eso:
+
+- **Pruebas en LAN** (PC + móvil en la misma Wi-Fi, servidor por `http://IP:8000`) →
+  `flutter build apk --debug --dart-define-from-file=dart_define.json`. (El túnel de VS Code no vale:
+  latencia >100 s/petición, supera el timeout de 25 s del cliente.)
+- **Producción** (servidor por HTTPS) → build `release` (abajo). No hay que tocar nada del manifest.
 
 ## Compilar el APK
 
+**Producción** (servidor por HTTPS):
 ```bash
+cp dart_define.production.example.json dart_define.production.json   # y rellénalo
 flutter pub get
-flutter build apk --release --dart-define-from-file=dart_define.json
+flutter build apk --release --dart-define-from-file=dart_define.production.json
 ```
+Sale en `build/app/outputs/flutter-apk/app-release.apk`, firmado con la clave **debug** (vale para
+sideload; para distribución real, keystore propio + `android/key.properties`).
 
-Sale en `build/app/outputs/flutter-apk/app-release.apk`. Está firmado con la clave **debug** (vale
-para sideload; para distribución real, keystore propio + `android/key.properties`).
+**Pruebas en LAN** (servidor por HTTP): igual pero `--debug` y `--dart-define-from-file=dart_define.json`.
 
 ## Instalar
 

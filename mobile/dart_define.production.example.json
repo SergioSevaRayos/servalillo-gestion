@@ -1,0 +1,5 @@
+{
+  "SERVER_URL": "https://tudominio.com",
+  "ENROLMENT_SECRET": "el-DEVICE_ENROLMENT_SECRET-del-.env-de-produccion",
+  "APP_VERSION": "1.0.0"
+}

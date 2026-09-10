@@ -1,0 +1,17 @@
+# /etc/systemd/system/servalillo-backup.service
+#
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now servalillo-backup.timer
+#
+# Lo dispara servalillo-backup.timer (a diario). Ejecuta backup-db.sh.
+
+[Unit]
+Description=Servalillo · backup de la BD a R2
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+Environment=APP_DIR=/var/www/servalillo
+ExecStart=/var/www/servalillo/server/deploy/backup-db.sh

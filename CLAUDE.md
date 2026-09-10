@@ -841,3 +841,26 @@ Backed enums con `->label()` en español; casteados en los modelos.
 ## Tests
 Pest. `tests/Pest.php` siembra `RolePermissionSeeder` en cada test Feature (`beforeEach`).
 Factories: `User`, `Driver`, `Truck`, `DeliveryType`, `Route`, `RouteStop`.
+
+## Despliegue (producción)
+Runbook completo en **`docs/04-despliegue-vps.md`**. Resumen:
+- **VPS bare-metal** (Hetzner CX22, Ubuntu 24.04): nginx + PHP 8.3-FPM + PostgreSQL 16. **Sin Docker,
+  sin Node, sin Reverb** (Echo no está cableado; `BROADCAST_CONNECTION=log`). Un `queue:work` bajo
+  systemd + cron para `schedule:run`. Ficheros (PDF/firmas) en **Cloudflare R2** (disco `r2`).
+- **Assets se compilan en el portátil y se suben** (el VPS no lleva Node). El deploy es
+  **`server/deploy/deploy.sh`, que se ejecuta EN EL PORTÁTIL**: comprueba `main` limpio + push,
+  corre los tests (`SKIP_TESTS=1` para saltarlos), `npm run build`, `git pull` en el VPS, `rsync` de
+  `public/build/`, y por SSH `composer install --no-dev` + `migrate --force` + `optimize` +
+  `queue:restart`. Config en `server/deploy/deploy.env` (gitignored; `VPS`/`APP_DIR`/`DOMAIN`).
+- **Ficheros de infra** en `server/deploy/`: `nginx.conf`, `servalillo-worker.service`,
+  `servalillo-backup.{sh,service,timer}` (pg_dump nocturno a R2), `crontab.txt`.
+- **`.env` de producción**: plantilla en `server/.env.production.example` (`APP_ENV=production`,
+  `APP_TIMEZONE=Europe/Madrid`, `SESSION_SECURE_COOKIE=true`, SMTP real, `R2_*`, `DEVICE_ENROLMENT_SECRET`…).
+- **Seed de producción**: `php artisan db:seed --class=ProductionSeeder --force` (solo
+  `RolePermissionSeeder` + `DeliveryTypeSeeder` — extraído de `DatabaseSeeder`, que NO se ejecuta en
+  prod porque usa `fake()` y crea usuarios `.test`). El admin: `php artisan servalillo:crear-usuario`.
+- **Código preparado para prod** (`AppServiceProvider`): `URL::forceScheme('https')` si
+  `isProduction()`. `config/app.php` timezone pasa a `env('APP_TIMEZONE', 'UTC')`.
+- **APK release = solo HTTPS**: `network_security_config.xml` deja el cleartext solo en
+  `<debug-overrides>`. Pruebas LAN → `flutter build apk --debug`. Producción → `--release
+  --dart-define-from-file=dart_define.production.json`.

@@ -1,0 +1,7 @@
+# Scheduler de Laravel. En el VPS:  crontab -e -u deploy  y pega esta línea.
+#
+# Tareas (routes/console.php), en hora APP_TIMEZONE (Europe/Madrid):
+#   - rutas:generar-recurrentes  → 05:30  (paradas de clientes con calendario fijo, +14 días)
+#   - gps:purgar                 → 04:00  (retención GPS, GPS_RETENTION_DAYS)
+
+* * * * * cd /var/www/servalillo/server && php artisan schedule:run >> /dev/null 2>&1
