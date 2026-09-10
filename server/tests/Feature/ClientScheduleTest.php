@@ -66,13 +66,18 @@ it('genera la parada del cliente recurrente para el día que toca, una sola vez'
     expect(RouteStop::whereIn('customer_name', ['Otro Martes', 'Sin calendario', 'Inactivo Lunes', 'Prospecto Lunes'])->count())->toBe(0);
 });
 
-it('el tablero muestra la parada recurrente solo el día que le toca', function () {
+it('la parada recurrente se genera para el día que le toca y sigue en "Sin asignar" cualquier día', function () {
     Client::factory()->weekly([1])->create(['name' => 'Recurrente Lunes']);
 
     $c = Livewire::actingAs(makeUser('administrador'))->test(Board::class);
 
-    $c->set('date', '2026-03-02')->assertSee('Recurrente Lunes'); // lunes
-    $c->set('date', '2026-03-03')->assertDontSee('Recurrente Lunes'); // martes
+    // "Sin asignar" no se vacía ni se filtra por el día que se esté viendo: es la misma columna
+    // siempre, aunque la parada se haya generado (y tenga scheduled_for) para el lunes.
+    $c->set('date', '2026-03-02')->assertSee('Recurrente Lunes'); // lunes: se genera y se ve
+    $c->set('date', '2026-03-03')->assertSee('Recurrente Lunes'); // martes: sigue viéndose
+
+    expect(RouteStop::firstWhere('customer_name', 'Recurrente Lunes')->scheduled_for->toDateString())
+        ->toBe('2026-03-02');
 });
 
 it('el formulario guarda los días de la semana y el rango', function () {

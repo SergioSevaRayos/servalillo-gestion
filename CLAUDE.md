@@ -259,10 +259,11 @@ Backed enums con `->label()` en español; casteados en los modelos.
     `RouteStopForm::save()` **no la persiste** aunque llegue en el request (la ficha del cliente es
     su único punto de edición). Al **CREAR** sí se piden todos los campos.
   - **`scheduled_for`** (2026-09-10): editable desde el propio modal (`<x-ui.date-input>`), tanto al
-    crear como al editar — sobre todo útil en **"Sin asignar"**: sin fecha el backlog aparece ahí
-    todos los días (bajo demanda), con fecha solo aparece ese día (ver filtro del tablero, unas
-    líneas más abajo). Antes solo lo ponían procesos automáticos (`RecurringStopService`,
-    `StopActionForm::rescheduleStop`); ahora oficina también puede fijarlo a mano.
+    crear como al editar. Antes solo lo ponían procesos automáticos (`RecurringStopService`,
+    `StopActionForm::rescheduleStop`); ahora oficina también puede fijarlo a mano — sobre todo para
+    que `autoAssignToRouteDay()` (justo abajo) sepa a qué día colocar la parada si acaba entrando
+    en una ruta. **No cambia si la parada se ve o no en "Sin asignar"** (esa columna ya no filtra
+    por fecha, ver "Gestión de clientes" más abajo) — solo importa mientras siga sin ruta.
     **`RouteStopForm::autoAssignToRouteDay()`**: si tras guardar la parada sigue sin ruta
     (`route_id = null`) y se le ha puesto fecha, se busca entre las rutas *permanentes* del mismo
     `service_kind` vigentes esa fecha — con **una sola candidata**, se coloca sola en la columna de
@@ -681,8 +682,11 @@ Backed enums con `->label()` en español; casteados en los modelos.
   día, `delivery_type_id` = agua). Idempotente (`stopExists` por CIF/nombre + `scheduled_for`). Se
   dispara desde `Routes\Board` al abrir/cambiar de día (`generateRecurringStops()`, guardado con
   `can('routes.update')`) y desde el comando `rutas:generar-recurrentes {fecha?}` (scheduler diario
-  05:30, horizonte +14 días). **El tablero filtra "Sin asignar"** a `scheduled_for IS NULL` (backlog
-  general) **OR** `scheduled_for = fecha vista` (recurrentes del día).
+  05:30, horizonte +14 días). **"Sin asignar" ya NO se filtra por fecha** (decisión revertida,
+  2026-09-10 — antes solo se veían ahí las del día que se estaba viendo: `scheduled_for IS NULL`
+  (backlog general) **OR** `scheduled_for = fecha vista`): esa columna es **independiente del día**
+  que se esté viendo en el tablero, muestra siempre todo lo que sigue sin ruta
+  (`RouteStop::unassigned()`), tenga o no `scheduled_for` y sea cual sea su valor.
 - **"Planificar reparto"** en la ficha crea un `RouteStop` con `route_id = null` (backlog "Sin
   asignar" del Kanban) copiando nombre/CIF/dirección/coordenadas/litros del cliente y
   `delivery_type_id = DeliveryType::waterId()`. Requiere `clients.update` **y** `routes.update`.

@@ -376,11 +376,11 @@ class Board extends Component
             ->get()
             ->sortBy(fn (RouteDay $route) => $route->truck->code);
 
-        // "Sin asignar": backlog sin fecha + las recurrentes generadas para el día que se ve.
+        // "Sin asignar": todo lo que sigue sin ruta, tenga o no fecha de servicio — el día que
+        // se esté viendo en el tablero no la vacía ni la filtra, es la misma columna siempre.
         $unassigned = RouteStop::query()
             ->unassigned()
             ->where('service_kind', $this->kind)
-            ->where(fn ($q) => $q->whereNull('scheduled_for')->orWhereDate('scheduled_for', $this->date))
             ->with('deliveryType')
             ->orderBy('position')
             ->get();
