@@ -52,6 +52,41 @@ test('crear una parada sin ruta la deja en sin asignar', function () {
     expect(RouteStop::where('customer_name', 'Cliente Suelto')->first()->route_id)->toBeNull();
 });
 
+test('poner fecha de servicio a una parada sin asignar la coloca sola en la ruta de ese día', function () {
+    $route = makeRoute('2026-09-10'); // crea la ruta permanente + el RouteDay de hoy
+    $stop = RouteStop::factory()->create(['route_id' => null, 'customer_name' => 'Cliente Suelto']);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('openEditStop', $stop)
+        ->set('form.scheduled_for', '2026-09-12')
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    $destino = RouteDay::where('route_id', $route->route_id)->whereDate('route_date', '2026-09-12')->first();
+
+    expect($destino)->not->toBeNull()
+        ->and($stop->fresh()->route_id)->toBe($destino->id)
+        ->and($stop->fresh()->scheduled_for->toDateString())->toBe('2026-09-12');
+});
+
+test('con varias rutas candidatas para esa fecha, la parada se queda en sin asignar', function () {
+    makeRoute('2026-09-10');
+    makeRoute('2026-09-10'); // segunda ruta permanente de reparto también vigente
+    $stop = RouteStop::factory()->create(['route_id' => null, 'customer_name' => 'Cliente Ambiguo']);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('openEditStop', $stop)
+        ->set('form.scheduled_for', '2026-09-12')
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    expect($stop->fresh())
+        ->route_id->toBeNull()
+        ->scheduled_for->toDateString()->toBe('2026-09-12');
+});
+
 test('editar una parada solo cambia los datos del servicio, no los del cliente', function () {
     $route = makeRoute('2026-09-10');
     $stop = RouteStop::factory()->create([

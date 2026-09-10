@@ -5,8 +5,10 @@ namespace App\Livewire\Forms;
 use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
 use App\Models\DeliveryType;
+use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\DeliveryTypeSchemaValidator;
+use App\Services\RecurringRouteService;
 use Illuminate\Validation\Rule;
 use Livewire\Form;
 
@@ -112,8 +114,37 @@ class RouteStopForm extends Form
             ]);
         }
 
+        // Si la parada sigue sin ruta y se le ha puesto fecha de servicio, se coloca sola en la
+        // columna de esa ruta ese día — pero solo si hay una única ruta candidata (mismo tipo de
+        // servicio, vigente esa fecha); con varias, no hay forma de adivinar cuál, así que se
+        // queda en "Sin asignar" (ya con la fecha puesta) para que oficina la arrastre a mano.
+        if ($stop->route_id === null && $validated['scheduled_for']) {
+            $this->autoAssignToRouteDay($stop, $validated['scheduled_for']);
+        }
+
         $this->reset();
 
         return $stop;
+    }
+
+    private function autoAssignToRouteDay(RouteStop $stop, string $date): void
+    {
+        $candidates = Route::query()
+            ->where('service_kind', $stop->service_kind->value)
+            ->whereDate('valid_from', '<=', $date)
+            ->where(fn ($q) => $q->whereNull('valid_until')->orWhereDate('valid_until', '>=', $date))
+            ->get();
+
+        if ($candidates->count() !== 1) {
+            return;
+        }
+
+        $routeDay = app(RecurringRouteService::class)->ensureForDate($candidates->first(), $date);
+        $routeDay->reopenIfCompleted();
+
+        $stop->update([
+            'route_id' => $routeDay->id,
+            'position' => RouteStop::where('route_id', $routeDay->id)->max('position') + 1,
+        ]);
     }
 }

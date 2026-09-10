@@ -263,6 +263,13 @@ Backed enums con `->label()` en español; casteados en los modelos.
     todos los días (bajo demanda), con fecha solo aparece ese día (ver filtro del tablero, unas
     líneas más abajo). Antes solo lo ponían procesos automáticos (`RecurringStopService`,
     `StopActionForm::rescheduleStop`); ahora oficina también puede fijarlo a mano.
+    **`RouteStopForm::autoAssignToRouteDay()`**: si tras guardar la parada sigue sin ruta
+    (`route_id = null`) y se le ha puesto fecha, se busca entre las rutas *permanentes* del mismo
+    `service_kind` vigentes esa fecha — con **una sola candidata**, se coloca sola en la columna de
+    esa ruta ese día (`RecurringRouteService::ensureForDate()` + `RouteDay::reopenIfCompleted()` si
+    hacía falta); con cero o varias, no hay forma de adivinar cuál y se queda en "Sin asignar" (ya
+    con la fecha puesta) para que oficina la arrastre a mano. Poner fecha, en el caso normal de un
+    solo camión activo de ese tipo, sustituye entonces al arrastre manual.
 - **Drag & drop = SortableJS** (`npm install sortablejs`, importado en `resources/js/app.js`,
   función `initKanbanColumns`), no el plugin `@alpinejs/sort` — se descartó por no poder verificar con
   certeza su API exacta de arrastre multi-columna sin acceso a la documentación en vivo; SortableJS es
