@@ -789,12 +789,24 @@ Backed enums con `->label()` en español; casteados en los modelos.
   el trait `Concerns\LinksToTicket` según el rol del `$notifiable` (admin → `/soporte`, resto →
   `/mantenimiento/soporte`).
 - **Campana** = `App\Livewire\Notifications\Bell` (componente de **clase**, no Volt) **anidado dentro
-  del componente Volt de navegación** (`livewire/layout/navigation.blade.php`, cluster derecho). Se
-  monta solo para `isManager()`. `wire:poll.30s` (coherente con chofer 15s / tablero 45s). Su vista
+  del componente Volt de navegación** (`livewire/layout/navigation.blade.php`, cluster derecho). **La
+  ve todo el mundo** (antes solo `isManager()` — desde el Bloque 14 el chofer también recibe avisos,
+  ver más abajo). `wire:poll.30s` (coherente con chofer 15s / tablero 45s). Su vista
   tiene raíz única `<div wire:poll.30s>`; el nav persiste entre `wire:navigate` (vive fuera de `$slot`)
   así que la campana y su poll sobreviven. `markRead($id)` marca leída y `$this->redirect(url, navigate:
   true)`.
-- **Disparo de las notificaciones del chofer = dispatch explícito, NUNCA observer.** Los 4 tipos
+- **Notificaciones oficina → chofer (Bloque 14): SÍ observer, deliberadamente.** Cuando oficina
+  gestiona una parada de la ruta de un chofer desde el panel (añade/modifica/quita/reasigna),
+  `App\Observers\RouteStopObserver` (registrado con `#[ObservedBy]` en `RouteStop`) le manda un
+  `App\Notifications\StopManagedByOffice` (`kind` = `added|modified|removed`, `url` → `chofer.today`
+  de esa fecha). Es la **excepción** a la regla de abajo: aquí el criterio es inequívoco (`auth()->
+  user()->isManager()` — actúa oficina, nunca el chofer) y hay que cubrir **cualquier** camino
+  (tablero, arrastre, "+ Añadir", auto-asignación por fecha, código futuro), cosa que un puñado de
+  dispatch sueltos no garantiza. Un reordenado (solo `position`) **no** notifica. La generación
+  automática de paradas recurrentes se silencia con `RouteStopObserver::muted(fn () => …)` en
+  `RecurringStopService` (es sistémica, no "gestión"). No se puede probar en Pest que el `Audit` de
+  ese cambio se cree (`console => false`), pero la notificación sí (usa `Notification::fake()`).
+- **Disparo de las notificaciones chofer → oficina = dispatch explícito, NUNCA observer.** Los 4 tipos
   (`stop_failed`, `stop_skipped`, `stop_rescheduled`, `client_added`, `meter_discrepancy`) no se
   distinguen de un `updated`/`created` genérico y un observer se dispararía también para el tablero de
   oficina. `App\Support\Notifications\RouteChangeNotifier` se llama desde `StopActionForm::apply()`

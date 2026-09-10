@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
+use App\Observers\RouteStopObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
 
+#[ObservedBy([RouteStopObserver::class])]
 class RouteStop extends Model implements Auditable
 {
     use AuditableTrait, HasFactory, SoftDeletes;

@@ -6,6 +6,7 @@ use App\Enums\RouteStopStatus;
 use App\Models\Client;
 use App\Models\DeliveryType;
 use App\Models\RouteStop;
+use App\Observers\RouteStopObserver;
 use Illuminate\Support\Carbon;
 
 /**
@@ -28,6 +29,13 @@ class RecurringStopService
             return 0;
         }
 
+        // Silencia el aviso al chofer de `RouteStopObserver`: esto es generación sistémica, no
+        // "oficina gestionando su parada" — no es lo que pidió notificar el usuario.
+        return RouteStopObserver::muted(fn () => $this->run($date));
+    }
+
+    private function run(Carbon $date): int
+    {
         $weekday = $date->dayOfWeekIso; // 1..7
         $waterTypeId = $this->waterTypeId();
         $created = 0;

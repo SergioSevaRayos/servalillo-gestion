@@ -60,11 +60,11 @@ it('clearAll elimina todas las notificaciones', function () {
     expect($admin->notifications()->count())->toBe(0);
 });
 
-it('la campana no se monta para el chofer', function () {
+it('la campana también se monta para el chofer (avisos de "oficina gestionó tu parada")', function () {
     $chofer = makeUser('chofer');
     Driver::factory()->create(['user_id' => $chofer->id]);
 
     $this->actingAs($chofer)->get('/chofer/ruta')
         ->assertOk()
-        ->assertDontSeeHtml('wire:poll.30s');
+        ->assertSeeLivewire(Bell::class);
 });

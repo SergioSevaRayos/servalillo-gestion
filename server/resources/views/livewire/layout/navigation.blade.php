@@ -79,9 +79,9 @@ new class extends Component
 
         <div class="flex items-center gap-3">
             @auth
-                @if (auth()->user()->isManager())
-                    <livewire:notifications.bell />
-                @endif
+                {{-- La campana la ve todo el mundo: el chofer recibe avisos cuando oficina le
+                     gestiona una parada de la ruta (Bloque 14). --}}
+                <livewire:notifications.bell />
                 @if (auth()->user()->hasRole('administrador'))
                     <a href="{{ route('support.index') }}" wire:navigate
                         title="{{ __('Soporte / incidencias') }}" aria-label="{{ __('Soporte / incidencias') }}"
