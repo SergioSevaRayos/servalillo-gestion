@@ -110,29 +110,24 @@
                 </p>
 
                 <div class="mt-4 max-h-[55vh] space-y-4 overflow-y-auto themed-scrollbar px-1 -mx-1">
-                    @forelse ($this->historyAudits as $audit)
-                        @php $modified = $audit->getModified(); @endphp
+                    @forelse ($this->historyEntries as $entry)
                         <div class="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
                             <p class="font-medium text-slate-700 dark:text-slate-200">
-                                {{ $audit->user?->name ?? __('Sistema') }} · {{ $audit->created_at->format('d/m/Y H:i') }}
+                                {{ $entry['user'] }} · {{ $entry['when'] }}
                             </p>
                             <ul class="mt-2 space-y-1 text-xs">
-                                @forelse ($modified as $field => $values)
+                                @foreach ($entry['changes'] as $change)
                                     <li>
-                                        {{-- json_encode, no (string): un valor casteado (p. ej. la categoría, un enum
-                                        nativo) no implementa __toString() y (string) $enum revienta la vista. --}}
-                                        <span class="font-medium text-slate-600 dark:text-slate-300">{{ $field }}:</span>
-                                        <span class="text-rose-600 dark:text-rose-400">{{ \Illuminate\Support\Str::limit(json_encode($values['old'] ?? null, JSON_UNESCAPED_UNICODE), 80) }}</span>
+                                        <span class="font-medium text-slate-600 dark:text-slate-300">{{ $change['label'] }}:</span>
+                                        <span class="text-rose-600 dark:text-rose-400">{{ $change['old'] }}</span>
                                         →
-                                        <span class="text-emerald-700 dark:text-emerald-400">{{ \Illuminate\Support\Str::limit(json_encode($values['new'] ?? null, JSON_UNESCAPED_UNICODE), 80) }}</span>
+                                        <span class="text-emerald-700 dark:text-emerald-400">{{ $change['new'] }}</span>
                                     </li>
-                                @empty
-                                    <li class="text-slate-400">{{ __('Sin cambios de campos registrados.') }}</li>
-                                @endforelse
+                                @endforeach
                             </ul>
                         </div>
                     @empty
-                        <p class="text-sm text-slate-400">{{ __('Sin historial todavía.') }}</p>
+                        <p class="text-sm text-slate-400">{{ __('Sin cambios editados todavía.') }}</p>
                     @endforelse
                 </div>
 

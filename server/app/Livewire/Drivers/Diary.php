@@ -6,7 +6,8 @@ use App\Enums\DriverLogCategory;
 use App\Livewire\Forms\DriverLogForm;
 use App\Models\Driver;
 use App\Models\DriverLog;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
@@ -116,20 +117,75 @@ class Diary extends Component
             : null;
     }
 
-    /** @return Collection<int, Audit> */
+    /**
+     * Solo los campos con contenido real (no `id`/`driver_id`/`created_by`/`updated_by`…, que no
+     * le dicen nada a oficina) y en español. También descarta el evento `created` — ya lo dice
+     * la cabecera del modal ("Creada por…") — y cualquier `updated` que, una vez filtrado, se
+     * quede sin cambios que mostrar (p. ej. si lo único tocado fue `updated_by`).
+     *
+     * @var array<string, string>
+     */
+    private const HISTORY_FIELDS = [
+        'occurred_on' => 'Fecha',
+        'category' => 'Categoría',
+        'body' => 'Anotación',
+    ];
+
+    /** @return list<array{user: string, when: string, changes: list<array{label: string, old: string, new: string}>}> */
     #[Computed]
-    public function historyAudits()
+    public function historyEntries(): array
     {
         if (! $this->historyForId) {
-            return collect();
+            return [];
         }
 
         return Audit::query()
             ->with('user')
             ->where('auditable_type', DriverLog::class)
             ->where('auditable_id', $this->historyForId)
+            ->where('event', 'updated')
             ->orderByDesc('created_at')
-            ->get();
+            ->get()
+            ->map(function (Audit $audit) {
+                $changes = collect($audit->getModified())
+                    ->only(array_keys(self::HISTORY_FIELDS))
+                    ->map(fn ($values, $field) => [
+                        'label' => self::HISTORY_FIELDS[$field],
+                        'old' => $this->formatHistoryValue($field, $values['old'] ?? null),
+                        'new' => $this->formatHistoryValue($field, $values['new'] ?? null),
+                    ])
+                    ->values();
+
+                if ($changes->isEmpty()) {
+                    return null;
+                }
+
+                return [
+                    'user' => $audit->user?->name ?? 'Sistema',
+                    'when' => $audit->created_at->format('d/m/Y H:i'),
+                    'changes' => $changes->all(),
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function formatHistoryValue(string $field, mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        if ($value instanceof DriverLogCategory) {
+            return $value->label();
+        }
+
+        if ($field === 'occurred_on') {
+            return Carbon::parse($value)->format('d/m/Y');
+        }
+
+        return Str::limit((string) $value, 120);
     }
 
     #[Computed]

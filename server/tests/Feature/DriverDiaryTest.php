@@ -121,7 +121,37 @@ test('"Ver cambios" no revienta cuando el campo tocado es un enum (categoría)',
         ->test(Diary::class, ['driver' => $driver])
         ->call('viewHistory', $log->id)
         ->assertOk()
-        ->assertSee('category')
-        ->assertSee('negative')
-        ->assertSee('neutral');
+        ->assertSee('Categoría')
+        ->assertSee('Negativa')
+        ->assertSee('Neutra');
+});
+
+test('el historial solo muestra los campos con contenido, sin nulls ni el evento de creación', function () {
+    $driver = driverFor();
+    $log = DriverLog::factory()->for($driver)->create();
+
+    // Evento "created" real (con id/driver_id/created_by/etc.) — no debe aparecer, ya lo resume
+    // la cabecera "Creada por…".
+    Audit::create([
+        'user_type' => User::class, 'user_id' => null, 'event' => 'created',
+        'auditable_type' => DriverLog::class, 'auditable_id' => $log->id,
+        'old_values' => [], 'new_values' => ['id' => $log->id, 'driver_id' => $driver->id, 'body' => $log->body],
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    // "updated" que solo toca updated_by (p. ej. un resave sin cambios de contenido) — sin
+    // campos relevantes que mostrar, la tarjeta entera se descarta.
+    Audit::create([
+        'user_type' => User::class, 'user_id' => null, 'event' => 'updated',
+        'auditable_type' => DriverLog::class, 'auditable_id' => $log->id,
+        'old_values' => ['updated_by' => null], 'new_values' => ['updated_by' => 1],
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Diary::class, ['driver' => $driver])
+        ->call('viewHistory', $log->id)
+        ->assertOk()
+        ->assertDontSee('driver_id')
+        ->assertDontSee('updated_by')
+        ->assertSee('Sin cambios editados todavía.');
 });
