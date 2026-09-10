@@ -121,10 +121,21 @@ class Board extends Component
             ? $this->authorize('update', $this->form->editing)
             : $this->authorize('create', RouteStop::class);
 
+        // Nueva parada asignada directamente a una ruta cuya jornada ya estaba terminada
+        // (mismo criterio que al arrastrar desde "Sin asignar" — ver reorderStops()).
+        $reopened = ! $this->form->editing
+            && $this->form->route_id !== null
+            && (RouteDay::find($this->form->route_id)?->reopenIfCompleted() ?? false);
+
         $this->form->save(app(DeliveryTypeSchemaValidator::class));
 
         $this->dispatch('close-modal', 'stop-form');
-        $this->dispatch('toast', message: 'Parada guardada correctamente.', variant: 'success');
+        $this->dispatch('toast',
+            message: $reopened
+                ? 'Parada guardada. La jornada de esa ruta estaba terminada: se ha reabierto.'
+                : 'Parada guardada correctamente.',
+            variant: $reopened ? 'warning' : 'success',
+        );
     }
 
     public function deleteStop(RouteStop $stop): void
@@ -170,13 +181,26 @@ class Board extends Component
             );
         }
 
-        DB::transaction(function () use ($fromRouteId, $fromStopIds, $toRouteId, $toStopIds, $stops) {
+        $reopened = false;
+
+        DB::transaction(function () use ($fromRouteId, $fromStopIds, $toRouteId, $toStopIds, $stops, &$reopened) {
+            // Si la ruta destino ya tenía la jornada terminada (p. ej. se le asigna una parada
+            // desde "Sin asignar" un rato después de cerrar), se reabre — mismo criterio que
+            // Chofer\Today::addClientStop().
+            if ($toRouteId !== null && $fromRouteId !== $toRouteId) {
+                $reopened = RouteDay::find($toRouteId)?->reopenIfCompleted() ?? false;
+            }
+
             $this->reindexColumn($toRouteId, $toStopIds, $stops);
 
             if ($fromRouteId !== $toRouteId) {
                 $this->reindexColumn($fromRouteId, $fromStopIds, $stops);
             }
         });
+
+        if ($reopened) {
+            $this->dispatch('toast', message: 'La jornada de esa ruta estaba terminada: se ha reabierto.', variant: 'warning');
+        }
     }
 
     /**

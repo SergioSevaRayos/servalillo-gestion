@@ -245,20 +245,7 @@ class Today extends Component
 
         // Un cliente llama después de que el chofer haya terminado la jornada: se reabre para
         // poder hacer el reparto extra y volver a cerrarla con la lectura correcta del contador.
-        $reopened = $this->finished;
-
-        if ($reopened) {
-            $route->update([
-                'status' => RouteStatus::InProgress,
-                'completed_at' => null,
-                'liter_meter_end' => null,
-                'liter_discrepancy_note' => null,
-            ]);
-
-            if ($route->liter_meter_start !== null) {
-                $route->truck?->update(['liter_meter' => $route->liter_meter_start]);
-            }
-        }
+        $reopened = $route->reopenIfCompleted();
 
         $stop = RouteStop::create([
             'route_id' => $route->id,

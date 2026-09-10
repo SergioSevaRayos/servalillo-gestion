@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
 use App\Livewire\Routes\Board;
@@ -92,6 +93,52 @@ test('arrastrar una parada de sin asignar a una ruta la reasigna', function () {
     expect($stop->fresh())
         ->route_id->toBe($route->id)
         ->position->toBe(1);
+});
+
+test('arrastrar una parada a una ruta con la jornada terminada la reabre', function () {
+    $route = makeRoute('2026-09-10');
+    $route->update([
+        'status' => RouteStatus::Completed,
+        'liter_meter_start' => 1000,
+        'liter_meter_end' => 1200,
+        'completed_at' => now(),
+    ]);
+    $route->truck->update(['liter_meter' => 1200]);
+    $stop = RouteStop::factory()->create(['route_id' => null, 'position' => 1]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('reorderStops', null, [], $route->id, [$stop->id])
+        ->assertDispatched('toast');
+
+    expect($stop->fresh()->route_id)->toBe($route->id)
+        ->and($route->fresh())
+        ->status->toBe(RouteStatus::InProgress)
+        ->completed_at->toBeNull()
+        ->liter_meter_end->toBeNull()
+        ->and($route->fresh()->truck->liter_meter)->toBe(1000);
+});
+
+test('añadir una parada directamente a una ruta con la jornada terminada la reabre', function () {
+    $route = makeRoute('2026-09-10');
+    $route->update([
+        'status' => RouteStatus::Completed,
+        'liter_meter_start' => 1000,
+        'liter_meter_end' => 1200,
+        'completed_at' => now(),
+    ]);
+    $route->truck->update(['liter_meter' => 1200]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('openCreateStop', $route->id)
+        ->set('form.customer_name', 'Cliente Tardío')
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    expect($route->fresh())
+        ->status->toBe(RouteStatus::InProgress)
+        ->completed_at->toBeNull();
 });
 
 test('reordenar dentro de la misma columna actualiza las posiciones', function () {

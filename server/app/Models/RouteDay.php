@@ -46,6 +46,32 @@ class RouteDay extends Model implements Auditable
         ];
     }
 
+    /**
+     * Si el día ya estaba cerrado (jornada terminada) y le llega una parada nueva — un cliente
+     * que llama tarde, o la oficina que asigna algo desde "Sin asignar" — lo reabre para que el
+     * chofer pueda hacer el reparto extra y volver a cerrar la jornada con la lectura correcta
+     * del contador. Devuelve si realmente estaba cerrado (para avisar de que se ha reabierto).
+     */
+    public function reopenIfCompleted(): bool
+    {
+        if ($this->status !== RouteStatus::Completed) {
+            return false;
+        }
+
+        $this->update([
+            'status' => RouteStatus::InProgress,
+            'completed_at' => null,
+            'liter_meter_end' => null,
+            'liter_discrepancy_note' => null,
+        ]);
+
+        if ($this->liter_meter_start !== null) {
+            $this->truck?->update(['liter_meter' => $this->liter_meter_start]);
+        }
+
+        return true;
+    }
+
     /** Litros ya repartidos a clientes en esta ruta (paradas completadas). */
     public function deliveredLiters(): float
     {
