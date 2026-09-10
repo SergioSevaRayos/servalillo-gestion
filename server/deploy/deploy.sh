@@ -60,6 +60,7 @@ ssh "$VPS" "
   php artisan migrate --force &&
   php artisan optimize &&
   { php artisan storage:link || true; } &&
+  chmod -R ug+rwX storage bootstrap/cache &&
   php artisan queue:restart &&
   sudo systemctl reload php8.4-fpm || rc=\$?
   php artisan up
@@ -67,7 +68,9 @@ ssh "$VPS" "
 "
 
 # --- 7. Smoke check --------------------------------------------------------------
-say "GET https://$DOMAIN/up"
-curl -sf -o /dev/null -w '  → HTTP %{http_code}\n' "https://$DOMAIN/up"
+# Usa https si DOMAIN es un dominio; http si es una IP (aún sin TLS).
+scheme=https; case "$DOMAIN" in *[0-9].[0-9]*) [ -z "${DOMAIN//[0-9.]/}" ] && scheme=http;; esac
+say "GET $scheme://$DOMAIN/up"
+curl -sf -o /dev/null -w '  → HTTP %{http_code}\n' "$scheme://$DOMAIN/up"
 
 say "Despliegue OK"
