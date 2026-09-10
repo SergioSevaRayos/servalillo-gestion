@@ -4,4 +4,4 @@
 #   - rutas:generar-recurrentes  → 05:30  (paradas de clientes con calendario fijo, +14 días)
 #   - gps:purgar                 → 04:00  (retención GPS, GPS_RETENTION_DAYS)
 
-* * * * * cd /var/www/servalillo/server && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /var/www/servalillo/server && /usr/bin/php8.4 artisan schedule:run >> /dev/null 2>&1

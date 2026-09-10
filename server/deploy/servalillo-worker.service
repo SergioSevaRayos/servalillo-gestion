@@ -17,7 +17,7 @@ Group=deploy
 Restart=always
 RestartSec=3
 WorkingDirectory=/var/www/servalillo/server
-ExecStart=/usr/bin/php artisan queue:work --sleep=1 --tries=3 --max-time=3600 --rest=0.1
+ExecStart=/usr/bin/php8.4 artisan queue:work --sleep=1 --tries=3 --max-time=3600 --rest=0.1
 
 [Install]
 WantedBy=multi-user.target

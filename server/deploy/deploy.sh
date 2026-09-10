@@ -61,7 +61,7 @@ ssh "$VPS" "
   php artisan optimize &&
   { php artisan storage:link || true; } &&
   php artisan queue:restart &&
-  sudo systemctl reload php8.3-fpm || rc=\$?
+  sudo systemctl reload php8.4-fpm || rc=\$?
   php artisan up
   exit \$rc
 "

@@ -844,7 +844,8 @@ Factories: `User`, `Driver`, `Truck`, `DeliveryType`, `Route`, `RouteStop`.
 
 ## Despliegue (producción)
 Runbook completo en **`docs/04-despliegue-vps.md`**. Resumen:
-- **VPS bare-metal** (Hetzner CX22, Ubuntu 24.04): nginx + PHP 8.3-FPM + PostgreSQL 16. **Sin Docker,
+- **VPS bare-metal** (Hetzner CX23, Ubuntu 24.04): nginx + PHP 8.4-FPM (PPA `ondrej/php` — el lock
+  exige >= 8.4.1) + PostgreSQL 16. **Sin Docker,
   sin Node, sin Reverb** (Echo no está cableado; `BROADCAST_CONNECTION=log`). Un `queue:work` bajo
   systemd + cron para `schedule:run`. Ficheros (PDF/firmas) en **Cloudflare R2** (disco `r2`).
 - **Assets se compilan en el portátil y se suben** (el VPS no lleva Node). El deploy es

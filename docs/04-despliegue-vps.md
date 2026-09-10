@@ -4,7 +4,7 @@ Guía para poner Gestión Servalillo en un VPS único. Desarrollo sigue en Docke
 es bare-metal (nginx + PHP-FPM + PostgreSQL), sin Docker y **sin Node** (los assets se compilan en
 el portátil y se suben).
 
-- **VPS**: Hetzner CX22 (2 vCPU / 4 GB / 40 GB) o CAX11 (ARM), **Ubuntu 24.04 LTS**.
+- **VPS**: Hetzner CX23 (2 vCPU / 4 GB / 40 GB) o CAX11 (ARM), **Ubuntu 24.04 LTS**.
 - **Ficheros** (PDF de albarán + firmas): Cloudflare R2 (bucket privado).
 - **Despliegue**: `server/deploy/deploy.sh`, se ejecuta **desde el portátil**.
 - **Coste**: ~€6-9/mes (VPS + dominio; R2 gratis a esta escala).
@@ -30,8 +30,9 @@ Ver también la guía rápida que seguimos por chat. Resumen:
 
 1. `console.hetzner.cloud` → proyecto **Servalillo** → **Security → SSH Keys** → añade tu clave
    pública (`~/.ssh/servalillo.pub`).
-2. **Servers → Add Server**: Location `Nuremberg`, Image **Ubuntu 24.04**, Type **CX22** (Shared
-   vCPU), Networking IPv4 + IPv6, marca tu SSH key, Name `servalillo-prod`. **Create & Buy now**.
+2. **Servers → Add Server**: Location `Nuremberg`, Image **Ubuntu 24.04**, Type **CX23** (Shared
+   vCPU, línea Cost-Optimized x86), Networking IPv4 + IPv6, marca tu SSH key, Name `servalillo-prod`.
+   **Create & Buy now**.
 3. **Firewalls → Create Firewall** `servalillo-fw`: Inbound TCP 22, 80, 443 (desde cualquier IP).
    Aplícalo al servidor.
 4. Copia la **IPv4** del servidor.
@@ -54,7 +55,7 @@ ssh -i ~/.ssh/servalillo root@LA_IP
 adduser --disabled-password --gecos "" deploy
 usermod -aG sudo deploy
 # php-fpm reload sin contraseña (lo usa deploy.sh)
-echo 'deploy ALL=(root) NOPASSWD: /bin/systemctl reload php8.3-fpm, /bin/systemctl restart php8.3-fpm' > /etc/sudoers.d/deploy-fpm
+echo 'deploy ALL=(root) NOPASSWD: /usr/bin/systemctl reload php8.4-fpm, /usr/bin/systemctl restart php8.4-fpm, /usr/bin/systemctl reload nginx' > /etc/sudoers.d/deploy-fpm
 chmod 440 /etc/sudoers.d/deploy-fpm
 mkdir -p /home/deploy/.ssh && cp ~/.ssh/authorized_keys /home/deploy/.ssh/ && chown -R deploy:deploy /home/deploy/.ssh && chmod 700 /home/deploy/.ssh
 
@@ -69,20 +70,26 @@ ufw allow OpenSSH && ufw allow 'Nginx Full' && ufw --force enable
 systemctl enable --now fail2ban
 dpkg-reconfigure -f noninteractive unattended-upgrades
 
-# Stack (Ubuntu 24.04 trae PHP 8.3 y PostgreSQL 16 nativos)
+# PHP 8.4 desde ondrej/php (Ubuntu 24.04 solo trae 8.3; el composer.lock —Symfony 8 vía
+# Laravel 13— exige PHP >= 8.4.1, que es además la versión del contenedor de desarrollo).
+add-apt-repository -y ppa:ondrej/php
+apt update
+
+# Stack (PostgreSQL 16 sí es nativo de Ubuntu 24.04)
 apt -y install nginx postgresql \
-  php8.3-fpm php8.3-cli php8.3-pgsql php8.3-zip php8.3-intl php8.3-bcmath \
-  php8.3-gd php8.3-mbstring php8.3-xml php8.3-curl php8.3-opcache \
-  composer git rsync certbot python3-certbot-nginx rclone
+  php8.4-fpm php8.4-cli php8.4-pgsql php8.4-zip php8.4-intl php8.4-bcmath \
+  php8.4-gd php8.4-mbstring php8.4-xml php8.4-curl php8.4-opcache \
+  composer git rsync certbot python3-certbot-nginx rclone unzip
 
 # opcache recomendado para prod
-cat >> /etc/php/8.3/fpm/conf.d/99-servalillo.ini <<'EOF'
+cat > /etc/php/8.4/fpm/conf.d/99-servalillo.ini <<'EOF'
 opcache.enable=1
 opcache.validate_timestamps=0
 opcache.memory_consumption=128
+opcache.max_accelerated_files=20000
 expose_php=Off
 EOF
-systemctl restart php8.3-fpm
+systemctl restart php8.4-fpm
 ```
 
 ### Base de datos
@@ -243,7 +250,7 @@ bash server/deploy/deploy.sh
 
 | Síntoma | Mirar |
 |---|---|
-| 502 Bad Gateway | `sudo systemctl status php8.3-fpm`; ruta del socket en `nginx.conf` (`/run/php/php8.3-fpm.sock`). |
+| 502 Bad Gateway | `sudo systemctl status php8.4-fpm`; ruta del socket en `nginx.conf` (`/run/php/php8.4-fpm.sock`). |
 | 500 en todo | `.env` mal (falta `APP_KEY`, DB); `php artisan config:clear && php artisan config:cache`; `storage/logs/laravel.log`. |
 | Assets sin estilo / 404 en `/build/` | no se subió `public/build`; re-lanza `deploy.sh`; comprueba `rsync` en la salida. |
 | Albarán se queda en `Failed` | worker parado (`systemctl status servalillo-worker`) o SMTP mal; `php artisan queue:failed`. |
