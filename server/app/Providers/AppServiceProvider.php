@@ -24,7 +24,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Tras nginx + Let's Encrypt: forzamos https en las URLs generadas (enlaces de PDF
         // de albarán, correos de recuperación…) por si falta la cabecera X-Forwarded-Proto.
-        if ($this->app->isProduction()) {
+        // Condicionado a que APP_URL sea https: durante el arranque en producción todavía
+        // por IP (sin dominio/TLS) los assets se sirven por http y no deben romperse.
+        if ($this->app->isProduction() && str_starts_with((string) config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
 
