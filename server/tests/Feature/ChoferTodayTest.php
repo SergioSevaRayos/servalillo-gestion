@@ -7,6 +7,7 @@ use App\Livewire\Chofer\Today;
 use App\Models\Client;
 use App\Models\DeliveryType;
 use App\Models\Driver;
+use App\Models\Route;
 use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Models\Truck;
@@ -26,10 +27,17 @@ function chofer(array $routeOverrides = [], int $stops = 3): array
     $user = makeUser('chofer');
     $driver = Driver::factory()->create(['user_id' => $user->id]);
     $truck = Truck::factory()->create(['liter_meter' => 500000]);
+    $permanentRoute = Route::factory()->create([
+        'driver_id' => $driver->id,
+        'truck_id' => $truck->id,
+        'valid_from' => today()->subMonth(),
+        'valid_until' => null,
+    ]);
 
     $started = ($routeOverrides['status'] ?? null) === RouteStatus::InProgress;
 
     $route = RouteDay::factory()->create([
+        'route_id' => $permanentRoute->id,
         'driver_id' => $driver->id,
         'truck_id' => $truck->id,
         'route_date' => today(),
@@ -352,29 +360,33 @@ it('el chofer reprograma una parada fallida para otro día', function () {
     expect($stop->fresh()->status)->toBe(RouteStopStatus::Failed)
         ->and($stop->fresh()->failure_reason)->toContain('Reprogramada para');
 
-    // nace una parada pendiente para el día siguiente (sin ruta ese día → "Sin asignar")
+    // nace una parada pendiente para el día siguiente, directamente en la ruta del propio
+    // chofer ese día (se genera sola a partir de la ruta permanente).
     $nueva = RouteStop::where('customer_name', 'Bar Central')
         ->where('status', RouteStopStatus::Pending)
         ->first();
+    $routeDayManana = RouteDay::where('route_id', $route->route_id)->whereDate('route_date', $manana)->first();
 
-    expect($nueva)->not->toBeNull()
+    expect($routeDayManana)->not->toBeNull()
+        ->and($nueva)->not->toBeNull()
         ->and($nueva->id)->not->toBe($stop->id)
-        ->and($nueva->route_id)->toBeNull()
+        ->and($nueva->route_id)->toBe($routeDayManana->id)
         ->and($nueva->scheduled_for->toDateString())->toBe($manana)
         ->and($nueva->rescheduled_by)->toBe($user->id)
         ->and((float) $nueva->planned_quantity)->toBe(700.0);
 
-    // y le aparece al chofer ese día, en "Reprogramadas para este día"
+    // y le aparece al chofer ese día, ya en su ruta (no en un backlog aparte)
     Livewire::actingAs($user)->test(Today::class)
         ->set('date', $manana)
-        ->assertSee('Reprogramadas para este día')
         ->assertSee('Bar Central');
 });
 
-it('reprogramar va siempre a "Sin asignar", aunque el chofer ya tenga ruta ese día', function () {
+it('reprogramar reutiliza el RouteDay de esa fecha si ya existe, sin duplicarlo', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 1);
     $manana = today()->addDay()->toDateString();
-    RouteDay::factory()->create(['driver_id' => $driver->id, 'route_date' => $manana]);
+    $existente = RouteDay::factory()->create([
+        'route_id' => $route->route_id, 'driver_id' => $driver->id, 'truck_id' => $route->truck_id, 'route_date' => $manana,
+    ]);
     $stop = $route->stops->first();
     $stop->update(['customer_name' => 'Taller Gómez']);
 
@@ -386,8 +398,9 @@ it('reprogramar va siempre a "Sin asignar", aunque el chofer ya tenga ruta ese d
         ->call('saveStop');
 
     $nueva = RouteStop::where('customer_name', 'Taller Gómez')->where('status', RouteStopStatus::Pending)->first();
-    expect($nueva->route_id)->toBeNull()
-        ->and($nueva->scheduled_for->toDateString())->toBe($manana);
+
+    expect($nueva->route_id)->toBe($existente->id)
+        ->and(RouteDay::where('route_id', $route->route_id)->whereDate('route_date', $manana)->count())->toBe(1);
 });
 
 it('reprogramar exige una fecha futura', function () {

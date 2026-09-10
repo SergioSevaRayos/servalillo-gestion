@@ -33,6 +33,12 @@ class RouteStopForm extends Form
 
     public ?float $planned_quantity = null;
 
+    /**
+     * Día para el que se planifica el servicio (sobre todo útil en "Sin asignar": sin fecha
+     * aparece ahí todos los días — backlog general —, con fecha solo aparece ese día).
+     */
+    public ?string $scheduled_for = null;
+
     /** Valores de los campos flexibles del tipo de reparto elegido. */
     public array $data = [];
 
@@ -47,6 +53,7 @@ class RouteStopForm extends Form
             'delivery_type_id' => ['nullable', 'exists:delivery_types,id'],
             'status' => ['required', Rule::enum(RouteStopStatus::class)],
             'planned_quantity' => ['nullable', 'numeric', 'min:0'],
+            'scheduled_for' => ['nullable', 'date'],
         ];
     }
 
@@ -62,6 +69,7 @@ class RouteStopForm extends Form
         $this->delivery_type_id = $stop->delivery_type_id;
         $this->status = $stop->status->value;
         $this->planned_quantity = $stop->planned_quantity ? (float) $stop->planned_quantity : null;
+        $this->scheduled_for = $stop->scheduled_for?->toDateString();
         $this->data = $stop->data ?? [];
     }
 
@@ -89,6 +97,7 @@ class RouteStopForm extends Form
                 'delivery_type_id' => $validated['delivery_type_id'],
                 'status' => $validated['status'],
                 'planned_quantity' => $validated['planned_quantity'],
+                'scheduled_for' => $validated['scheduled_for'],
                 'data' => $cleanData,
             ]);
             $stop = $this->editing;

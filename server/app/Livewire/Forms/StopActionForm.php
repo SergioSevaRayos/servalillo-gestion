@@ -6,6 +6,7 @@ use App\Enums\RouteStopStatus;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
+use App\Services\RecurringRouteService;
 use App\Support\Notifications\RouteChangeNotifier;
 use Illuminate\Support\Carbon;
 use Livewire\Form;
@@ -158,16 +159,22 @@ class StopActionForm extends Form
     }
 
     /**
-     * Crea una parada nueva (pendiente) para otro día con los datos de esta.
-     * Siempre va a "Sin asignar": aunque el chofer ya tenga ruta ese día, la reprogramación
-     * la tiene que revisar y colocar oficina (no se asigna sola a una ruta existente).
+     * Crea una parada nueva (pendiente) para otro día con los datos de esta, directamente en
+     * la columna de la ruta del propio chofer ese día (se genera si aún no existía — la ruta
+     * permanente ya la cubre). Si por lo que sea no hay ruta permanente detrás, cae a
+     * "Sin asignar" para que oficina la revise y coloque a mano.
      */
     private function rescheduleStop(RouteStop $stop, string $date): void
     {
-        $position = RouteStop::query()->whereNull('route_id')->max('position');
+        $permanentRoute = $stop->route?->route;
+        $routeDay = $permanentRoute
+            ? app(RecurringRouteService::class)->ensureForDate($permanentRoute, $date)
+            : null;
+
+        $position = RouteStop::query()->where('route_id', $routeDay?->id)->max('position');
 
         RouteStop::create([
-            'route_id' => null,
+            'route_id' => $routeDay?->id,
             'position' => ($position ?? 0) + 1,
             'scheduled_for' => $date,
             'rescheduled_by' => auth()->id(),

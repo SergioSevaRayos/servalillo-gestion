@@ -195,6 +195,8 @@
 
                 <x-ui.input name="planned_quantity" label="{{ __('Cantidad prevista') }}" type="number" step="0.01" wire:model="form.planned_quantity" />
 
+                <x-ui.date-input name="scheduled_for" label="{{ __('Fecha de servicio (opcional)') }}" wire:model="form.scheduled_for" />
+
                 <div class="sm:col-span-1 lg:col-span-2">
                     <x-ui.select name="delivery_type_id" label="{{ __('Tipo de reparto') }}" wire:model.live="form.delivery_type_id" placeholder="{{ __('Sin tipo específico') }}">
                         @foreach ($this->deliveryTypes as $type)

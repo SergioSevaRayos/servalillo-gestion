@@ -254,10 +254,15 @@ Backed enums con `->label()` en español; casteados en los modelos.
     ver la "Regla de modales" en la sección del sistema de diseño. `<x-modal>` acepta
     `sm|md|lg|xl|2xl|3xl|4xl`.
   - **Al EDITAR** solo se tocan los datos del servicio (`status`, `planned_quantity`,
-    `delivery_type_id`, `data`): la identidad del cliente (`customer_name`, `address`, `contact_*`,
-    `service_kind`) sale como bloque de **solo lectura** y `RouteStopForm::save()` **no la persiste**
-    aunque llegue en el request (la ficha del cliente es su único punto de edición). Al **CREAR** sí
-    se piden todos los campos.
+    `delivery_type_id`, `scheduled_for`, `data`): la identidad del cliente (`customer_name`,
+    `address`, `contact_*`, `service_kind`) sale como bloque de **solo lectura** y
+    `RouteStopForm::save()` **no la persiste** aunque llegue en el request (la ficha del cliente es
+    su único punto de edición). Al **CREAR** sí se piden todos los campos.
+  - **`scheduled_for`** (2026-09-10): editable desde el propio modal (`<x-ui.date-input>`), tanto al
+    crear como al editar — sobre todo útil en **"Sin asignar"**: sin fecha el backlog aparece ahí
+    todos los días (bajo demanda), con fecha solo aparece ese día (ver filtro del tablero, unas
+    líneas más abajo). Antes solo lo ponían procesos automáticos (`RecurringStopService`,
+    `StopActionForm::rescheduleStop`); ahora oficina también puede fijarlo a mano.
 - **Drag & drop = SortableJS** (`npm install sortablejs`, importado en `resources/js/app.js`,
   función `initKanbanColumns`), no el plugin `@alpinejs/sort` — se descartó por no poder verificar con
   certeza su API exacta de arrastre multi-columna sin acceso a la documentación en vivo; SortableJS es
@@ -545,12 +550,16 @@ Backed enums con `->label()` en español; casteados en los modelos.
   - **Reprogramar** (`failed`/`skipped` + campo `reschedule_on`, fecha futura): la parada actual
     queda cerrada (con "· Reprogramada para dd/mm/yyyy" en el motivo) y `StopActionForm::rescheduleStop()`
     **crea una parada nueva Pendiente** para esa fecha con `rescheduled_by` = el chofer y
-    `scheduled_for` = la fecha — **siempre a "Sin asignar"** (`route_id = null`), aunque el chofer ya
-    tenga una ruta publicada ese día: la reprogramación la tiene que revisar y colocar oficina, no se
-    asigna sola a una ruta existente. El chofer la ve ese día en la tarjeta **"Reprogramadas para este
-    día"** (`Today::rescheduledForDay`, solo lectura: `route_id IS NULL` + `scheduled_for` +
-    `rescheduled_by = auth`) hasta que oficina la
-    asigna a una ruta.
+    `scheduled_for` = la fecha. **Decisión revertida (2026-09-10):** antes iba siempre a "Sin
+    asignar" para que oficina la revisara y colocara a mano; con la ruta permanente ya generando
+    sola el `RouteDay` de cada día, ahora **se coloca directamente en la columna de la ruta del
+    propio chofer** esa fecha — `$stop->route->route` (la `Route` permanente detrás de la
+    `RouteDay` de hoy) + `RecurringRouteService::ensureForDate()` (crea el `RouteDay` de esa fecha
+    si aún no existía, o reutiliza el que ya hubiera — idempotente). Si por lo que sea la parada no
+    tiene una ruta permanente detrás (dato huérfano), cae a "Sin asignar" como red de seguridad. La
+    tarjeta **"Reprogramadas para este día"** (`Today::rescheduledForDay`, solo lectura: `route_id
+    IS NULL` + `scheduled_for` + `rescheduled_by = auth`) sigue existiendo para ese caso residual,
+    pero en el flujo normal la parada reprogramada ya aparece como una pendiente más de la ruta.
 - **Sincronización admin ↔ chofer = `wire:poll`** (no websockets): la web del chofer refresca cada
   **15 s** (`wire:poll.15s` en la raíz de `livewire.chofer.today`), el tablero cada **45 s**
   (`wire:poll.45s` en `livewire.routes.board`). Así lo que cambia oficina le aparece al chofer solo y
