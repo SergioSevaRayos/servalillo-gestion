@@ -337,6 +337,8 @@ bash server/deploy/deploy.sh
 | Login da "page expired" / 419 | `SESSION_SECURE_COOKIE=true` sobre http → la cookie no vuelve. Ponlo a `false` mientras no haya HTTPS. |
 | 500 solo en páginas con HTML (`/up` va) | falta `public/build/manifest.json` — sube los assets (`deploy.sh` o `rsync server/public/build/`). |
 | `Permission denied` en `storage/logs/*.log` al desplegar | logs creados por `www-data`; el `chmod` de `deploy.sh` los ignora (`|| true`). Los ACL por defecto ya dan grupo `www-data:rwX`. |
+| 500 en TODO tras cambiar una vista (`.blade.php`) | `touch(): Utime failed` en el log: el caché de vistas compiladas lo creó `deploy` (dueño), y `www-data` no puede recompilar en caliente porque `touch()` con mtime explícito exige ser el propietario. Tras cualquier cambio de blade: `php artisan view:clear && php artisan view:cache` (como `deploy`, mismo dueño) + `sudo systemctl reload php8.4-fpm`. |
+| Firma / PDF de albarán falla (`Class "League\Flysystem\AwsS3V3\..." not found`) | alguna `R2_*` del `.env` tiene el placeholder `???` en vez de vacío — `config/filesystems.php` hace `env('R2_ACCESS_KEY_ID') ? s3 : local`, y `"???"` es *truthy*. Déjalas vacías mientras no haya bucket real. |
 | Assets sin estilo / 404 en `/build/` | no se subió `public/build`; re-lanza `deploy.sh`; comprueba `rsync` en la salida. |
 | Albarán se queda en `Failed` | worker parado (`systemctl status servalillo-worker`) o SMTP mal; `php artisan queue:failed`. |
 | Enlaces `http://` en correos/PDF | `APP_URL` no es `https://…`, o falta `APP_ENV=production` (activa `URL::forceScheme`). |
