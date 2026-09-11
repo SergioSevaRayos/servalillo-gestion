@@ -930,6 +930,19 @@ Backed enums con `->label()` en español; casteados en los modelos.
     mosaicos → override `.leaflet-container img { max-width: none }` en `app.css`; (2) el icono de
     marcador por defecto se rompe con Vite → se usa `L.divIcon` con HTML (`.route-map-pin`
     numerada); (3) el `<div>` del mapa lleva `wire:ignore`.
+  - **⚠️ Bug real de producción (2026-09-11): `tile.openstreetmap.org` empezó a devolver 403
+    "Access blocked — App is not following the tile usage policy" en los dos mapas Leaflet de la
+    app** (`routeMap` = "Ver recorrido"; `deviceMap` = "Localizar" en Mantenimiento → Dispositivos).
+    Los servidores de mosaicos de OSM son de voluntarios y su política exige registro/`User-Agent`
+    identificable y limita el tráfico por IP — un hotlink directo desde el navegador del usuario
+    (sin backend intermedio que añada esas cabeceras) no lo cumple, y en algún momento empezaron a
+    bloquear esta app en concreto. **Fix**: los dos `L.tileLayer(...)` de `resources/js/app.js`
+    pasan a **CARTO Voyager** (`{s}.basemaps.cartocdn.com/rastertiles/voyager/...`, subdominios
+    `abcd`, `{r}` para retina) — mismo estilo visual (basado en datos OSM), gratis sin API key para
+    este volumen de uso, pensado explícitamente para uso así (a diferencia de los mosaicos "crudos"
+    de OSM, que son la infraestructura de referencia del propio proyecto OSM, no un servicio
+    productivo). Si esto también acabara limitado algún día, la alternativa es un proveedor con API
+    key (Stadia Maps / MapTiler) o un proxy propio de mosaicos con caché.
 
 ### API de tracking GPS (Bloque 10)
 - **La única API de la app** (`routes/api.php`). El "Bloque 10 — API Flutter" del contrato original de
