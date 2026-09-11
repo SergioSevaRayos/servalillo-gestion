@@ -1,5 +1,19 @@
 @props(['label', 'value', 'trend' => null, 'trendDirection' => 'up'])
 
+@php
+    // Tamaño del valor según su longitud: un texto corto ("128", "34 min") luce grande,
+    // pero esa misma clase fija con un valor largo (p.ej. una fecha "28/04/2026" en una
+    // rejilla de 5 columnas) se salía del borde de la tarjeta — se encoge en vez de
+    // desbordar. Umbrales calibrados contra los valores reales que ya usan las tarjetas
+    // (KPIs cortos, litros formateados, fechas dd/mm/yyyy).
+    $valueLength = mb_strlen((string) $value);
+    $valueSize = match (true) {
+        $valueLength > 9 => 'text-xl',
+        $valueLength > 6 => 'text-2xl',
+        default => 'text-3xl',
+    };
+@endphp
+
 <div {{ $attributes->merge(['class' => 'glass rounded-2xl p-5 flex flex-col gap-3']) }}>
     <div class="flex items-center justify-between">
         <span class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ $label }}</span>
@@ -11,7 +25,7 @@
     </div>
 
     <div class="flex items-baseline gap-2">
-        <span class="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ $value }}</span>
+        <span class="{{ $valueSize }} font-semibold tracking-tight text-slate-900 dark:text-white">{{ $value }}</span>
 
         @if ($trend)
             <span @class([
