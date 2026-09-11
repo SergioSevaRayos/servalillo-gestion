@@ -235,6 +235,35 @@ class Today extends Component
         $this->dispatch('toast', message: 'Parada reabierta.', variant: 'success');
     }
 
+    /**
+     * El chofer, estando físicamente en el sitio, captura la ubicación GPS del móvil para una
+     * parada que no la tiene. Se guarda en la propia parada (efecto inmediato: mapa, ruta
+     * eficiente, tiempo en parada) y, si se encuentra el cliente por CIF/nombre (mismo
+     * emparejamiento que `Client::pastStops()`) y todavía no tiene coordenadas, también en su
+     * ficha — así las próximas paradas de ese cliente ya nacen con ubicación.
+     */
+    public function captureStopCoordinates(RouteStop $stop, float $lat, float $lng): void
+    {
+        $this->authorize('complete', $stop);
+
+        abort_unless($lat >= -90 && $lat <= 90 && $lng >= -180 && $lng <= 180, 422, 'Coordenadas fuera de rango.');
+
+        $stop->update(['latitude' => $lat, 'longitude' => $lng]);
+
+        Client::query()
+            ->when(
+                $stop->customer_tax_id,
+                fn ($q) => $q->where('tax_id', $stop->customer_tax_id),
+                fn ($q) => $q->where('name', $stop->customer_name),
+            )
+            ->whereNull('latitude')
+            ->first()
+            ?->update(['latitude' => $lat, 'longitude' => $lng]);
+
+        unset($this->route);
+        $this->dispatch('toast', message: 'Ubicación guardada.', variant: 'success');
+    }
+
     /** Abre el buscador para añadir un cliente que ha llamado como una parada más. */
     public function openAddStop(): void
     {

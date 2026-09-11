@@ -675,3 +675,64 @@ it('cada parada pendiente con coordenadas tiene un enlace de navegación a Googl
     Livewire::actingAs($user)->test(Today::class)
         ->assertSee(GoogleMaps::pointUrl((float) $stop->latitude, (float) $stop->longitude));
 });
+
+it('el chofer captura la ubicación de una parada sin coordenadas', function () {
+    [$user, $driver, $route] = chofer();
+    $stop = $route->stops()->first();
+    $stop->update(['latitude' => null, 'longitude' => null]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('captureStopCoordinates', $stop->id, 28.456789, -16.256789)
+        ->assertHasNoErrors()
+        ->assertDispatched('toast');
+
+    expect((float) $stop->fresh()->latitude)->toBe(28.456789)
+        ->and((float) $stop->fresh()->longitude)->toBe(-16.256789);
+});
+
+it('capturar la ubicación también rellena la ficha del cliente si la tenía vacía', function () {
+    [$user, $driver, $route] = chofer();
+    $stop = $route->stops()->first();
+    $stop->update(['latitude' => null, 'longitude' => null, 'customer_tax_id' => 'B12345678', 'customer_name' => 'Bar Central']);
+    $client = Client::factory()->create(['tax_id' => 'B12345678', 'latitude' => null, 'longitude' => null]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('captureStopCoordinates', $stop->id, 28.1, -16.1);
+
+    expect((float) $client->fresh()->latitude)->toBe(28.1)
+        ->and((float) $client->fresh()->longitude)->toBe(-16.1);
+});
+
+it('capturar la ubicación no pisa las coordenadas que el cliente ya tenía', function () {
+    [$user, $driver, $route] = chofer();
+    $stop = $route->stops()->first();
+    $stop->update(['latitude' => null, 'longitude' => null, 'customer_tax_id' => 'B99999999']);
+    $client = Client::factory()->create(['tax_id' => 'B99999999', 'latitude' => 28.9, 'longitude' => -16.9]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('captureStopCoordinates', $stop->id, 28.1, -16.1);
+
+    expect((float) $client->fresh()->latitude)->toBe(28.9)
+        ->and((float) $client->fresh()->longitude)->toBe(-16.9);
+});
+
+it('rechaza coordenadas fuera de rango', function () {
+    [$user, $driver, $route] = chofer();
+    $stop = $route->stops()->first();
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('captureStopCoordinates', $stop->id, 999, -16.1)
+        ->assertStatus(422);
+});
+
+it('un chofer no puede capturar la ubicación de la parada de otro', function () {
+    [$user, $driver, $route] = chofer();
+    $stop = $route->stops()->first();
+
+    $other = makeUser('chofer');
+    Driver::factory()->create(['user_id' => $other->id]);
+
+    Livewire::actingAs($other)->test(Today::class)
+        ->call('captureStopCoordinates', $stop->id, 28.1, -16.1)
+        ->assertForbidden();
+});

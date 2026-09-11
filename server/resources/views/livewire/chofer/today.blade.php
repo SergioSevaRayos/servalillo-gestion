@@ -407,6 +407,39 @@
                             </svg>
                             {{ __('Cómo llegar') }}
                         </a>
+                    @else
+                        {{-- Sin coordenadas: el chofer, estando en el sitio, las captura con el GPS del móvil. --}}
+                        <button type="button"
+                            x-data="{ capturing: false }"
+                            x-on:click="
+                                if (capturing) return;
+                                capturing = true;
+                                if (! navigator.geolocation) {
+                                    window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Este navegador no permite capturar la ubicación.', variant: 'danger' } }));
+                                    capturing = false;
+                                    return;
+                                }
+                                navigator.geolocation.getCurrentPosition(
+                                    (pos) => { $wire.captureStopCoordinates({{ $s->id }}, pos.coords.latitude, pos.coords.longitude).then(() => { capturing = false; }); },
+                                    (err) => {
+                                        window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'No se pudo obtener la ubicación: ' + err.message, variant: 'danger' } }));
+                                        capturing = false;
+                                    },
+                                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+                                );
+                            "
+                            x-bind:disabled="capturing"
+                            class="inline-flex items-center gap-1 text-sm font-medium text-primary-600 disabled:opacity-50 dark:text-primary-400">
+                            <svg x-show="! capturing" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                            </svg>
+                            <svg x-show="capturing" x-cloak class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                            </svg>
+                            <span x-text="capturing ? '{{ __('Capturando…') }}' : '{{ __('Capturar ubicación') }}'"></span>
+                        </button>
                     @endif
                 </div>
 

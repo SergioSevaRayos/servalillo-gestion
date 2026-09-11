@@ -1256,6 +1256,26 @@ Backed enums con `->label()` en español; casteados en los modelos.
   tiene el suyo), `RouteTerminalsManagementTest` (CRUD de terminales + autorización),
   ampliación de `RouteHistoryTest` (reasignación manual + autorización).
 
+### Capturar coordenadas de un cliente desde el móvil del chofer (2026-09-11)
+- En el modal de completar parada (`livewire/chofer/today.blade.php`), donde normalmente sale
+  "Cómo llegar" (si la parada ya tiene `latitude`/`longitude`), si **no** las tiene sale un botón
+  **"Capturar ubicación"**: usa el GPS del propio móvil (`navigator.geolocation.getCurrentPosition`,
+  `enableHighAccuracy: true`, mismo patrón que `tracker-test.blade.php`) — pensado para que el
+  chofer, estando físicamente en el sitio, la capture con un toque sin depender de que oficina la
+  rellene a mano. Errores de geolocalización (sin permiso, sin soporte, timeout) se avisan con un
+  toast **disparado desde el propio JS** (`window.dispatchEvent(new CustomEvent('toast', {...}))`,
+  ver el comentario de uso en `components/ui/toast-container.blade.php`), sin ida y vuelta al
+  servidor.
+- `App\Livewire\Chofer\Today::captureStopCoordinates(RouteStop $stop, float $lat, float $lng)` —
+  autorización = `RouteStopPolicy::complete` (la misma que abrir la parada, sin permiso nuevo).
+  Guarda en **dos sitios**: (1) la propia `route_stops.latitude/longitude` (efecto inmediato: mapa,
+  ruta eficiente, tiempo en parada de hoy) y (2) si encuentra el cliente por CIF/nombre (mismo
+  emparejamiento que `Client::pastStops()`: `customer_tax_id` si lo hay, si no `customer_name`
+  exacto — **no** hay `route_stops.client_id`, ver "Gestión de clientes") y ese cliente **todavía
+  no tiene coordenadas**, se las rellena también — así las próximas paradas de ese cliente
+  (recurrentes o planificadas) ya nacen con ubicación. Si el cliente ya tenía coordenadas, no se
+  tocan (nunca pisa un dato existente, solo rellena huecos).
+
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
 - Regla de negocio: **1 camión = 1 ruta permanente vigente a la vez** (`Route::overlaps()`, sin fechas
