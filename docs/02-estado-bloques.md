@@ -16,8 +16,14 @@
 | 11 | APK Flutter de tracking (headless) + `GET /api/device` | ✅ Hecho |
 | 12 | Notificaciones in-app + canal de soporte administración ↔ mantenimiento | ✅ Hecho |
 | 13 | Ruta eficiente (optimización de paradas, OSRM + fallback local) | ✅ Hecho |
+| 14 | Diario de incidencias del chofer | ✅ Hecho |
+| 15 | Tiempo de permanencia en parada (geocerca por GPS) | ✅ Hecho |
+| 16 | Terminal vinculado a una ruta (chofer sustituto) | ✅ Hecho |
+| 17 | Depósitos SGRA (integración externa, visual 3D) | ✅ Hecho |
 
 > Los Bloques 12 y 13 se construyeron por delante de 10/11 a petición del usuario (igual que el 9).
+> Los Bloques 14-17 no estaban en el `docs/01` original: son funciones pedidas sobre la marcha una vez
+> la app ya estaba en producción, numeradas en el orden en que se construyeron.
 
 > El Bloque 9 original era "API Flutter (Sanctum)"; el usuario intercaló la gestión de clientes
 > por delante, así que la API pasa a ser el Bloque 10 y el tracking el 11.
@@ -841,6 +847,175 @@ Detalle en `CLAUDE.md` (sección "Ruta eficiente (Bloque 13)").
 7. "Ver recorrido" (chofer o cualquier columna del tablero) → mapa con las paradas numeradas y el
    trazado por carretera + "~X km · ~Y min". `OSRM_URL` basura → cae a línea recta.
 8. `/rutas` como chofer → 403 (ya lo era); el chofer no tiene el botón "Ruta eficiente" del tablero.
+
+---
+
+## Bloque 14 — lo que se ha construido
+
+**Diario de incidencias del chofer** (`/chofers/{driver}/diario`, `App\Livewire\Drivers\Diary`,
+enlazado con un botón "Diario" desde cada fila de `/chofers`). Notas internas de oficina sobre lo
+que hace un chofer, bueno o malo — no las escribe el chofer.
+
+- **`App\Models\DriverLog`** (`occurred_on`, `category`, `body`, `created_by`, `updated_by`
+  nullable, `SoftDeletes`, `Auditable`). `App\Enums\DriverLogCategory` (positiva/negativa/neutra,
+  con `->badgeVariant()`) para distinguir de un vistazo lo bueno de lo malo en el listado.
+- **`updated_by`** se queda `null` hasta que alguien edita la nota (nunca al crearla); el listado
+  muestra "Anotado por X el…" y, si se editó, "Editado por Y el…" + **"Ver cambios"** (modal con un
+  historial curado — solo `occurred_on`/`category`/`body`, nunca `id`/timestamps/autores en crudo —
+  a diferencia del `Audit::getModified()` genérico de `/mantenimiento/auditoria`, que sigue viendo
+  el mismo cambio sin filtrar).
+- Permisos nuevos `driver_logs.{view,create,update,delete}` (administrador + mantenimiento, no
+  chofer). Filtros: categoría, rango de fechas, búsqueda en el texto.
+- Detalle completo (incl. dos gotchas reales: un enum sin `__toString()` reventaba el modal de
+  cambios, y por qué el historial filtra en vez de usar `getModified()` en crudo) en `CLAUDE.md`
+  → "Diario de incidencias del chofer".
+
+### Cómo probar el Bloque 14
+1. `admin@servalillo.test` → **Chofers** → botón "Diario" en una fila → "Nueva anotación".
+2. Edítala → aparece "Editado por…" + "Ver cambios" con el histórico legible.
+3. Filtra por categoría (positiva/negativa/neutra) y por texto.
+4. El mismo cambio aparece también en `/mantenimiento/auditoria` (evento "Actualizado", modelo
+   "Incidencia de chofer") — sin filtrar, para comparar con la versión curada del diario.
+
+---
+
+## Bloque 15 — lo que se ha construido
+
+**Tiempo de permanencia en cada parada**, calculado a partir del GPS y una geocerca (radio
+configurable). Responde "cuánto tiempo estuvo el camión parado en cada cliente" sin tocar la
+ingesta GPS: es un cálculo por **"replay"** que se puede recalcular tantas veces como haga falta.
+
+- **`App\Services\StopDwellService::recomputeForRouteDay(RouteDay)`** reprocesa el track GPS
+  completo del día y reconstruye `stop_visits` (borra + reinserta por día → idempotente, aguanta
+  lotes de GPS desordenados o de recuperación tras un corte de red).
+- **Reglas** en `config('servalillo.dwell')` (radio, mínimo para contar como parada, hueco máximo
+  que se puentea sin cortar la visita, rechazo de fixes con mala precisión, exclusión de la zona de
+  la base, recorte al horario de jornada).
+- **Recálculo**: comando `paradas:calcular-permanencia` (scheduler diario 03:30) + recálculo
+  perezoso al abrir el tablero/la web del chofer/el Historial (con sello + lock para no repetir
+  trabajo en cada poll).
+- **UI**: `<x-stop-dwell>` (badge "⏱ 14 min" / "● En parada 6 min" en las tarjetas; línea "Llegada
+  10:32 · Salida 10:49 · 17 min" en los modales), velocidad actual del camión y tiempo/velocidad
+  **entre** dos paradas consecutivas (`StopDwellService::transitLegs()`) en el Historial.
+- **Dos bugs reales corregidos** durante las pruebas de campo, ambos con moraleja para el futuro:
+  un umbral de corte de hueco GPS que nunca dejaba actuar al umbral pensado para ser el real
+  (unificados en uno solo), y un cambio de comportamiento de **Carbon 3** (`diffInSeconds()` ya no
+  es absoluto por defecto) que, con los argumentos en el orden "intuitivo" de Carbon 2, daba
+  duraciones negativas y **ninguna visita se guardaba nunca** — detalle completo, incl. cómo se
+  detectó, en `CLAUDE.md` → "Tiempo de permanencia en parada".
+
+### Cómo probar el Bloque 15
+1. Con una ruta que tenga GPS real o simulado: `php artisan paradas:calcular-permanencia` (o
+   espera al recálculo perezoso al abrir el tablero/la web del chofer).
+2. Tarjetas del tablero y de `/chofer/ruta`: badge de tiempo en parada; si el camión sigue dentro
+   de la geocerca, badge ámbar "En parada X min" en vivo.
+3. `/rutas/{route}/historial` → "Ver detalle" de un día: línea de llegada/salida por parada + tramo
+   "🚚 En ruta X min · Y km/h de media" entre paradas consecutivas.
+4. Ficha de un cliente (`/clientes/{id}`): estadística "Media en parada".
+
+---
+
+## Bloque 16 — lo que se ha construido
+
+**Terminal vinculado a una ruta** (chofer sustituto): si el chofer titular de una ruta se pone
+enfermo, un sustituto solo tiene que iniciar sesión desde el teléfono del camión (ya "vinculado" a
+esa ruta) para pasar **directamente** a gestionarla ese día con su propio nombre — sin que oficina
+reasigne nada a mano en el caso normal.
+
+- **`route_terminals`** (token opaco `Str::random(48)` en una cookie de por vida, revocación
+  blanda). Vincular/revocar desde `/rutas/listado` (botón "Terminales" por fila, gateado por el
+  mismo permiso `routes.update` — sin permiso ni policy nuevos).
+- **`GET /terminal/vincular/{token}`** (sin middleware `auth`, como `theme.update`): sella la
+  cookie y redirige a login (o directo si ya hay sesión).
+- **`App\Services\RouteTerminalPairingService::resolveDriverHome()`**: al entrar como chofer desde
+  un terminal vinculado, si el día de hoy de esa ruta no es ya suyo, lo reasigna (auditado
+  automáticamente, `RouteDay` ya es `Auditable`) — incluido el dispositivo GPS tracker del chofer
+  original, si el sustituto no tiene ya el suyo propio.
+- **Guarda de colisión**: si el sustituto ya tiene su propia ruta asignada hoy, no se sustituye
+  nada — evita que un chofer acabe con dos `RouteDay` el mismo día, algo que rompería varias
+  asunciones del Bloque 15/10 (fallback de GPS por `driver_id`+fecha, mapa "dónde está el camión").
+- **Se autocorrige solo al día siguiente** (la generación diaria de `RouteDay` parte siempre del
+  `driver_id` de la ruta permanente, nunca del de un `RouteDay` ya existente) — sin código de
+  "revertir".
+- **Válvula manual** en `/rutas/{route}/historial` ("Reasignar chofer") para deshacer una
+  sustitución equivocada o forzar una que la guarda de colisión bloqueó.
+- Un bug real (`redirect('chofer.today')` en vez de `redirect(route('chofer.today'))`, que habría
+  roto el login de **todos** los chofers) se detectó y corrigió antes de desplegar, gracias a los
+  tests. Detalle completo en `CLAUDE.md` → "Terminal vinculado a una ruta".
+
+### Cómo probar el Bloque 16
+1. `admin@servalillo.test` → `/rutas/listado` → "Terminales" en una fila → "Vincular un terminal
+   nuevo" → copia el enlace.
+2. Ábrelo en una ventana de incógnito → inicia sesión como un chofer **distinto** al titular de esa
+   ruta → debe aterrizar directo en `/chofer/ruta` viendo esa ruta con su propio nombre.
+3. `/mantenimiento/dispositivos`: el GPS tracker del camión ya aparece a nombre del sustituto.
+4. Al día siguiente (o simulando la fecha), la ruta vuelve a generarse con el chofer titular.
+5. `/rutas/{route}/historial` → "Reasignar chofer" para devolverla a mano si hiciera falta.
+
+---
+
+## Bloque 17 — lo que se ha construido
+
+**Depósitos SGRA**: nivel de agua en vivo de un proyecto totalmente aparte del usuario (SGRA —
+Sistema de Gestión de Recursos del Aljibe, monitorización de aljibes con sensores + LoRa/4G en su
+Raspberry Pi de casa), visible desde el propio panel de Gestión Servalillo para no tener que salir
+a un dashboard distinto al planificar repartos.
+
+- **`App\Services\SgraClient`**: único punto que habla con la API externa. Login por sesión/cookie
+  (la API de SGRA no tiene token/API key), selecciona cada depósito y lee su nivel actual — nunca
+  lanza al llamador, cualquier fallo (red, timeout, login rechazado) se traga y devuelve `[]` para
+  que el panel se degrade con elegancia si el NAS está apagado.
+- **`/depositos`** (`App\Livewire\Sgra\Index`, permiso `sgra.view`, administrador + mantenimiento):
+  una tarjeta por depósito con **visual 3D animado** (puerto directo a Three.js/Alpine del
+  componente Vue que ya usa el propio dashboard SGRA — depósito, agua, flotador, persona de
+  referencia), nivel %, altura de agua y estado ("En línea"/"Sin datos recientes"/"Nivel bajo"), con
+  un botón "Ver panel completo" al dashboard SGRA real.
+- **Conectividad = Tailscale** (decisión explícita del usuario, no la URL pública sin cifrar): el
+  VPS de producción se unió al mismo tailnet que el NAS del usuario.
+- Caché de 30s (`Cache::remember`) para no repetir login + N llamadas en cada `wire:poll.60s` de
+  cada pestaña abierta contra un Raspberry Pi doméstico.
+- Detalle completo (incl. el gotcha de que el "depósito activo" de la API de SGRA es un concepto de
+  sesión, no un parámetro) en `CLAUDE.md` → "Depósitos SGRA".
+
+### Añadido en la misma sesión (fuera del alcance de este bloque, pulido general)
+- **`/albaranes`**: botón **"Ver PDF"** (abre el PDF en una pestaña nueva, `Content-Disposition:
+  inline`) junto al ya existente, renombrado a **"Descargar"** (`?view=1` en la misma ruta —
+  `Storage::disk('r2')->response()` en vez de `->download()`).
+- **`<x-ui.stat-card>`**: el tamaño del valor ahora se adapta a su longitud (un texto corto como
+  "128" sigue grande; una fecha larga como "28/04/2026" se encoge) — antes se salía del borde de la
+  tarjeta en rejillas de 5 columnas (ficha del cliente).
+
+### Cómo probar el Bloque 17
+1. `admin@servalillo.test` (o `soporte@`) → **Depósitos** en el nav → tarjetas con la animación 3D
+   y el nivel real de cada aljibe.
+2. "Ver panel completo" abre el dashboard SGRA de verdad en una pestaña nueva.
+3. `/albaranes` → botones "Ver PDF" (pestaña nueva, sin descargar) y "Descargar" (como antes).
+4. `/clientes/{id}` con histórico: la tarjeta "Último reparto" ya no toca el borde.
+
+---
+
+## Punto de continuación (última sesión: 2026-09-11)
+
+**Estado:** app en producción en `https://geosafety.es`, desplegada varias veces esta sesión
+(Bloque 16, Bloque 17, y los dos ajustes de pulido de arriba). El VPS de Hetzner se unió al
+tailnet de Tailscale del usuario esta sesión, expresamente para el Bloque 17. Servidor: **409 tests
+en verde** (`cd server && docker compose exec -T laravel.test php artisan test`).
+
+**Bug real de producción corregido esta sesión (antes del Bloque 16):** `GpsIngestService` no
+convertía `recorded_at` (que la APK manda en UTC) a la zona horaria de la app antes de guardarlo —
+invisible en local (donde `APP_TIMEZONE` es UTC por defecto) pero en producción
+(`APP_TIMEZONE=Europe/Madrid`) desplazaba cada posición 1-2 h, rompiendo silenciosamente el tiempo
+de permanencia (Bloque 15) y "ubicación actual del camión" (Bloque 13). Backfill de los datos ya
+guardados con `AT TIME ZONE`. Detalle en `CLAUDE.md` → "API de tracking GPS (Bloque 10)".
+
+**Infra nueva de esta sesión:** además de Tailscale en el VPS, se dejaron dos pasos pendientes de
+higiene que el usuario debe completar cuando tenga un momento: volver a bloquear la contraseña del
+usuario `deploy` en el VPS (`sudo passwd -l deploy` — se le puso una contraseña temporal para poder
+instalar Tailscale sin acceso root por SSH) y confirmar que la auth key de Tailscale usada durante
+el alta quedó revocada.
+
+**Pendiente conocido, sin resolver esta sesión:** paginación de los listados Livewire en inglés
+(ver Bloque 6) — transversal, pequeño, sigue sin hacerse.
 
 ---
 
