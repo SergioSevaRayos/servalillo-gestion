@@ -4,12 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\DeliveryNote;
 use App\Services\DeliveryNotePdfRenderer;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DeliveryNoteController extends Controller
 {
-    public function pdf(DeliveryNote $note, DeliveryNotePdfRenderer $renderer): StreamedResponse
+    public function pdf(DeliveryNote $note, DeliveryNotePdfRenderer $renderer, Request $request): StreamedResponse
     {
         $this->authorize('view', $note);
 
@@ -22,6 +23,10 @@ class DeliveryNoteController extends Controller
             $note->forceFill(['pdf_path' => $path])->save();
         }
 
-        return Storage::disk('r2')->download($path, $note->number.'.pdf');
+        // ?view=1 ("Ver PDF"): lo abre el navegador (Content-Disposition: inline) en vez de
+        // forzar la descarga — mismo fichero, solo cambia la cabecera de la respuesta.
+        return $request->boolean('view')
+            ? Storage::disk('r2')->response($path, $note->number.'.pdf')
+            : Storage::disk('r2')->download($path, $note->number.'.pdf');
     }
 }

@@ -59,7 +59,8 @@
                     </td>
                     <td data-label="{{ __('Acciones') }}" class="text-right">
                         <div class="flex justify-end gap-2">
-                            <x-ui.button href="{{ route('delivery-notes.pdf', $note) }}" variant="ghost" size="sm">{{ __('PDF') }}</x-ui.button>
+                            <x-ui.button href="{{ route('delivery-notes.pdf', $note) }}?view=1" target="_blank" variant="ghost" size="sm">{{ __('Ver PDF') }}</x-ui.button>
+                            <x-ui.button href="{{ route('delivery-notes.pdf', $note) }}" variant="ghost" size="sm">{{ __('Descargar') }}</x-ui.button>
                             @can('regenerate', $note)
                                 <x-ui.button variant="ghost" size="sm" wire:click="reprocess({{ $note->id }})"
                                     wire:confirm="{{ __('¿Volver a generar y enviar este albarán?') }}">{{ __('Reprocesar') }}</x-ui.button>

@@ -183,4 +183,16 @@ describe('descarga del PDF', function () {
 
         $this->actingAs($chofer)->get(route('delivery-notes.pdf', $note))->assertOk();
     });
+
+    it('?view=1 abre el PDF en el navegador (inline) en vez de forzar la descarga', function () {
+        $stop = completedStop();
+        $note = DeliveryNote::factory()->for($stop, 'routeStop')->create();
+
+        $download = $this->actingAs(makeUser('administrador'))->get(route('delivery-notes.pdf', $note));
+        expect($download->headers->get('content-disposition'))->toContain('attachment');
+
+        $view = $this->actingAs(makeUser('administrador'))->get(route('delivery-notes.pdf', $note).'?view=1');
+        $view->assertOk();
+        expect($view->headers->get('content-disposition'))->toContain('inline');
+    });
 });
