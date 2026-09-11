@@ -1035,6 +1035,23 @@ está reservado — un camión aleatorio creado de refilón (p. ej. al crear un 
 justo el 99 y violar `trucks_code_unique`. `deploy.sh` frenó el despliegue correctamente (nunca
 llegó a tocar producción) al toparse con esto — así es como se detectó. Ampliado a 4 dígitos.
 
+**Barra de navegación — bug real + pulido (2026-09-11):** con "Depósitos" (Bloque 17) la fila de
+enlaces llegó a 8 y dejó de caber: a la columna de enlaces le faltaba `min-w-0` (un hijo flex no
+encoge por debajo del ancho de su contenido si no se le fuerza explícitamente), así que en vez de
+ceder sitio **se solapaba** con la campana/tema/usuario. Fix real: esa fila ahora hace scroll
+horizontal propio si no cabe, y el selector de tema se sacó de la barra al menú "Mi perfil"
+(libera espacio de verdad, no solo lo maquilla). De paso, `<x-dropdown>` (perfil + campana) pasa a
+llevar fondo opaco encima del `.glass` — el panel dejaba ver el contenido de detrás, mismo
+criterio que ya aplican los modales; se le había quedado sin aplicar. Sin cambios en el menú móvil
+(la "gota"), a propósito — decisión explícita del usuario.
+
+**Explorado y descartado — "Liquid Glass" (estilo iOS 26) en la nav:** el usuario pidió probar un
+efecto de cristal más elaborado (blur más fuerte, brillo especular, borde con barrido de color) en
+la barra, vía una clase `.glass-liquid` aparte (capa opcional encima de `.glass`, pensada para
+poder quitarse sin tocar nada más). Se implementó, se vio en local y **no gustó** — revertido por
+completo (CSS, config de sombra, y la clase en la nav) sin dejar rastro. Documentado aquí como
+constancia de que ya se probó, para no repetir el mismo experimento sin motivo.
+
 **Pendiente conocido, sin resolver esta sesión:** paginación de los listados Livewire en inglés
 (ver Bloque 6) — transversal, pequeño, sigue sin hacerse.
 
