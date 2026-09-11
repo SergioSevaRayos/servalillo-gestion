@@ -252,6 +252,15 @@
     }
 }
 
+/* Visual 3D del depósito (panel /depositos, window.tank3d en app.js): tope de
+   seguridad por si el canvas de Three.js se queda más grande que su contenedor
+   (p.ej. al redimensionar antes de que el ResizeObserver reaccione). */
+.tank-3d canvas {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+}
+
 /* El preflight de Tailwind (img{max-width:100%}) descoloca los mosaicos de Leaflet. */
 .leaflet-container img {
     max-width: none;

@@ -33,7 +33,9 @@ class SgraClient
      * Estado de cada depósito configurado en SGRA.
      *
      * @return list<array{id: string, name: string, fill_pct: float|null, online: bool,
-     *                     minutes_ago: int|null, alert_low: bool, color: string}>
+     *                     minutes_ago: int|null, alert_low: bool, color: string,
+     *                     forma: string, largo_cm: float, ancho_cm: float,
+     *                     diametro_cm: float, profundidad_cm: float}>
      */
     public function tanks(): array
     {
@@ -97,7 +99,7 @@ class SgraClient
         return $login->successful() && $login->json('ok') === true ? $client : null;
     }
 
-    /** @return array{id: string, name: string, fill_pct: float|null, online: bool, minutes_ago: int|null, alert_low: bool, color: string} */
+    /** @return array{id: string, name: string, fill_pct: float|null, online: bool, minutes_ago: int|null, alert_low: bool, color: string, forma: string, largo_cm: float, ancho_cm: float, diametro_cm: float, profundidad_cm: float} */
     private function resolveTankStatus(PendingRequest $client, string $baseUrl, array $tank): array
     {
         $fallback = [
@@ -108,6 +110,11 @@ class SgraClient
             'minutes_ago' => null,
             'alert_low' => false,
             'color' => $tank['color'] ?? '#2563eb',
+            'forma' => $tank['forma'] ?? 'rectangular',
+            'largo_cm' => (float) ($tank['largo_cm'] ?? 0),
+            'ancho_cm' => (float) ($tank['ancho_cm'] ?? 0),
+            'diametro_cm' => (float) ($tank['diametro_cm'] ?? 0),
+            'profundidad_cm' => (float) ($tank['profundidad_cm'] ?? 0),
         ];
 
         $select = $client->put("{$baseUrl}/api/tanks/{$tank['id']}/select");
@@ -122,7 +129,7 @@ class SgraClient
             return $fallback;
         }
 
-        return [
+        return array_merge($fallback, [
             'id' => $current->json('tank_id') ?? $tank['id'],
             'name' => $current->json('tank_name') ?? $fallback['name'],
             'fill_pct' => $current->json('level_pct'),
@@ -130,6 +137,6 @@ class SgraClient
             'minutes_ago' => $current->json('minutes_ago'),
             'alert_low' => (bool) $current->json('alert_low'),
             'color' => $current->json('tank_color') ?? $fallback['color'],
-        ];
+        ]);
     }
 }

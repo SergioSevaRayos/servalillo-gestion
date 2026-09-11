@@ -23,6 +23,7 @@
         "chart.js": "4.5.1",
         "leaflet": "1.9.4",
         "signature_pad": "5.1.4",
-        "sortablejs": "^1.15.7"
+        "sortablejs": "^1.15.7",
+        "three": "0.186.0"
     }
 }

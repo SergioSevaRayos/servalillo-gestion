@@ -3,6 +3,7 @@ import Chart from 'chart.js/auto';
 import SignaturePad from 'signature_pad';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import * as THREE from 'three';
 
 function applyThemeClass(value) {
     const isDark = value === 'dark'
@@ -1134,6 +1135,298 @@ window.maintenanceCharts = function (initial) {
             this._cleanup = () => {
                 window.removeEventListener('maint-stats-updated', onUpdate);
                 Object.values(charts).forEach((c) => c.destroy());
+            };
+        },
+
+        destroy() {
+            this._cleanup?.();
+        },
+    };
+};
+
+/*
+| Visual 3D del depósito (panel /depositos): puerto directo del componente Vue
+| TankVisual3D.vue del propio dashboard SGRA (mismo Three.js, mismas proporciones/
+| decoración) a Alpine + vanilla Three.js, para que "sea la misma animación" que ya
+| ve el usuario en el dashboard SGRA. Mismo criterio que statsCharts/maintenanceCharts:
+| el <div wire:ignore> evita que el morph de Livewire toque el <canvas> que crea
+| Three.js; el componente Livewire emite `tanks-updated` en cada wire:poll y aquí cada
+| tarjeta busca su propio depósito por id y reconstruye la escena con los datos nuevos
+| — sin recrear el renderer/WebGL context en cada poll (más barato, sin parpadeo).
+|
+| El tema claro/oscuro se fija UNA vez al montar (no se re-observa el toggle en
+| caliente) — igual decisión que statsCharts con los colores de los ejes: cambiar de
+| tema mientras se mira esta tarjeta es un caso raro, y añadir un watcher solo para
+| eso no compensa la complejidad extra.
+*/
+window.tank3d = function (initial) {
+    return {
+        _cleanup: null,
+
+        init() {
+            let tank = initial;
+            const container = this.$refs.container;
+
+            let renderer, scene, camera, tankGroup, resizeObserver, animId;
+            let disposables = [];
+            let buoyGroup = null;
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const palette = isDark
+                ? { shell: 0x3b82f6, shellOpacity: 0.32, edges: 0x60a5fa }
+                : { shell: 0xbfdbfe, shellOpacity: 0.22, edges: 0x93c5fd };
+
+            // La profundidad real de un aljibe suele ser pequeña frente a su superficie
+            // (depósitos anchos y poco profundos) — se exagera visualmente para que el
+            // volumen de agua se note, sin alterar el % de llenado real.
+            const DEPTH_EXAGGERATION = 1.7;
+            const PERSON_HEIGHT_CM = 170;
+            const BUOY_DIAMETER_CM = 60; // diámetro real típico de un flotador salvavidas
+            const BUOY_EXAGGERATION = 2.5;
+            const LIFE_RING_SEGMENTS = 8;
+            // Vista elevada en 3/4 (ni de perfil puro ni cenital pura).
+            const ELEVATION = Math.PI / 4.3;
+            const AZIMUTH = Math.PI / 5;
+
+            function dims() {
+                if (tank.forma === 'cilindrico') {
+                    const diam = tank.diametro_cm > 0 ? tank.diametro_cm : 100;
+                    const prof = tank.profundidad_cm > 0 ? tank.profundidad_cm : 100;
+                    return { w: diam, d: diam, h: prof };
+                }
+                const largo = tank.largo_cm > 0 ? tank.largo_cm : 100;
+                const ancho = tank.ancho_cm > 0 ? tank.ancho_cm : 100;
+                const prof = tank.profundidad_cm > 0 ? tank.profundidad_cm : 100;
+                return { w: largo, d: ancho, h: prof };
+            }
+
+            function clearGroup() {
+                if (!tankGroup) return;
+                for (const obj of [...tankGroup.children]) tankGroup.remove(obj);
+                for (const d of disposables) d.dispose();
+                disposables = [];
+                buoyGroup = null;
+            }
+
+            function buildPerson(scale, tankW, groundY) {
+                const mat = new THREE.MeshPhysicalMaterial({ color: 0xf59e0b, roughness: 0.55, metalness: 0.05 });
+                const H = PERSON_HEIGHT_CM * scale;
+                const headR = H * 0.11;
+                const capRadius = H * 0.16;
+                const bodyTotal = H - headR * 2;
+                const capLength = Math.max(0.01, bodyTotal - capRadius * 2);
+
+                const group = new THREE.Group();
+                const bodyGeo = new THREE.CapsuleGeometry(capRadius, capLength, 4, 12);
+                const body = new THREE.Mesh(bodyGeo, mat);
+                body.position.y = bodyTotal / 2;
+                group.add(body);
+
+                const headGeo = new THREE.SphereGeometry(headR, 16, 16);
+                const head = new THREE.Mesh(headGeo, mat);
+                head.position.y = bodyTotal + headR;
+                group.add(head);
+
+                disposables.push(bodyGeo, headGeo, mat);
+
+                group.position.set(-(tankW / 2 + capRadius + H * 0.12), groundY, 0);
+                return group;
+            }
+
+            // Flotador salvavidas clásico flotando plano sobre la superficie del agua —
+            // detalle decorativo, sin función informativa. El bobbing se anima en
+            // updateBuoy() (animate()).
+            function buildBuoy(scale, waterSurfaceY, offsetX, offsetZ) {
+                const outerR = (BUOY_DIAMETER_CM * BUOY_EXAGGERATION / 2) * scale;
+                const tubeR = outerR * 0.18;
+                const ringR = outerR - tubeR;
+                const arcAngle = (Math.PI * 2) / LIFE_RING_SEGMENTS;
+                const gap = arcAngle * 0.08;
+
+                const group = new THREE.Group();
+                const redMat = new THREE.MeshPhysicalMaterial({ color: 0xdc2626, roughness: 0.4, metalness: 0.05, clearcoat: 0.3 });
+                const whiteMat = new THREE.MeshPhysicalMaterial({ color: 0xf8fafc, roughness: 0.4, metalness: 0.05, clearcoat: 0.3 });
+                disposables.push(redMat, whiteMat);
+
+                for (let i = 0; i < LIFE_RING_SEGMENTS; i++) {
+                    const geo = new THREE.TorusGeometry(ringR, tubeR, 10, 8, arcAngle - gap);
+                    geo.rotateZ(i * arcAngle);
+                    geo.rotateX(Math.PI / 2);
+                    disposables.push(geo);
+                    const mesh = new THREE.Mesh(geo, i % 2 === 0 ? redMat : whiteMat);
+                    group.add(mesh);
+                }
+
+                group.position.set(offsetX, waterSurfaceY, offsetZ);
+                group.userData.baseY = waterSurfaceY;
+                group.userData.bobAmp = outerR * 0.22;
+                return group;
+            }
+
+            function buildTank() {
+                clearGroup();
+
+                const { w, d, h } = dims();
+                const maxDim = Math.max(w, d, h);
+                const scale = 2.1 / maxDim;
+                const W = w * scale, D = d * scale, H = h * scale * DEPTH_EXAGGERATION;
+                const isCyl = tank.forma === 'cilindrico';
+
+                const shellGeo = isCyl
+                    ? new THREE.CylinderGeometry(W / 2, W / 2, H, 40, 1, true)
+                    : new THREE.BoxGeometry(W, H, D);
+                const shellMat = new THREE.MeshPhysicalMaterial({
+                    color: palette.shell, transparent: true, opacity: palette.shellOpacity,
+                    roughness: 0.05, metalness: 0, side: THREE.DoubleSide,
+                    clearcoat: 0.6, clearcoatRoughness: 0.2,
+                });
+                const shell = new THREE.Mesh(shellGeo, shellMat);
+                tankGroup.add(shell);
+                disposables.push(shellGeo, shellMat);
+
+                const edgesGeo = new THREE.EdgesGeometry(isCyl
+                    ? new THREE.CylinderGeometry(W / 2, W / 2, H, 40, 1, false)
+                    : shellGeo);
+                const edgesMat = new THREE.LineBasicMaterial({ color: palette.edges, transparent: true, opacity: 0.6 });
+                tankGroup.add(new THREE.LineSegments(edgesGeo, edgesMat));
+                disposables.push(edgesGeo, edgesMat);
+
+                const pct = Math.max(0, Math.min(100, tank.fill_pct || 0));
+                // Al 100% el agua llegaría exactamente a la altura del depósito: la cara
+                // superior del agua y la del contenedor quedan coplanarias y parpadean
+                // (z-fighting) — se deja un margen mínimo para que nunca coincidan.
+                const waterH = Math.max(Math.min(H * (pct / 100), H * 0.996), 0.001);
+                const waterGeo = isCyl
+                    ? new THREE.CylinderGeometry(W / 2 * 0.97, W / 2 * 0.97, waterH, 40)
+                    : new THREE.BoxGeometry(W * 0.97, waterH, D * 0.97);
+                const waterMat = new THREE.MeshPhysicalMaterial({
+                    color: 0x2563eb, transparent: true, opacity: 0.88,
+                    roughness: 0.1, metalness: 0.05, clearcoat: 0.4,
+                });
+                const water = new THREE.Mesh(waterGeo, waterMat);
+                water.position.y = -H / 2 + waterH / 2;
+                tankGroup.add(water);
+                disposables.push(waterGeo, waterMat);
+
+                const waterSurfaceY = -H / 2 + waterH;
+
+                if (pct > 1) {
+                    const surfGeo = isCyl
+                        ? new THREE.CircleGeometry(W / 2 * 0.97, 40)
+                        : new THREE.PlaneGeometry(W * 0.97, D * 0.97);
+                    const surfMat = new THREE.MeshPhysicalMaterial({
+                        color: 0x60a5fa, transparent: true, opacity: 0.55,
+                        roughness: 0.05, metalness: 0, side: THREE.DoubleSide,
+                    });
+                    const surf = new THREE.Mesh(surfGeo, surfMat);
+                    surf.rotation.x = -Math.PI / 2;
+                    surf.position.y = waterSurfaceY;
+                    tankGroup.add(surf);
+                    disposables.push(surfGeo, surfMat);
+                }
+
+                // Flotador solo con agua suficiente para que "flotar" tenga sentido visual.
+                if (pct > 3) {
+                    const offsetX = W * 0.16;
+                    const offsetZ = D * 0.12;
+                    buoyGroup = buildBuoy(scale, waterSurfaceY, offsetX, offsetZ);
+                    tankGroup.add(buoyGroup);
+                }
+
+                tankGroup.add(buildPerson(scale, W, -H / 2));
+            }
+
+            function fitCamera() {
+                if (!tankGroup || !tankGroup.children.length) return;
+                const box = new THREE.Box3().setFromObject(tankGroup);
+                const sphere = new THREE.Sphere();
+                box.getBoundingSphere(sphere);
+                const { center, radius } = sphere;
+
+                const vHalf = THREE.MathUtils.degToRad(camera.fov) / 2;
+                const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
+                const limitingHalf = Math.min(vHalf, hHalf);
+                const distance = 1.35 * (radius / Math.sin(limitingHalf));
+
+                camera.position.set(
+                    center.x + distance * Math.cos(ELEVATION) * Math.sin(AZIMUTH),
+                    center.y + distance * Math.sin(ELEVATION),
+                    center.z + distance * Math.cos(ELEVATION) * Math.cos(AZIMUTH),
+                );
+                camera.lookAt(center);
+                camera.updateProjectionMatrix();
+            }
+
+            function setSize() {
+                if (!renderer || !container) return;
+                const w = container.clientWidth;
+                const h = container.clientHeight;
+                if (!w || !h) return;
+                renderer.setSize(w, h);
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                fitCamera();
+            }
+
+            function updateBuoy(now) {
+                if (!buoyGroup) return;
+                const t = now * 0.0015;
+                const lift = (Math.sin(t) + 1) / 2 * buoyGroup.userData.bobAmp;
+                buoyGroup.position.y = buoyGroup.userData.baseY + lift;
+                buoyGroup.rotation.z = Math.sin(t * 0.7) * 0.08;
+                buoyGroup.rotation.x = Math.cos(t * 0.9) * 0.05;
+            }
+
+            function animate() {
+                animId = requestAnimationFrame(animate);
+                if (tankGroup) tankGroup.rotation.y += 0.0035;
+                updateBuoy(performance.now());
+                renderer.render(scene, camera);
+            }
+
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+            camera.position.set(0, 1, 4.6);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const dir1 = new THREE.DirectionalLight(0xffffff, 0.9);
+            dir1.position.set(3, 5, 4);
+            scene.add(dir1);
+            const dir2 = new THREE.DirectionalLight(0xbfdbfe, 0.4);
+            dir2.position.set(-3, -2, -3);
+            scene.add(dir2);
+
+            tankGroup = new THREE.Group();
+            scene.add(tankGroup);
+
+            buildTank();
+            setSize();
+            animate();
+
+            resizeObserver = new ResizeObserver(setSize);
+            resizeObserver.observe(container);
+
+            const onUpdate = (e) => {
+                const updated = (e.detail.tanks || []).find((t) => t.id === tank.id);
+                if (!updated) return;
+                tank = { ...tank, ...updated };
+                buildTank();
+            };
+            window.addEventListener('tanks-updated', onUpdate);
+
+            this._cleanup = () => {
+                if (animId) cancelAnimationFrame(animId);
+                if (resizeObserver) resizeObserver.disconnect();
+                window.removeEventListener('tanks-updated', onUpdate);
+                clearGroup();
+                if (renderer) {
+                    renderer.dispose();
+                    renderer.domElement.remove();
+                }
             };
         },
 
