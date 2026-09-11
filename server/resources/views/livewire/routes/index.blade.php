@@ -57,6 +57,7 @@
                                 <x-ui.button variant="ghost" size="sm">{{ __('Historial') }}</x-ui.button>
                             </a>
                             @can('update', $route)
+                                <x-ui.button variant="ghost" size="sm" wire:click="openTerminals({{ $route->id }})">{{ __('Terminales') }}</x-ui.button>
                                 <x-ui.button variant="ghost" size="sm" wire:click="edit({{ $route->id }})">{{ __('Editar') }}</x-ui.button>
                                 @if (! $route->valid_until)
                                     <x-ui.button
@@ -138,4 +139,6 @@
             </div>
         </form>
     </x-modal>
+
+    <x-routes.terminals-modal :route="$this->terminalsRoute" />
 </div>

@@ -4,6 +4,8 @@ namespace App\Livewire\Routes;
 
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
+use App\Models\Device;
+use App\Models\Driver;
 use App\Models\Route;
 use App\Models\RouteDay;
 use App\Services\RouteGeometry;
@@ -71,6 +73,65 @@ class History extends Component
         $this->statusRouteId = null;
         $this->dispatch('close-modal', 'route-status');
         $this->dispatch('toast', message: 'Estado de la ruta cambiado a "'.$day->status->label().'".', variant: 'success');
+    }
+
+    /**
+     * Válvula manual: deshace una sustitución automática equivocada (ver
+     * App\Services\RouteTerminalPairingService), fuerza una que la guarda de colisión bloqueó, o
+     * devuelve la ruta a mano a media jornada.
+     */
+    public ?int $reassignRouteDayId = null;
+
+    public ?int $reassignDriverId = null;
+
+    public bool $reassignDeviceToo = true;
+
+    public function openReassignModal(int $routeDayId): void
+    {
+        $day = RouteDay::where('route_id', $this->route->id)->findOrFail($routeDayId);
+        $this->authorize('update', $this->route);
+
+        $this->reassignRouteDayId = $day->id;
+        $this->reassignDriverId = $day->driver_id;
+        $this->reassignDeviceToo = true;
+        $this->dispatch('open-modal', 'route-reassign-driver');
+    }
+
+    #[Computed]
+    public function reassignRouteDay(): ?RouteDay
+    {
+        return $this->reassignRouteDayId
+            ? RouteDay::with('driver.user')->where('route_id', $this->route->id)->find($this->reassignRouteDayId)
+            : null;
+    }
+
+    #[Computed]
+    public function drivers()
+    {
+        return Driver::with('user')->where('is_active', true)->get()->sortBy(fn ($d) => $d->user->name);
+    }
+
+    public function reassignDriver(): void
+    {
+        abort_unless($this->reassignRouteDayId !== null && $this->reassignDriverId !== null, 400);
+
+        $day = RouteDay::where('route_id', $this->route->id)->findOrFail($this->reassignRouteDayId);
+        $this->authorize('update', $this->route);
+
+        $original = $day->driver_id;
+        $day->update(['driver_id' => $this->reassignDriverId]);
+
+        if ($this->reassignDeviceToo && $original !== null) {
+            $device = Device::where('driver_id', $original)->first();
+
+            if ($device !== null && ! Device::where('driver_id', $this->reassignDriverId)->exists()) {
+                $device->update(['driver_id' => $this->reassignDriverId]);
+            }
+        }
+
+        $this->reassignRouteDayId = null;
+        $this->dispatch('close-modal', 'route-reassign-driver');
+        $this->dispatch('toast', message: 'Chofer del día reasignado.', variant: 'success');
     }
 
     public function updatingFrom(): void

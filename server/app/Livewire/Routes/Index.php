@@ -6,6 +6,7 @@ use App\Enums\ServiceKind;
 use App\Livewire\Forms\RouteForm;
 use App\Models\Driver;
 use App\Models\Route;
+use App\Models\RouteTerminal;
 use App\Models\Truck;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -102,6 +103,57 @@ class Index extends Component
     public function editing(): bool
     {
         return $this->form->editing !== null;
+    }
+
+    /** Terminal vinculado a una ruta (chofer sustituto) — ver App\Services\RouteTerminalPairingService. */
+    public ?int $terminalsRouteId = null;
+
+    public string $newTerminalLabel = '';
+
+    public function openTerminals(Route $route): void
+    {
+        $this->authorize('update', $route);
+
+        $this->terminalsRouteId = $route->id;
+        $this->newTerminalLabel = '';
+        $this->dispatch('open-modal', 'route-terminals');
+    }
+
+    #[Computed]
+    public function terminalsRoute(): ?Route
+    {
+        return $this->terminalsRouteId
+            ? Route::with('terminals')->find($this->terminalsRouteId)
+            : null;
+    }
+
+    public function createTerminal(): void
+    {
+        $route = $this->terminalsRoute;
+        abort_unless($route !== null, 404);
+        $this->authorize('update', $route);
+
+        $route->terminals()->create([
+            'token' => RouteTerminal::generateToken(),
+            'label' => trim($this->newTerminalLabel) ?: null,
+            'created_by' => auth()->id(),
+        ]);
+
+        $this->newTerminalLabel = '';
+        unset($this->terminalsRoute);
+        $this->dispatch('toast', message: 'Terminal vinculable creado.', variant: 'success');
+    }
+
+    public function revokeTerminal(int $terminalId): void
+    {
+        $route = $this->terminalsRoute;
+        abort_unless($route !== null, 404);
+        $this->authorize('update', $route);
+
+        $route->terminals()->whereKey($terminalId)->update(['revoked_at' => now()]);
+
+        unset($this->terminalsRoute);
+        $this->dispatch('toast', message: 'Terminal revocado.', variant: 'success');
     }
 
     #[Computed]

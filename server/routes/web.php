@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DeliveryNoteController;
+use App\Http\Controllers\RouteTerminalController;
 use App\Http\Controllers\ThemeController;
 use App\Livewire\Chofer\Today;
 use App\Livewire\Clients\Index as ClientsIndex;
@@ -22,6 +23,7 @@ use App\Livewire\Routes\Index as RoutesIndex;
 use App\Livewire\Support\Index as SupportIndex;
 use App\Livewire\Trucks\Index as TrucksIndex;
 use App\Livewire\Users\Index as UsersIndex;
+use App\Services\RouteTerminalPairingService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -39,13 +41,21 @@ Route::get('/', function () {
 Route::post('theme', [ThemeController::class, 'update'])->name('theme.update');
 
 /*
+| Terminal vinculado a una ruta: visitar este enlace deja una cookie de por vida en el navegador,
+| para que cualquier chofer que inicie sesión desde él pase directamente a gestionar esa ruta
+| (ver App\Services\RouteTerminalPairingService). Sin middleware "auth": quien lo abre puede no
+| tener sesión iniciada todavía en ese navegador.
+*/
+Route::get('terminal/vincular/{token}', [RouteTerminalController::class, 'pair'])->name('terminal.pair');
+
+/*
 | Redirección post-login según el rol.
 */
 Route::get('home', function () {
     $user = Auth::user();
 
     return redirect(match (true) {
-        $user->isDriver() => route('chofer.today'),
+        $user->isDriver() => route(app(RouteTerminalPairingService::class)->resolveDriverHome($user)),
         $user->isMaintenance() => route('maintenance.index'),
         default => route('dashboard'),
     });

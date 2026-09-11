@@ -58,6 +58,11 @@ class Route extends Model implements Auditable
         return $this->hasMany(RouteDay::class)->orderByDesc('route_date');
     }
 
+    public function terminals(): HasMany
+    {
+        return $this->hasMany(RouteTerminal::class)->orderByDesc('id');
+    }
+
     /**
      * ¿Hay ya otra ruta (activa, sin contar `$ignoreId`) para `$column` (truck_id|driver_id)
      * = `$id` cuyo rango [valid_from, valid_until ?? sin fin) se solapa con [$from, $until ?? sin fin)?

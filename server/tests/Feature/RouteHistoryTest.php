@@ -3,8 +3,11 @@
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Livewire\Routes\History;
+use App\Models\Device;
+use App\Models\Driver;
 use App\Models\Route;
 use App\Models\RouteStop;
+use App\Models\User;
 use Livewire\Livewire;
 
 test('el administrador ve el historial de días de una ruta', function () {
@@ -68,4 +71,57 @@ test('oficina cambia el estado de un día desde el historial', function () {
         ->completed_at->toBeNull()
         ->liter_meter_end->toBeNull()
         ->and($day->fresh()->truck->liter_meter)->toBe(500);
+});
+
+test('oficina reasigna el chofer de un día y el dispositivo GPS le sigue', function () {
+    $route = Route::factory()->create();
+    $day = makeRouteDay($route, '2026-09-10');
+    $originalDriverId = $day->driver_id;
+    $device = Device::factory()->create(['driver_id' => $originalDriverId]);
+
+    $newDriver = Driver::factory()->for(User::factory(), 'user')->create();
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(History::class, ['route' => $route])
+        ->call('openReassignModal', $day->id)
+        ->set('reassignDriverId', $newDriver->id)
+        ->set('reassignDeviceToo', true)
+        ->call('reassignDriver')
+        ->assertHasNoErrors()
+        ->assertDispatched('toast');
+
+    expect($day->fresh()->driver_id)->toBe($newDriver->id)
+        ->and($device->fresh()->driver_id)->toBe($newDriver->id);
+});
+
+test('reasignar sin marcar el dispositivo deja el GPS tal cual', function () {
+    $route = Route::factory()->create();
+    $day = makeRouteDay($route, '2026-09-10');
+    $originalDriverId = $day->driver_id;
+    $device = Device::factory()->create(['driver_id' => $originalDriverId]);
+
+    $newDriver = Driver::factory()->for(User::factory(), 'user')->create();
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(History::class, ['route' => $route])
+        ->call('openReassignModal', $day->id)
+        ->set('reassignDriverId', $newDriver->id)
+        ->set('reassignDeviceToo', false)
+        ->call('reassignDriver')
+        ->assertHasNoErrors();
+
+    expect($day->fresh()->driver_id)->toBe($newDriver->id)
+        ->and($device->fresh()->driver_id)->toBe($originalDriverId);
+});
+
+test('un chofer no puede reasignar el chofer de un día, ni siquiera el suyo', function () {
+    $chofer = makeUser('chofer');
+    $driver = Driver::factory()->create(['user_id' => $chofer->id]);
+    $route = Route::factory()->create(['driver_id' => $driver->id]); // dueño de la ruta -> puede verla
+    $day = makeRouteDay($route, '2026-09-10');
+
+    Livewire::actingAs($chofer)
+        ->test(History::class, ['route' => $route])
+        ->call('openReassignModal', $day->id)
+        ->assertForbidden();
 });

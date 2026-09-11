@@ -96,6 +96,9 @@
                             @if ($day->stops_count > 0)
                                 <x-ui.button variant="ghost" size="sm" wire:click="showDayMap({{ $day->id }})">{{ __('Ver recorrido') }}</x-ui.button>
                             @endif
+                            @can('update', $route)
+                                <x-ui.button variant="ghost" size="sm" wire:click="openReassignModal({{ $day->id }})">{{ __('Reasignar chofer') }}</x-ui.button>
+                            @endcan
                         </div>
                     </td>
                 </tr>
@@ -159,4 +162,5 @@
 
     <x-route-map-modal />
     <x-routes.status-picker-modal :route="$this->statusRoute" />
+    <x-routes.reassign-driver-modal :route-day="$this->reassignRouteDay" :drivers="$this->drivers" />
 </div>
