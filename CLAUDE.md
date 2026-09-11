@@ -1163,12 +1163,23 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - **Tiempo y velocidad entre dos paradas (2026-09-11)**: `StopDwellService::transitLegs(RouteDay):
   array` — **no se persiste**, se calcula al vuelo a partir de `stop_visits` ya construidas
   (`RouteStop::firstArrivalAt()`/`lastDepartureAt()`) + una consulta puntual de
-  `gps_positions.speed_mps` en la ventana `[salida de la anterior, llegada a la siguiente]`
-  (`avg`/`max`, convertidos a km/h). Recorre las paradas en orden de `position`; si una intermedia
-  no tiene visita (sin geocerca), se salta y el tramo se calcula hasta la siguiente que sí la
-  tenga. `App\Livewire\Routes\History::transitLegs()` (`#[Computed]`, indexado por el id de la
-  parada de **llegada**) lo pinta en `history.blade.php` como una fila "🚚 En ruta 18 min · 42 km/h
-  de media (máx. 61)" justo antes de la parada a la que llega ese tramo.
+  `gps_positions.speed_mps` en la ventana `[salida de la anterior, llegada a la siguiente]`,
+  convertida a km/h. Recorre las paradas en orden de `position`; si una intermedia no tiene visita
+  (sin geocerca), se salta y el tramo se calcula hasta la siguiente que sí la tenga.
+  `App\Livewire\Routes\History::transitLegs()` (`#[Computed]`, indexado por el id de la parada de
+  **llegada**) lo pinta en `history.blade.php` como una fila "🚚 En ruta 18 min · 42 km/h de media
+  (máx. 61)" justo antes de la parada a la que llega ese tramo.
+  - **Bug real de producción corregido (2026-09-11): la media salía absurdamente baja.** Un tramo
+    real dio "59 min · 16 km/h de media (máx. 139)" — inspeccionado el GPS crudo: el camión estuvo
+    **~40 de esos 59 min totalmente parado** (velocidad 0, sin ninguna parada registrada ahí — una
+    espera o un descanso) y solo ~15 min circulando de verdad; la MEDIA se calculaba sobre la
+    ventana entera, así que el tiempo parado la arrastraba muy por debajo de la velocidad real de
+    conducción. El máximo (139 km/h) **sí era un dato real** (tres posiciones GPS consecutivas a
+    ritmo constante, no un pico suelto) — no se toca. **Fix**: la media (`avg_speed_kmh`) ahora
+    solo cuenta las muestras con `speed_mps >= config('servalillo.dwell.moving_speed_min_mps')`
+    (1,0 m/s por defecto, `DWELL_MOVING_SPEED_MIN_MPS`) — "velocidad mientras circulaba", no
+    "velocidad media incluyendo los ratos parado". El máximo (`max_speed_kmh`) se queda sin
+    filtrar (un pico ya descarta por sí solo cualquier lectura a 0, no hace falta filtrarlo).
 - **Fuera de alcance** (posible fase posterior): detección de entrada/salida en tiempo real en la
   ingesta; interpolación del cruce exacto del radio; `speed_mps ≈ 0` como filtro extra; media por
   chofer en `FleetStatsService`; aviso "parada completada pero el camión nunca entró en su radio";

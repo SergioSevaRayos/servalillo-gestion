@@ -101,7 +101,7 @@ class StopDwellService
     /** @return array{from_stop_id: int, from_name: string, to_stop_id: int, to_name: string, departed_at: Carbon, arrived_at: Carbon, seconds: int, avg_speed_kmh: ?int, max_speed_kmh: ?int} */
     private function buildLeg(RouteDay $day, RouteStop $from, RouteStop $to, Carbon $departedAt, Carbon $arrivedAt): array
     {
-        $speeds = GpsPosition::query()
+        $allSpeeds = GpsPosition::query()
             ->where(function ($q) use ($day) {
                 $q->where('route_id', $day->id);
 
@@ -114,6 +114,13 @@ class StopDwellService
             ->pluck('speed_mps')
             ->map(fn ($v) => (float) $v);
 
+        // La MEDIA solo cuenta las muestras en las que el camión circulaba de verdad — si entre
+        // dos paradas hubo un tramo parado (una espera, un descanso, una parada real que no
+        // coincidió con ninguna geocerca), esos minutos a 0 no deben arrastrar la media hacia
+        // abajo y dar una cifra que no se corresponde con cómo circuló. El máximo no hace falta
+        // filtrarlo: un pico ya descarta por sí solo cualquier lectura a 0.
+        $movingSpeeds = $allSpeeds->filter(fn (float $v) => $v >= (float) config('servalillo.dwell.moving_speed_min_mps'));
+
         return [
             'from_stop_id' => $from->id,
             'from_name' => $from->customer_name,
@@ -122,8 +129,8 @@ class StopDwellService
             'departed_at' => $departedAt,
             'arrived_at' => $arrivedAt,
             'seconds' => $departedAt->diffInSeconds($arrivedAt),
-            'avg_speed_kmh' => $speeds->isEmpty() ? null : (int) round($speeds->avg() * 3.6),
-            'max_speed_kmh' => $speeds->isEmpty() ? null : (int) round($speeds->max() * 3.6),
+            'avg_speed_kmh' => $movingSpeeds->isEmpty() ? null : (int) round($movingSpeeds->avg() * 3.6),
+            'max_speed_kmh' => $allSpeeds->isEmpty() ? null : (int) round($allSpeeds->max() * 3.6),
         ];
     }
 

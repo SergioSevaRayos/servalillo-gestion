@@ -72,6 +72,37 @@ it('calcula el tramo entre dos paradas con tiempo y velocidad media/máxima', fu
         ->and($legs[0]['max_speed_kmh'])->toBe(90); // 25 m/s -> 90 km/h
 });
 
+it('la media de velocidad ignora los tramos parado (no arrastra la cifra hacia abajo)', function () {
+    // Caso real de producción: entre dos paradas el camión estuvo un buen rato totalmente
+    // parado (velocidad 0, sin ninguna parada registrada ahí — una espera, un descanso) y solo
+    // una parte del tramo circulando de verdad. La media tiene que reflejar solo esa parte.
+    [$day, $a, $b] = transitDay();
+
+    $idleFixes = collect(range(0, 9))->map(fn ($i) => [
+        28.4600, -16.2900, Carbon::parse('2026-03-02 10:03:00')->addMinutes($i)->format('Y-m-d H:i:s'), 15, 0.0,
+    ])->all();
+
+    $movingFixes = [
+        [28.4700, -16.2800, '2026-03-02 10:13:00', 10, 20.0], // 72 km/h
+        [28.4800, -16.2700, '2026-03-02 10:14:00', 10, 30.0], // 108 km/h
+    ];
+
+    gpsTrack($day, array_merge(
+        stopFixes((float) $a->latitude, (float) $a->longitude, '2026-03-02 10:00:00'),
+        $idleFixes,
+        $movingFixes,
+        stopFixes((float) $b->latitude, (float) $b->longitude, '2026-03-02 10:20:00'),
+    ));
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    $legs = app(StopDwellService::class)->transitLegs($day);
+
+    expect($legs)->toHaveCount(1)
+        ->and($legs[0]['avg_speed_kmh'])->toBe(90) // (20+30)/2 m/s = 25 m/s -> 90 km/h, sin los 0
+        ->and($legs[0]['max_speed_kmh'])->toBe(108);
+});
+
 it('salta una parada intermedia sin datos de geocerca y encadena con la siguiente', function () {
     $day = makeRoute('2026-03-02');
     $a = RouteStop::factory()->for($day, 'route')->create(['position' => 1, 'customer_name' => 'Cliente A', 'latitude' => 28.4500, 'longitude' => -16.3000]);

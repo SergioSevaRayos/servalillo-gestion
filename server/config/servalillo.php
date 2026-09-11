@@ -111,6 +111,11 @@ return [
     | - `exclude_base_radius_meters`: se ignoran fixes junto a la nave (evita contar el
     |   camión aparcado en la base si hay un cliente pegado).
     | - `clamp_to_shift`: si el día tiene horario de jornada, se ignora lo de fuera.
+    | - `moving_speed_min_mps`: para la MEDIA de velocidad entre dos paradas
+    |   (`StopDwellService::transitLegs()`) — por debajo se considera que el camión estaba
+    |   parado (esperando, un descanso, una parada real que no coincidió con ninguna geocerca) y
+    |   esas muestras no cuentan, para que un tramo con minutos parado no dé una media
+    |   artificialmente baja. El máximo no se filtra.
     | - `recompute_*`: control del recálculo perezoso al abrir el tablero / la web del chofer.
     */
     'dwell' => [
@@ -119,6 +124,7 @@ return [
         'merge_gap_seconds' => (int) env('DWELL_MERGE_GAP_SECONDS', 600),
         'accuracy_reject_meters' => (int) env('DWELL_ACCURACY_REJECT_M', 150),
         'exclude_base_radius_meters' => (int) env('DWELL_EXCLUDE_BASE_RADIUS_M', 150),
+        'moving_speed_min_mps' => (float) env('DWELL_MOVING_SPEED_MIN_MPS', 1.0),
         'clamp_to_shift' => (bool) env('DWELL_CLAMP_TO_SHIFT', true),
         'recompute_every_seconds' => (int) env('DWELL_RECOMPUTE_EVERY_SECONDS', 90),
         'recompute_max_age_days' => (int) env('DWELL_RECOMPUTE_MAX_AGE_DAYS', 2),
