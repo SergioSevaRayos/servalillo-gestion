@@ -19,7 +19,12 @@ new class extends Component
          hacer scroll (parecía que la barra se movía). El `backdrop-filter` se anula en móvil desde
          app.css (`nav.sticky > .glass`): aunque no se vea, "vibra" al repintarse cada frame. --}}
     <div class="glass mx-auto flex h-16 max-w-7xl items-center justify-between rounded-2xl px-4 max-md:bg-white dark:max-md:bg-slate-900 sm:px-6">
-        <div class="flex items-center gap-8">
+        {{-- min-w-0: un hijo flex no encoge por debajo del ancho de su contenido si no se le
+             fuerza — sin esto, con muchos enlaces (Depósitos sumó uno más) esta columna nunca cede
+             sitio y "empuja" el cluster derecho (campana/tema/usuario), pisándolo en vez de dejarle
+             su hueco. La lista de enlaces hace scroll horizontal propio en vez de encogerse (mismo
+             criterio que el resto de la app: nunca recortar contenido, dejarlo desplazable). --}}
+        <div class="flex min-w-0 flex-1 items-center gap-8">
             <a href="{{ route('home') }}" wire:navigate class="flex shrink-0 items-center gap-2 text-primary-700 dark:text-primary-300">
                 <x-application-logo class="h-7 w-7" />
                 <span class="hidden font-semibold tracking-tight text-slate-800 dark:text-slate-100 sm:inline">
@@ -27,7 +32,7 @@ new class extends Component
                 </span>
             </a>
 
-            <div class="hidden items-center gap-1 md:flex">
+            <div class="themed-scrollbar hidden min-w-0 items-center gap-1 overflow-x-auto md:flex">
                 @auth
                     @if (auth()->user()->isManager())
                         <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate>
@@ -82,7 +87,7 @@ new class extends Component
             </div>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex shrink-0 items-center gap-3">
             @auth
                 {{-- La campana la ve todo el mundo: el chofer recibe avisos cuando oficina le
                      gestiona una parada de la ruta (Bloque 14). --}}
@@ -103,10 +108,6 @@ new class extends Component
                 @endif
             @endauth
 
-            <div class="hidden sm:block">
-                <x-ui.theme-toggle />
-            </div>
-
             <div class="hidden md:block">
                 <x-dropdown align="right" width="52">
                     <x-slot name="trigger">
@@ -119,6 +120,15 @@ new class extends Component
                     </x-slot>
 
                     <x-slot name="content">
+                        {{-- Tema movido aquí desde la barra (2026-09-11): con "Depósitos" ya eran
+                             8 enlaces y el selector de tema en la nav no dejaba sitio sin hacer
+                             scroll horizontal — quitarlo de ahí es lo que de verdad gana espacio,
+                             no solo maquillarlo. --}}
+                        <div class="flex items-center justify-between gap-3 px-4 py-2">
+                            <span class="text-sm text-slate-600 dark:text-slate-300">{{ __('Tema') }}</span>
+                            <x-ui.theme-toggle />
+                        </div>
+                        <div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>
                         <x-dropdown-link :href="route('profile')" wire:navigate>{{ __('Mi perfil') }}</x-dropdown-link>
                         @if (auth()->user()->isManager())
                             <x-dropdown-link :href="route('style-guide')" wire:navigate>{{ __('Guía de estilo') }}</x-dropdown-link>
