@@ -495,7 +495,15 @@ document.addEventListener('alpine:init', () => {
             const meta = detail.meta || null;
 
             if (! this.map) {
+                // setPrefix(false) quita el "Leaflet |" del pie (la librería no lo exige, es
+                // puramente decorativo) y el `attribution` del tileLayer de abajo se dejó abreviado
+                // ("Tiles © Esri" en vez del listado completo de proveedores) — el pie ocupaba varias
+                // líneas y tapaba el mapa en tarjetas pequeñas. El crédito a Esri SÍ hay que dejarlo
+                // (aunque sea corto): es condición de su uso gratuito, como con cualquier proveedor
+                // de mosaicos sin API key — quitarlo del todo es la misma clase de problema que ya
+                // nos bloqueó con OpenStreetMap y CARTO.
                 this.map = L.map(this.$refs.map, { scrollWheelZoom: true });
+                this.map.attributionControl.setPrefix(false);
                 // Esri World Street Map, NI tile.openstreetmap.org NI CARTO: ambos empezaron a
                 // bloquear/marcar de agua los mosaicos sin API key (ver el comentario largo en
                 // CLAUDE.md, sección "Ver recorrido" → Gotchas Leaflet). Los tiles REST públicos de
@@ -505,7 +513,7 @@ document.addEventListener('alpine:init', () => {
                 // template lleva {y} antes que {x}.
                 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
                     maxZoom: 19,
-                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom',
+                    attribution: 'Tiles &copy; Esri',
                 }).addTo(this.map);
                 this.layer = L.layerGroup().addTo(this.map);
             }
@@ -657,7 +665,15 @@ document.addEventListener('alpine:init', () => {
             }
 
             if (! this.map) {
+                // setPrefix(false) quita el "Leaflet |" del pie (la librería no lo exige, es
+                // puramente decorativo) y el `attribution` del tileLayer de abajo se dejó abreviado
+                // ("Tiles © Esri" en vez del listado completo de proveedores) — el pie ocupaba varias
+                // líneas y tapaba el mapa en tarjetas pequeñas. El crédito a Esri SÍ hay que dejarlo
+                // (aunque sea corto): es condición de su uso gratuito, como con cualquier proveedor
+                // de mosaicos sin API key — quitarlo del todo es la misma clase de problema que ya
+                // nos bloqueó con OpenStreetMap y CARTO.
                 this.map = L.map(this.$refs.map, { scrollWheelZoom: true });
+                this.map.attributionControl.setPrefix(false);
                 // Esri World Street Map, NI tile.openstreetmap.org NI CARTO: ambos empezaron a
                 // bloquear/marcar de agua los mosaicos sin API key (ver el comentario largo en
                 // CLAUDE.md, sección "Ver recorrido" → Gotchas Leaflet). Los tiles REST públicos de
@@ -667,7 +683,7 @@ document.addEventListener('alpine:init', () => {
                 // template lleva {y} antes que {x}.
                 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
                     maxZoom: 19,
-                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom',
+                    attribution: 'Tiles &copy; Esri',
                 }).addTo(this.map);
                 this.layer = L.layerGroup().addTo(this.map);
             }
