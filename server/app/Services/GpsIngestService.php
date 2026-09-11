@@ -30,7 +30,16 @@ class GpsIngestService
         $rows = [];
 
         foreach ($positions as $p) {
-            $recordedAt = Carbon::parse($p['recorded_at']);
+            // La APK manda `recorded_at` en UTC (`DateTime.toUtc().toIso8601String()`). Hay que
+            // convertirlo a la zona de la app ANTES de guardarlo: `gps_positions.recorded_at` es
+            // un `timestamp` sin zona (como `route_days.started_at`/`completed_at`, siempre
+            // escritos con `now()` ya en hora local) — si se guarda la hora UTC tal cual, al leerla
+            // se reinterpreta como si ya fuera hora local y queda desplazada (2 h en verano/CEST,
+            // 1 h en invierno/CET) respecto a cualquier comparación con `now()`, `started_at`, etc.
+            // Bug real detectado en producción (2026-09-11): una parada con paso real por su
+            // geocerca a las 08:58 hora de Madrid se guardaba como 06:58 y quedaba fuera de la
+            // ventana de jornada (`clamp_to_shift`) y "vieja" para el indicador "en parada ahora".
+            $recordedAt = Carbon::parse($p['recorded_at'])->setTimezone(config('app.timezone'));
 
             // El reloj del móvil puede ir adelantado; se descartan posiciones "del futuro".
             if ($recordedAt->greaterThan($future)) {

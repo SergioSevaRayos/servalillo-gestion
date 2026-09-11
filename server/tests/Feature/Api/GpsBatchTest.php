@@ -6,6 +6,7 @@ use App\Models\GpsPosition;
 use App\Models\RouteDay;
 use App\Models\Truck;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 
 function tokenFor(Device $device): string
@@ -121,6 +122,28 @@ it('descarta las posiciones con fecha muy futura', function () {
         ->assertJsonPath('accepted', 1);
 
     expect(GpsPosition::count())->toBe(1);
+});
+
+it('convierte recorded_at (UTC, lo que manda la APK) a la zona horaria de la app antes de guardarlo', function () {
+    // Bug real de producción (2026-09-11): APP_TIMEZONE=Europe/Madrid pero recorded_at se
+    // guardaba tal cual llegaba de la APK (UTC) en una columna `timestamp` SIN zona — al leerla
+    // se reinterpretaba como si ya fuera hora de Madrid, quedando desplazada (2 h en CEST) frente
+    // a `started_at`/`completed_at`/`now()`, que sí se generan ya en hora local. En local/tests
+    // APP_TIMEZONE es UTC por defecto, así que el bug es invisible sin fijarlo a otra zona aquí.
+    config()->set('app.timezone', 'Europe/Madrid');
+
+    $device = Device::factory()->create();
+
+    // 08:58:37 hora de Madrid (CEST, UTC+2) = 06:58:37 UTC, que es lo que manda la APK.
+    $this->withToken(tokenFor($device))
+        ->postJson('/api/gps/batch', ['positions' => [
+            ['lat' => 28.4, 'lng' => -16.2, 'recorded_at' => '2026-09-11T06:58:37+00:00'],
+        ]])
+        ->assertStatus(202);
+
+    // Se comprueba el valor CRUDO en BD (no el casteado por Eloquent, que depende del timezone
+    // por defecto de PHP fijado al arrancar la app, no del que se cambie en caliente en el test).
+    expect((string) DB::table('gps_positions')->value('recorded_at'))->toContain('08:58:37');
 });
 
 it('un dispositivo desactivado recibe 403', function () {

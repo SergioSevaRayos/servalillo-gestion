@@ -957,6 +957,29 @@ Backed enums con `->label()` en español; casteados en los modelos.
   ruta ese día**); `GpsPosition::insert()` en bloque (sin eventos, no auditada); bumpea
   `device.last_seen_at`. `abort_unless($device instanceof Device, 403)` en el controlador (un token de
   usuario nunca tiene `gps:ingest` en prod, pero se blinda).
+  - **Bug real de producción corregido (2026-09-11): `recorded_at` sin convertir de zona.** La APK
+    manda `recorded_at` en UTC (`DateTime.toUtc().toIso8601String()`); `gps_positions.recorded_at`
+    es un `timestamp` **sin zona**, igual que `route_days.started_at`/`completed_at` (siempre
+    escritos con `now()`, ya en hora local). `GpsIngestService` hacía `Carbon::parse($p['recorded_at'])`
+    sin convertir: en producción (`APP_TIMEZONE=Europe/Madrid`) esto guardaba la hora UTC tal cual,
+    y al releerla se reinterpretaba como si ya fuera hora de Madrid → desplazada 2 h en verano
+    (CEST) / 1 h en invierno (CET) frente a cualquier comparación con `now()`/`started_at`. Pasó
+    desapercibido en local/tests porque ahí `APP_TIMEZONE` es `UTC` por defecto (mismo valor que
+    manda la APK → el bug era invisible). Detectado al depurar por qué una parada real no generaba
+    visita en el tiempo de permanencia (Bloque 15): el paso real por la geocerca a las 08:58 hora
+    de Madrid se guardaba como 06:58 y caía fuera de la ventana de jornada. **Fix**:
+    `Carbon::parse($p['recorded_at'])->setTimezone(config('app.timezone'))` antes de calcular
+    `$dateKey` y de guardar — test en `GpsBatchTest` que fija `config('app.timezone')` a
+    `Europe/Madrid` y comprueba el valor **crudo** en BD (no el casteado por Eloquent, que depende
+    del timezone por defecto de PHP fijado al arrancar, no del que se cambie en caliente en el
+    test). Esto también arregla (silenciosamente, ya venían mal) la frescura de "Ubicación actual
+    del camión" en Ruta eficiente (`RouteOptimizer::latestVehiclePosition`, filtraba por
+    `recorded_at >= now()-N min` y con el desfase casi nunca encontraba nada) y el indicador "en
+    parada ahora" del Bloque 15. Los `gps_positions.recorded_at` **ya guardados** en producción con
+    el bug se corrigieron a mano con `UPDATE gps_positions SET recorded_at = (recorded_at AT TIME
+    ZONE 'UTC') AT TIME ZONE 'Europe/Madrid';` (reinterpreta el valor crudo como UTC y lo convierte
+    a hora de Madrid — Postgres ya tiene en cuenta el cambio de hora, más seguro que sumar un
+    intervalo fijo) + recálculo de permanencia del día afectado.
 - **Esquema**: `devices.truck_id` (unique, NOT NULL) → **`devices.driver_id`** (nullable, unique,
   `nullOnDelete`). `gps_positions.truck_id` → **nullable**. `Truck::device()` eliminado.
 - **Panel** `/mantenimiento/dispositivos` (`App\Livewire\Maintenance\Devices`, tab, permiso
