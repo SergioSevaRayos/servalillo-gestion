@@ -20,6 +20,7 @@ use App\Livewire\Maintenance\SystemLog as MaintenanceSystemLog;
 use App\Livewire\Routes\Board as RoutesBoard;
 use App\Livewire\Routes\History as RoutesHistory;
 use App\Livewire\Routes\Index as RoutesIndex;
+use App\Livewire\Sgra\Index as SgraIndex;
 use App\Livewire\Support\Index as SupportIndex;
 use App\Livewire\Trucks\Index as TrucksIndex;
 use App\Livewire\Users\Index as UsersIndex;
@@ -86,6 +87,9 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
     Route::get('rutas/{route}/historial', RoutesHistory::class)->name('routes.history');
 
     Route::get('albaranes', DeliveryNotesIndex::class)->middleware('permission:delivery_notes.view')->name('delivery-notes.index');
+
+    // Nivel de los depósitos del proyecto SGRA (externo), leído en vivo por Tailscale.
+    Route::get('depositos', SgraIndex::class)->middleware('permission:sgra.view')->name('sgra.index');
 
     // Canal de soporte: el administrador abre incidencias hacia mantenimiento (Bloque 12).
     Route::get('soporte', SupportIndex::class)->middleware('permission:support.create')->name('support.index');

@@ -130,4 +130,27 @@ return [
         'recompute_max_age_days' => (int) env('DWELL_RECOMPUTE_MAX_AGE_DAYS', 2),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Depósitos SGRA (proyecto externo, panel /depositos)
+    |--------------------------------------------------------------------------
+    | Nivel de agua de los depósitos gestionados por el proyecto SGRA (Raspberry Pi
+    | del usuario), visible desde el panel de gestión — ver App\Services\SgraClient.
+    | `base_url` es la IP de Tailscale (server-to-server, cifrado, no pasa por
+    | internet público); `public_url` es la URL pública del dashboard SGRA completo,
+    | solo para el enlace "Ver panel completo" que abre el propio navegador del
+    | usuario (no la usa el backend). `enabled` en false por defecto para que
+    | local/tests nunca intenten llamar a nada.
+    */
+    'sgra' => [
+        'enabled' => (bool) env('SGRA_ENABLED', false),
+        'base_url' => rtrim((string) env('SGRA_BASE_URL', 'http://100.97.218.44:8090'), '/'),
+        'public_url' => rtrim((string) env('SGRA_PUBLIC_URL', 'http://sgra-aljibe.duckdns.org:8090'), '/'),
+        'username' => (string) env('SGRA_DASH_USER', ''),
+        'password' => (string) env('SGRA_DASH_PASSWORD', ''),
+        'timeout' => (int) env('SGRA_TIMEOUT', 5),
+        'connect_timeout' => (int) env('SGRA_CONNECT_TIMEOUT', 3),
+        'cache_seconds' => (int) env('SGRA_CACHE_SECONDS', 30),
+    ],
+
 ];
