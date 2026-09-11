@@ -97,12 +97,21 @@
         .table-responsive tbody tr:hover {
             @apply bg-transparent dark:bg-transparent;
         }
+        /*
+        | Etiqueta y valor apilados (etiqueta arriba, valor debajo), no lado a lado: un valor
+        | largo y sin espacios (email, IP, user-agent…) puesto junto a la etiqueta en la misma
+        | línea (flex + justify-between) no tiene dónde encogerse ni partirse — como "el valor"
+        | es contenido suelto del <td>, no un elemento propio, no se le puede aplicar min-width
+        | para que ceda; se salía de la tarjeta en móvil. Apilar da a cada valor el ancho
+        | completo de la fila. overflow-wrap como red de seguridad para lo que aun así no quepa.
+        */
         .table-responsive td {
-            @apply flex items-center justify-between gap-4 border-b border-slate-100 px-3 py-2 text-right last:border-b-0 dark:border-slate-800;
+            @apply block overflow-hidden border-b border-slate-100 px-3 py-2 text-left last:border-b-0 dark:border-slate-800;
+            overflow-wrap: anywhere;
         }
         .table-responsive td::before {
             content: attr(data-label);
-            @apply text-left text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500;
+            @apply mb-0.5 block text-left text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500;
         }
     }
 
