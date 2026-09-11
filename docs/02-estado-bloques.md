@@ -1014,6 +1014,27 @@ usuario `deploy` en el VPS (`sudo passwd -l deploy` — se le puso una contrase�
 instalar Tailscale sin acceso root por SSH) y confirmar que la auth key de Tailscale usada durante
 el alta quedó revocada.
 
+**Bug real de producción corregido esta sesión, en dos intentos (mapas Leaflet):**
+`tile.openstreetmap.org` (los dos mapas de la app, "Ver recorrido" y "Localizar dispositivo")
+empezó a devolver 403 "Access blocked" en producción. Primer intento, **CARTO Voyager**, pareció
+funcionar (200 OK) pero resultó estar igual de bloqueado: el "mapa" que se veía en realidad era una
+imagen-aviso con "API KEY REQUIRED" superpuesto — visto por el usuario en el navegador, no
+detectado antes porque solo se había comprobado el código HTTP, no el contenido real de un tile.
+**Fix definitivo**: tiles REST públicos de **Esri (ArcGIS Online)** — verificado esta vez
+descargando y mirando un tile real sobre Alicante antes de darlo por bueno. Además, el pie de
+atribución (obligatorio, no se puede quitar del todo — es la condición de usar estos servicios
+gratis) se dejó compacto ("Tiles © Esri", sin el prefijo "Leaflet |") a petición del usuario, que
+ocupaba varias líneas en tarjetas pequeñas. Detalle completo en `CLAUDE.md` → "Ver recorrido" →
+Gotchas Leaflet.
+
+**Bug real de test corregido esta sesión (bloqueó un despliegue):** `TruckFactory` generaba el
+código del camión en un rango de solo 1-99, mientras dos tests fijan a mano `code: 'C-99'`
+(`FleetStatsServiceTest`, `TrucksCrudTest`) sin que `fake()->unique()` se entere de que ese valor
+está reservado — un camión aleatorio creado de refilón (p. ej. al crear un `RouteDay` sin indicar
+`route_id`, que internamente crea una `Route` + `Truck` nuevos) tenía ~1% de probabilidad de tocar
+justo el 99 y violar `trucks_code_unique`. `deploy.sh` frenó el despliegue correctamente (nunca
+llegó a tocar producción) al toparse con esto — así es como se detectó. Ampliado a 4 dígitos.
+
 **Pendiente conocido, sin resolver esta sesión:** paginación de los listados Livewire en inglés
 (ver Bloque 6) — transversal, pequeño, sigue sin hacerse.
 
