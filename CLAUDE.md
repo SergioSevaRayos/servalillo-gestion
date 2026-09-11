@@ -936,13 +936,20 @@ Backed enums con `->label()` en español; casteados en los modelos.
     Los servidores de mosaicos de OSM son de voluntarios y su política exige registro/`User-Agent`
     identificable y limita el tráfico por IP — un hotlink directo desde el navegador del usuario
     (sin backend intermedio que añada esas cabeceras) no lo cumple, y en algún momento empezaron a
-    bloquear esta app en concreto. **Fix**: los dos `L.tileLayer(...)` de `resources/js/app.js`
-    pasan a **CARTO Voyager** (`{s}.basemaps.cartocdn.com/rastertiles/voyager/...`, subdominios
-    `abcd`, `{r}` para retina) — mismo estilo visual (basado en datos OSM), gratis sin API key para
-    este volumen de uso, pensado explícitamente para uso así (a diferencia de los mosaicos "crudos"
-    de OSM, que son la infraestructura de referencia del propio proyecto OSM, no un servicio
-    productivo). Si esto también acabara limitado algún día, la alternativa es un proveedor con API
-    key (Stadia Maps / MapTiler) o un proxy propio de mosaicos con caché.
+    bloquear esta app en concreto.
+    - **Primer intento (CARTO Voyager) NO sirvió**: se supuso "gratis sin API key para este
+      volumen", pero en producción los mosaicos volvían con el mapa en blanco y un texto
+      superpuesto repetido en diagonal — "API KEY REQUIRED · carto.com/basemaps/apikey" — CARTO
+      exige cuenta/key incluso a bajo volumen ahora. **Lección: no dar por buena una URL de
+      mosaicos sin descargar un tile real y mirarlo** (un `curl` que da 200 no basta: la respuesta
+      puede ser igualmente un 200 con una imagen-aviso en vez del mapa).
+    - **Fix real**: los dos `L.tileLayer(...)` de `resources/js/app.js` pasan a los tiles REST
+      públicos de **ArcGIS Online** (`server.arcgisonline.com/.../World_Street_Map/MapServer/tile/
+      {z}/{y}/{x}` — **ojo, orden z/y/x, al revés que OSM/CARTO**), verificado descargando un tile
+      real sobre Alicante antes de fijarlo (sin key, sin marca de agua, ~34 KB con calles/etiquetas
+      de verdad, frente a los ~1,7 KB de las respuestas-aviso de CARTO). Si esto también acabara
+      limitado algún día, la alternativa es un proveedor con API key (Stadia Maps / MapTiler) o un
+      proxy propio de mosaicos con caché.
 
 ### API de tracking GPS (Bloque 10)
 - **La única API de la app** (`routes/api.php`). El "Bloque 10 — API Flutter" del contrato original de

@@ -496,16 +496,16 @@ document.addEventListener('alpine:init', () => {
 
             if (! this.map) {
                 this.map = L.map(this.$refs.map, { scrollWheelZoom: true });
-                // CARTO Voyager, NO tile.openstreetmap.org: el hotlink directo a los servidores de
-                // mosaicos de OSM (voluntarios, sin API) empezó a devolver 403 "Access blocked — App
-                // is not following the tile usage policy" en producción — su política exige un
-                // registro/User-Agent identificable y limita el tráfico por IP, algo que no encajaba
-                // con un hotlink directo desde el navegador del usuario. CARTO ofrece el mismo estilo
-                // (basado en datos OSM) gratis para este volumen de uso, sin API key.
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                    maxZoom: 20,
-                    subdomains: 'abcd',
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                // Esri World Street Map, NI tile.openstreetmap.org NI CARTO: ambos empezaron a
+                // bloquear/marcar de agua los mosaicos sin API key (ver el comentario largo en
+                // CLAUDE.md, sección "Ver recorrido" → Gotchas Leaflet). Los tiles REST públicos de
+                // ArcGIS Online sí siguen sirviendo sin key para este volumen de uso — comprobado con
+                // una descarga real de un tile sobre Alicante antes de fijar esta URL. OJO: el orden
+                // de la plantilla de Esri es z/y/x (al revés que OSM/CARTO/la mayoría), por eso el
+                // template lleva {y} antes que {x}.
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 19,
+                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom',
                 }).addTo(this.map);
                 this.layer = L.layerGroup().addTo(this.map);
             }
@@ -658,16 +658,16 @@ document.addEventListener('alpine:init', () => {
 
             if (! this.map) {
                 this.map = L.map(this.$refs.map, { scrollWheelZoom: true });
-                // CARTO Voyager, NO tile.openstreetmap.org: el hotlink directo a los servidores de
-                // mosaicos de OSM (voluntarios, sin API) empezó a devolver 403 "Access blocked — App
-                // is not following the tile usage policy" en producción — su política exige un
-                // registro/User-Agent identificable y limita el tráfico por IP, algo que no encajaba
-                // con un hotlink directo desde el navegador del usuario. CARTO ofrece el mismo estilo
-                // (basado en datos OSM) gratis para este volumen de uso, sin API key.
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                    maxZoom: 20,
-                    subdomains: 'abcd',
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                // Esri World Street Map, NI tile.openstreetmap.org NI CARTO: ambos empezaron a
+                // bloquear/marcar de agua los mosaicos sin API key (ver el comentario largo en
+                // CLAUDE.md, sección "Ver recorrido" → Gotchas Leaflet). Los tiles REST públicos de
+                // ArcGIS Online sí siguen sirviendo sin key para este volumen de uso — comprobado con
+                // una descarga real de un tile sobre Alicante antes de fijar esta URL. OJO: el orden
+                // de la plantilla de Esri es z/y/x (al revés que OSM/CARTO/la mayoría), por eso el
+                // template lleva {y} antes que {x}.
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 19,
+                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom',
                 }).addTo(this.map);
                 this.layer = L.layerGroup().addTo(this.map);
             }
