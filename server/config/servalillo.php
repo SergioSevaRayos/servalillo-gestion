@@ -101,8 +101,12 @@ return [
     | parada con coordenadas, deriva los tramos en los que el camión estuvo dentro de
     | `radius_meters` de ella. Reglas de conteo (todas ajustables):
     | - `min_seconds`: por debajo no cuenta como parada (evita "pasaba por la calle").
-    | - `merge_gap_seconds`: hueco entre fixes que parte una visita en dos.
-    | - `max_gap_seconds`: tope de cada hueco al sumar (un apagón GPS no infla el número).
+    | - `merge_gap_seconds`: hueco MÁXIMO entre fixes que se puentea sin cortar la visita — el
+    |   camión se asume parado durante ese hueco (típicamente pérdida momentánea de SEÑAL GPS:
+    |   nave cubierta, patio techado — NO pérdida de cobertura de red, que no genera hueco real
+    |   porque el móvil encola y reenvía las posiciones con su hora real en cuanto vuelve la
+    |   conexión). Por encima de este umbral ya no se asume que siguiera parado y se corta en una
+    |   visita nueva.
     | - `accuracy_reject_meters`: se ignoran fixes con `accuracy_m` peor que esto.
     | - `exclude_base_radius_meters`: se ignoran fixes junto a la nave (evita contar el
     |   camión aparcado en la base si hay un cliente pegado).
@@ -110,10 +114,9 @@ return [
     | - `recompute_*`: control del recálculo perezoso al abrir el tablero / la web del chofer.
     */
     'dwell' => [
-        'radius_meters' => (int) env('DWELL_RADIUS_M', 100),
+        'radius_meters' => (int) env('DWELL_RADIUS_M', 150),
         'min_seconds' => (int) env('DWELL_MIN_SECONDS', 120),
-        'merge_gap_seconds' => (int) env('DWELL_MERGE_GAP_SECONDS', 180),
-        'max_gap_seconds' => (int) env('DWELL_MAX_GAP_SECONDS', 600),
+        'merge_gap_seconds' => (int) env('DWELL_MERGE_GAP_SECONDS', 600),
         'accuracy_reject_meters' => (int) env('DWELL_ACCURACY_REJECT_M', 150),
         'exclude_base_radius_meters' => (int) env('DWELL_EXCLUDE_BASE_RADIUS_M', 150),
         'clamp_to_shift' => (bool) env('DWELL_CLAMP_TO_SHIFT', true),

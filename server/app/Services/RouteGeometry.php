@@ -88,7 +88,7 @@ class RouteGeometry
      * ("cómo llegar"). Sin límite de antigüedad — se muestra "hace X".
      *
      * @param  Collection<int, array{n: int, name: string, lat: float, lng: float, status: string}>  $located
-     * @return array{lat: float, lng: float, recorded_at: string, age: string, accuracy_m: ?float, approach: array|null, next_stop: array{n: int, name: string}|null}|null
+     * @return array{lat: float, lng: float, recorded_at: string, age: string, accuracy_m: ?float, speed_kmh: ?int, approach: array|null, next_stop: array{n: int, name: string}|null}|null
      */
     private function vehicleFor(RouteDay $route, $located): ?array
     {
@@ -122,6 +122,9 @@ class RouteGeometry
             'recorded_at' => $position->recorded_at->toIso8601String(),
             'age' => $position->recorded_at->diffForHumans(),
             'accuracy_m' => $position->accuracy_m !== null ? (float) $position->accuracy_m : null,
+            // Velocidad instantánea del último fix (la manda el propio dispositivo), en km/h —
+            // mismo cálculo que Maintenance\Devices::locate() para su mapa de "Localizar".
+            'speed_kmh' => $position->speed_mps !== null ? (int) round((float) $position->speed_mps * 3.6) : null,
             'approach' => $approach,
             'next_stop' => $target ? ['n' => $target['n'], 'name' => $target['name']] : null,
         ];

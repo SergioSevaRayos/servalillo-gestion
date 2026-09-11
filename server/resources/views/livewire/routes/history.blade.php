@@ -120,6 +120,18 @@
 
                 <ul class="mt-4 max-h-[55vh] divide-y divide-slate-100 overflow-y-auto themed-scrollbar dark:divide-slate-800">
                     @forelse ($this->viewingDay->stops as $stop)
+                        @if ($leg = ($this->transitLegs[$stop->id] ?? null))
+                            <li class="flex items-center gap-1.5 py-1.5 text-xs text-slate-400 dark:text-slate-500">
+                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-1.32-2.214l3-6a1.5 1.5 0 0 1 2.64 0l3 6a1.5 1.5 0 0 1-1.32 2.214H8.25Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25 12 15 3 8.25" /></svg>
+                                {{ __('En ruta') }} {{ \App\Support\Duration::humanShort($leg['seconds']) }}
+                                @if ($leg['avg_speed_kmh'] !== null)
+                                    · {{ $leg['avg_speed_kmh'] }} km/h {{ __('de media') }}
+                                    @if ($leg['max_speed_kmh'] !== null && $leg['max_speed_kmh'] !== $leg['avg_speed_kmh'])
+                                        ({{ __('máx.') }} {{ $leg['max_speed_kmh'] }})
+                                    @endif
+                                @endif
+                            </li>
+                        @endif
                         <li class="flex items-center justify-between gap-3 py-2.5">
                             <div class="min-w-0">
                                 <p class="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{{ $stop->customer_name }}</p>

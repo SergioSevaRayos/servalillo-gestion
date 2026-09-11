@@ -65,6 +65,68 @@ class StopDwellService
         }
     }
 
+    /**
+     * Tramos de trayecto entre paradas consecutivas (por `position`) que tengan visita cerrada:
+     * cuánto tardó el camión en llegar de una a la siguiente y a qué velocidad circuló, a partir
+     * de `gps_positions.speed_mps` en esa ventana de tiempo. Si una parada intermedia no tiene
+     * datos de geocerca (sin visita), se salta y el tramo se calcula hasta la siguiente que sí
+     * los tenga — mejor un tramo con los dos nombres reales que ningún dato. No se persiste: se
+     * calcula al vuelo a partir de `stop_visits` (ya construidas) + una consulta puntual de GPS.
+     *
+     * @return list<array{from_stop_id: int, from_name: string, to_stop_id: int, to_name: string, departed_at: Carbon, arrived_at: Carbon, seconds: int, avg_speed_kmh: ?int, max_speed_kmh: ?int}>
+     */
+    public function transitLegs(RouteDay $day): array
+    {
+        $stops = $day->stops()->with('visits')->get();
+
+        $legs = [];
+        $from = null;
+
+        foreach ($stops as $stop) {
+            $arrival = $stop->firstArrivalAt();
+
+            if ($from !== null && $arrival !== null && $arrival->gt($from['departure'])) {
+                $legs[] = $this->buildLeg($day, $from['stop'], $stop, $from['departure'], $arrival);
+            }
+
+            $departure = $stop->lastDepartureAt();
+            if ($departure !== null) {
+                $from = ['stop' => $stop, 'departure' => $departure];
+            }
+        }
+
+        return $legs;
+    }
+
+    /** @return array{from_stop_id: int, from_name: string, to_stop_id: int, to_name: string, departed_at: Carbon, arrived_at: Carbon, seconds: int, avg_speed_kmh: ?int, max_speed_kmh: ?int} */
+    private function buildLeg(RouteDay $day, RouteStop $from, RouteStop $to, Carbon $departedAt, Carbon $arrivedAt): array
+    {
+        $speeds = GpsPosition::query()
+            ->where(function ($q) use ($day) {
+                $q->where('route_id', $day->id);
+
+                if ($day->driver_id !== null) {
+                    $q->orWhere(fn ($q2) => $q2->whereNull('route_id')->where('driver_id', $day->driver_id));
+                }
+            })
+            ->whereBetween('recorded_at', [$departedAt, $arrivedAt])
+            ->whereNotNull('speed_mps')
+            ->pluck('speed_mps')
+            ->map(fn ($v) => (float) $v);
+
+        return [
+            'from_stop_id' => $from->id,
+            'from_name' => $from->customer_name,
+            'to_stop_id' => $to->id,
+            'to_name' => $to->customer_name,
+            'departed_at' => $departedAt,
+            'arrived_at' => $arrivedAt,
+            'seconds' => $departedAt->diffInSeconds($arrivedAt),
+            'avg_speed_kmh' => $speeds->isEmpty() ? null : (int) round($speeds->avg() * 3.6),
+            'max_speed_kmh' => $speeds->isEmpty() ? null : (int) round($speeds->max() * 3.6),
+        ];
+    }
+
     private function run(RouteDay $day): int
     {
         $stops = $day->stops()
@@ -133,7 +195,7 @@ class StopDwellService
 
         // Si la última posición del día ya es "vieja" (fin de jornada, día pasado), no hay
         // ninguna visita "en curso": las que llegan hasta el último fix se cierran ahí.
-        $stale = $lastFixOverall->diffInSeconds($now) > $cfg['max_gap_seconds'];
+        $stale = $lastFixOverall->diffInSeconds($now) > $cfg['merge_gap_seconds'];
 
         $rows = collect();
 
@@ -162,8 +224,12 @@ class StopDwellService
 
     /**
      * Parte una secuencia de fixes (dentro del radio, ordenados asc) en visitas: nueva visita
-     * cuando el hueco entre fixes consecutivos supera `merge_gap_seconds`. La duración suma los
-     * huecos topados a `max_gap_seconds` (un apagón GPS no infla el número).
+     * cuando el hueco entre fixes consecutivos supera `merge_gap_seconds` — por debajo de ese
+     * umbral se puentea el hueco entero (se asume que el camión siguió ahí sin señal GPS; la
+     * pérdida de COBERTURA de red no cuenta como hueco real, ver el comentario de
+     * `config('servalillo.dwell')`). Como cada hueco interno queda por construcción
+     * `<= merge_gap_seconds`, la duración es simplemente la diferencia entre el primer y el
+     * último fix del tramo — no hace falta topar cada hueco por separado.
      *
      * @param  list<Carbon>  $times
      * @return list<array{0: Carbon, 1: Carbon, 2: int}> [entrada, último fix dentro, segundos]
@@ -173,23 +239,19 @@ class StopDwellService
         $intervals = [];
         $start = $times[0];
         $previous = $times[0];
-        $seconds = 0;
 
         for ($i = 1, $n = count($times); $i < $n; $i++) {
             $gap = $times[$i]->getTimestamp() - $previous->getTimestamp();
 
             if ($gap > $cfg['merge_gap_seconds']) {
-                $intervals[] = [$start, $previous, $seconds];
+                $intervals[] = [$start, $previous, $start->diffInSeconds($previous)];
                 $start = $times[$i];
-                $seconds = 0;
-            } else {
-                $seconds += min($gap, $cfg['max_gap_seconds']);
             }
 
             $previous = $times[$i];
         }
 
-        $intervals[] = [$start, $previous, $seconds];
+        $intervals[] = [$start, $previous, $start->diffInSeconds($previous)];
 
         return $intervals;
     }

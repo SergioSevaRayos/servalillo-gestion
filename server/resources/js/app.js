@@ -473,6 +473,7 @@ document.addEventListener('alpine:init', () => {
         summary: '',
         skippedNote: '',
         approachNote: '',
+        vehicleNote: '',
         mapsUrl: '',
 
         open(detail) {
@@ -524,8 +525,11 @@ document.addEventListener('alpine:init', () => {
 
             const v = detail.vehicle || null;
             this.approachNote = '';
+            this.vehicleNote = '';
             if (v && typeof v.lat === 'number' && typeof v.lng === 'number') {
                 const vpos = [v.lat, v.lng];
+                const speedBit = typeof v.speed_kmh === 'number' ? ` · ${v.speed_kmh} km/h` : '';
+                this.vehicleNote = `🚚 Camión: ${v.age || 'última señal'}${speedBit}`;
 
                 // Trazado "cómo llegar" del camión a la primera parada (línea ámbar discontinua).
                 const approach = v.approach || null;
@@ -558,7 +562,7 @@ document.addEventListener('alpine:init', () => {
                     zIndexOffset: 1000,
                 }).addTo(this.layer).bindPopup(() => {
                     const el = document.createElement('div');
-                    el.textContent = `Camión · ${v.age || 'última señal'}`;
+                    el.textContent = this.vehicleNote;
                     return el;
                 });
                 bounds.push(vpos);

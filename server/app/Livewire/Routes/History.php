@@ -8,6 +8,7 @@ use App\Models\Route;
 use App\Models\RouteDay;
 use App\Services\RouteGeometry;
 use App\Services\StopDwellService;
+use Illuminate\Support\Carbon;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
@@ -117,6 +118,25 @@ class History extends Component
         return RouteDay::with(['stops.deliveryType', 'stops.deliveryNote', 'stops.visits'])
             ->where('route_id', $this->route->id)
             ->find($this->viewingDayId);
+    }
+
+    /**
+     * Tramos de trayecto entre paradas consecutivas del día abierto: cuánto tardó el camión y a
+     * qué velocidad circuló entre una y la siguiente (a partir del GPS, ver StopDwellService).
+     * Se indexa por el id de la parada de LLEGADA para pintarlo justo antes de esa parada.
+     *
+     * @return array<int, array{from_stop_id: int, from_name: string, to_stop_id: int, to_name: string, departed_at: Carbon, arrived_at: Carbon, seconds: int, avg_speed_kmh: ?int, max_speed_kmh: ?int}>
+     */
+    #[Computed]
+    public function transitLegs(): array
+    {
+        if ($this->viewingDay === null) {
+            return [];
+        }
+
+        return collect(app(StopDwellService::class)->transitLegs($this->viewingDay))
+            ->keyBy('to_stop_id')
+            ->all();
     }
 
     public function render()

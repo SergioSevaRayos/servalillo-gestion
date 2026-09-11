@@ -18,7 +18,6 @@ beforeEach(function () {
     config()->set('servalillo.dwell.radius_meters', 100);
     config()->set('servalillo.dwell.min_seconds', 120);
     config()->set('servalillo.dwell.merge_gap_seconds', 180);
-    config()->set('servalillo.dwell.max_gap_seconds', 600);
     config()->set('servalillo.dwell.clamp_to_shift', false);
 
     // Lejos de la base (Almería) para que el filtro exclude_base no toque nada.
@@ -124,21 +123,91 @@ it('parte en dos visitas cuando el hueco supera merge_gap_seconds', function () 
         ->and($stop->fresh()->onSiteSeconds())->toBe(360); // suma, sin el hueco
 });
 
-it('no infla la duración cuando hay un apagón GPS dentro de la visita', function () {
-    config()->set('servalillo.dwell.merge_gap_seconds', 3600); // no partir
-    config()->set('servalillo.dwell.max_gap_seconds', 300);
+// --- Pérdida de señal GPS durante una parada ("sin cobertura") ---------------------------------
+//
+// La app del móvil NO deja de capturar posiciones por falta de cobertura de RED: el GPS funciona
+// sin datos móviles, cada fix se encola en local y se manda más tarde con su hora real de captura
+// (`recorded_at`) en cuanto vuelve la conexión — StopDwellService funciona por "replay" y no le
+// importa cuándo llegó el dato, solo `recorded_at`, así que la pérdida de cobertura de RED nunca
+// genera un hueco real (ver el test de "lote de recuperación" más abajo). El hueco real viene de
+// perder la SEÑAL GPS (nave cubierta, interior, timeout del GPS del móvil): ahí sí no hay fix que
+// guardar, y es lo que gobierna `merge_gap_seconds`.
+
+it('puentea un hueco de señal GPS por debajo del umbral: el camión sigue contando como si hubiera seguido ahí', function () {
+    config()->set('servalillo.dwell.merge_gap_seconds', 600); // valor real de producción
 
     $stop = dwellDay($this->stopLat, $this->stopLng);
     [$lat, $lng] = metersOffset($this->stopLat, $this->stopLng, 20, 0);
 
     gpsTrack($stop->route, [
         [$lat, $lng, '2026-03-02 10:00:00'],
-        [$lat, $lng, '2026-03-02 10:10:00'], // hueco de 600 s, topado a 300
+        [$lat, $lng, '2026-03-02 10:00:45'],
+        // el móvil pierde señal GPS ~5 min (p. ej. dentro de una nave) — ningún fix en medio.
+        [$lat, $lng, '2026-03-02 10:05:45'],
+        [$lat, $lng, '2026-03-02 10:06:30'],
     ]);
 
     app(StopDwellService::class)->recomputeForRouteDay($stop->route);
 
-    expect(StopVisit::where('route_stop_id', $stop->id)->sole()->seconds)->toBe(300);
+    $visit = StopVisit::where('route_stop_id', $stop->id)->sole();
+    expect($visit->entered_at->format('H:i:s'))->toBe('10:00:00')
+        ->and($visit->left_at->format('H:i:s'))->toBe('10:06:30')
+        ->and($visit->seconds)->toBe(390); // 6 min 30 s completos, hueco incluido — no se pierde
+});
+
+it('corta la visita cuando el hueco de señal GPS supera el umbral (ya no se asume que siguiera parado)', function () {
+    config()->set('servalillo.dwell.merge_gap_seconds', 600);
+
+    $stop = dwellDay($this->stopLat, $this->stopLng);
+    $point = metersOffset($this->stopLat, $this->stopLng, 20, 0);
+
+    gpsTrack($stop->route, array_merge(
+        denseRun($point, '10:00:00', '10:03:00'),
+        denseRun($point, '10:18:00', '10:21:00'), // hueco de 15 min > 600 s
+    ));
+
+    app(StopDwellService::class)->recomputeForRouteDay($stop->route);
+
+    expect(StopVisit::where('route_stop_id', $stop->id)->count())->toBe(2);
+});
+
+it('el límite exacto de merge_gap_seconds no parte la visita; superarlo en 1 s sí', function () {
+    config()->set('servalillo.dwell.merge_gap_seconds', 600);
+    $point = metersOffset($this->stopLat, $this->stopLng, 20, 0);
+
+    $stopA = dwellDay($this->stopLat, $this->stopLng);
+    gpsTrack($stopA->route, [
+        [$point[0], $point[1], '2026-03-02 10:00:00'],
+        [$point[0], $point[1], '2026-03-02 10:10:00'], // +600 s exactos
+    ]);
+    app(StopDwellService::class)->recomputeForRouteDay($stopA->route);
+    expect(StopVisit::where('route_stop_id', $stopA->id)->count())->toBe(1);
+
+    $stopB = dwellDay($this->stopLat, $this->stopLng);
+    gpsTrack($stopB->route, [
+        [$point[0], $point[1], '2026-03-02 10:00:00'],
+        [$point[0], $point[1], '2026-03-02 10:10:01'], // +601 s
+    ]);
+    app(StopDwellService::class)->recomputeForRouteDay($stopB->route);
+    // Se parte en dos fixes sueltos, cada uno por debajo de min_seconds -> ninguna visita queda.
+    expect(StopVisit::where('route_stop_id', $stopB->id)->count())->toBe(0);
+});
+
+it('un lote de recuperación tras perder cobertura de RED llega igual que si hubiera sido en directo', function () {
+    // Simula la cola offline del móvil: todos los fixes de la parada se insertan de golpe, mucho
+    // después de capturarse, pero con su `recorded_at` real — StopDwellService no sabe ni le
+    // importa cuándo llegaron, solo cuándo se capturaron.
+    $stop = dwellDay($this->stopLat, $this->stopLng);
+    $point = metersOffset($this->stopLat, $this->stopLng, 20, 0);
+
+    gpsTrack($stop->route, denseRun($point, '10:00:00', '10:07:00'));
+
+    app(StopDwellService::class)->recomputeForRouteDay($stop->route);
+
+    $visit = StopVisit::where('route_stop_id', $stop->id)->sole();
+    expect($visit->entered_at->format('H:i:s'))->toBe('10:00:00')
+        ->and($visit->left_at->format('H:i:s'))->toBe('10:06:45') // último múltiplo de 45 s <= 7 min
+        ->and($visit->seconds)->toBe(405);
 });
 
 it('atribuye cada posición a la parada más cercana con geocercas solapadas', function () {

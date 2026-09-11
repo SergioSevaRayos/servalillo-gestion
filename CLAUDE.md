@@ -1095,13 +1095,46 @@ Backed enums con `->label()` en español; casteados en los modelos.
   mismo criterio que `gps_positions`). `RouteStop::visits()` + accesores `onSiteSeconds()` (suma;
   una visita abierta cuenta lo transcurrido hasta ahora), `firstArrivalAt()`, `lastDepartureAt()`,
   `isOnSiteNow()`. `RouteDay::stopVisits()` (hasMany por `route_id`) para el total por día.
-- **Reglas** en `config('servalillo.dwell')` (`DWELL_*` env): `radius_meters` 100, `min_seconds`
-  120 (por debajo no cuenta como parada — "pasaba por la calle"), `merge_gap_seconds` 180 (hueco
-  que parte una visita en dos), `max_gap_seconds` 600 (tope de cada hueco al sumar — un apagón GPS
-  no infla el número), `accuracy_reject_meters` 150 (se ignoran fixes con mala precisión;
-  `accuracy_m` null se acepta), `exclude_base_radius_meters` 150 (se ignoran fixes junto a la nave),
-  `clamp_to_shift` true (se ignora lo de fuera del horario de jornada ±30 min). Cada posición se
-  atribuye a la parada **más cercana dentro del radio** (dos geocercas solapadas no cuentan doble).
+- **Reglas** en `config('servalillo.dwell')` (`DWELL_*` env): `radius_meters` **150** (subido de
+  100 tras pruebas de campo — algunas paradas quedaban justo en el límite), `min_seconds` 120 (por
+  debajo no cuenta como parada — "pasaba por la calle"), `merge_gap_seconds` **600** (10 min —
+  subido de 180 tras pruebas de campo, ver el apartado de cobertura justo abajo),
+  `accuracy_reject_meters` 150 (se ignoran fixes con mala precisión; `accuracy_m` null se acepta),
+  `exclude_base_radius_meters` 150 (se ignoran fixes junto a la nave), `clamp_to_shift` true (se
+  ignora lo de fuera del horario de jornada ±30 min). Cada posición se atribuye a la parada **más
+  cercana dentro del radio** (dos geocercas solapadas no cuentan doble).
+- **"Sin cobertura" durante una parada — verificado y documentado (2026-09-11).** El usuario pidió
+  comprobar que una pérdida de señal del chofer durante una parada no rompe el conteo. Hay dos
+  cosas distintas bajo ese nombre:
+  - **Sin cobertura de RED (datos móviles)**: la APK captura GPS con `Geolocator.getCurrentPosition()`
+    (API del sistema, satélite/GNSS) **sin ninguna llamada de red** — cada tick (~45 s) se guarda en
+    una cola SQLite local pase lo que pase con la conexión, y `sync_service.dart` la manda entera,
+    en orden, en cuanto vuelve la cobertura (borra cada lote solo tras un `2xx` confirmado; nada se
+    pierde salvo ~26 días seguidos sin red, tope de la cola en 50 000). Como `StopDwellService`
+    funciona por "replay" y solo le importa `recorded_at` (nunca cuándo llegó el dato), esto **ya
+    estaba cubierto por diseño** — no genera ningún hueco real.
+  - **Sin señal GPS** (nave cubierta, interior, timeout del GPS del móvil): aquí sí no hay fix que
+    guardar, hueco real en `recorded_at`. Esto lo gobierna `merge_gap_seconds`: por debajo del
+    umbral, `splitIntervals()` **puentea el hueco entero** (se asume que el camión siguió ahí
+    parado); por encima, corta en una visita nueva. **Bug real encontrado y corregido**: antes
+    había dos umbrales (`merge_gap_seconds` 180 y `max_gap_seconds` 600) pero el primero SIEMPRE
+    cortaba antes de que el segundo pudiera aplicar el tope — código muerto, y cualquier hueco de
+    más de 3 min ya rompía la parada en trozos (a menudo perdiéndola entera si cada trozo quedaba
+    por debajo de `min_seconds`). Se unificó en **un solo umbral** (`merge_gap_seconds`, ahora 600 s):
+    como cada hueco interno queda por construcción `≤ merge_gap_seconds`, la duración de una visita
+    puenteada es simplemente `última − primera` (`Carbon::diffInSeconds()`), sin necesidad de topar
+    cada hueco aparte.
+  - **Gotcha de Carbon 3 (Laravel 13) que costó depurar**: `Carbon::diffInSeconds()` **ya NO es
+    absoluto por defecto** (cambio de comportamiento respecto a Carbon 2) — `$a->diffInSeconds($b)`
+    devuelve `$b − $a` (positivo si `$b` es posterior a `$a`, **negativo** si es anterior). Al
+    simplificar `splitIntervals()` se escribió `$previous->diffInSeconds($start)` con los
+    argumentos al revés (`$start` es el más antiguo) → duración **negativa** para CUALQUIER visita
+    → siempre `< min_seconds` → **ninguna visita se guardaba nunca**, en todo el fichero (se detectó
+    porque toda la suite de `StopDwellServiceTest` se puso en rojo salvo los casos que esperaban 0
+    resultados). Mismo fallo en `transitLegs()`/`buildLeg()`. Arreglado invirtiendo el orden:
+    `$start->diffInSeconds($previous)` / `$departedAt->diffInSeconds($arrivedAt)`. Si se toca esta
+    zona otra vez: **comprobar siempre el signo con un test real**, no fiarse de la intuición de
+    Carbon 2.
 - **Cuándo se recalcula**: (1) comando **`paradas:calcular-permanencia {fecha?}`** — sin argumento
   ayer + hoy (todas las rutas, no solo operativas: de madrugada los días de ayer ya están
   "Completada" y son justo los que hay que cerrar); scheduler `dailyAt('03:30')` (antes de
@@ -1112,19 +1145,41 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `Cache::lock("dwell:routeday:{id}")` **no bloqueante** dentro del servicio (si está tomado, se
   sale sin tocar nada; el siguiente poll trae datos frescos). Latencia del "en parada ahora": ~2-3
   min (ping 45 s + poll + throttle). `dwell_recalculated_at` está en `RouteDay::$auditExclude`.
+  Tras cambiar `radius_meters`/`merge_gap_seconds` en producción, hace falta relanzar el comando a
+  mano una vez para recalcular los días recientes con las reglas nuevas (el sello no caduca solo).
 - **UI**: `<x-stop-dwell :stop variant="badge|line" />` (componente compartido, usa
   `App\Support\Duration::humanShort()`). `badge` (`⏱ 14 min`, o `● En parada 6 min` ámbar si
   abierta) en las tarjetas del tablero y del chofer; `line` (`Llegada 10:32 · Salida 10:49 · 17 min
   en parada`) en el modal `stop-action` del chofer y en `day-detail` del Historial. Resúmenes:
   columna "En paradas" por día en el Historial (`withSum('stopVisits as on_site_seconds', 'seconds')`)
   y stat "Media en parada" en la ficha del cliente (`Client::pastStops()` ya trae `visits`).
+- **Velocidad actual del camión (2026-09-11)**: `RouteGeometry::vehicleFor()` ya incluía la última
+  `GpsPosition` del chofer para "Ver recorrido" (`lat, lng, recorded_at, age, accuracy_m, approach,
+  next_stop`); ahora suma **`speed_kmh`** (redondeado desde `gps_positions.speed_mps × 3.6`, `null`
+  si no hay dato — mismo cálculo que `Maintenance\Devices::locate()` para su mapa de "Localizar").
+  Se pinta como una línea propia (`vehicleNote`, "🚚 Camión: hace 2 min · 42 km/h") bajo el mapa de
+  `<x-route-map-modal>`, en `Alpine.data('routeMap')` (`resources/js/app.js`) — visible en el
+  tablero, la web del chofer y el Historial, todos comparten el mismo componente.
+- **Tiempo y velocidad entre dos paradas (2026-09-11)**: `StopDwellService::transitLegs(RouteDay):
+  array` — **no se persiste**, se calcula al vuelo a partir de `stop_visits` ya construidas
+  (`RouteStop::firstArrivalAt()`/`lastDepartureAt()`) + una consulta puntual de
+  `gps_positions.speed_mps` en la ventana `[salida de la anterior, llegada a la siguiente]`
+  (`avg`/`max`, convertidos a km/h). Recorre las paradas en orden de `position`; si una intermedia
+  no tiene visita (sin geocerca), se salta y el tramo se calcula hasta la siguiente que sí la
+  tenga. `App\Livewire\Routes\History::transitLegs()` (`#[Computed]`, indexado por el id de la
+  parada de **llegada**) lo pinta en `history.blade.php` como una fila "🚚 En ruta 18 min · 42 km/h
+  de media (máx. 61)" justo antes de la parada a la que llega ese tramo.
 - **Fuera de alcance** (posible fase posterior): detección de entrada/salida en tiempo real en la
   ingesta; interpolación del cruce exacto del radio; `speed_mps ≈ 0` como filtro extra; media por
-  chofer en `FleetStatsService`; aviso "parada completada pero el camión nunca entró en su radio".
-- Tests: `StopDwellServiceTest` (15 casos: conteo, drive-by, split, apagón, geocercas solapadas,
-  base, precisión, re-entrada, visita abierta, idempotencia, lote desordenado, sin coords,
-  clamp_to_shift), `RecomputeStopDwellCommandTest`, `StopDwellOnViewTest`, `RouteStopDwellAccessorsTest`.
-  Helpers en `tests/Pest.php`: `metersOffset()`, `gpsTrack()`.
+  chofer en `FleetStatsService`; aviso "parada completada pero el camión nunca entró en su radio";
+  orientar el marcador del camión con `heading_deg` (se captura y guarda, pero no se usa en ningún
+  sitio todavía).
+- Tests: `StopDwellServiceTest` (19 casos: conteo, drive-by, split, geocercas solapadas, base,
+  precisión, re-entrada, visita abierta, idempotencia, lote desordenado, sin coords,
+  clamp_to_shift, puente de hueco de señal GPS, corte por encima del umbral, límite exacto, lote de
+  recuperación tras sin cobertura), `TransitLegsTest`, `RecomputeStopDwellCommandTest`,
+  `StopDwellOnViewTest`, `RouteStopDwellAccessorsTest`. Helpers en `tests/Pest.php`:
+  `metersOffset()`, `gpsTrack()`.
 
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
