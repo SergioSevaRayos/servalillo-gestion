@@ -184,13 +184,13 @@
             </div>
             <ul class="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
                 @forelse ($recentAudits as $audit)
-                    <li wire:key="ov-audit-{{ $audit->id }}" class="flex items-center justify-between gap-2 py-2.5 text-sm">
-                        <span class="flex items-center gap-2">
+                    <li wire:key="ov-audit-{{ $audit->id }}" class="py-2.5 text-sm">
+                        <div class="flex flex-wrap items-center gap-2">
                             <x-ui.badge :variant="$eventMeta[$audit->event]['variant'] ?? 'neutral'">{{ $eventMeta[$audit->event]['label'] ?? $audit->event }}</x-ui.badge>
                             <span class="text-slate-700 dark:text-slate-200">{{ $modelLabel($audit->auditable_type) }}</span>
                             <span class="text-xs text-slate-400">#{{ $audit->auditable_id }}</span>
-                        </span>
-                        <span class="shrink-0 text-xs text-slate-400">{{ $audit->user?->name ?? __('Sistema') }} · {{ $audit->created_at->diffForHumans() }}</span>
+                        </div>
+                        <p class="mt-0.5 truncate text-xs text-slate-400">{{ $audit->user?->name ?? __('Sistema') }} · {{ $audit->created_at->diffForHumans() }}</p>
                     </li>
                 @empty
                     <li class="py-6 text-center text-sm text-slate-400">{{ __('Sin actividad registrada.') }}</li>
