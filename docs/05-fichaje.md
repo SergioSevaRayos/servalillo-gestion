@@ -35,6 +35,9 @@ hasta que el usuario decida activarlo — mismo patrón ya usado para los Depós
 | Geolocalización | **Sí, con geovalla por chofer** | Los chofers pueden fichar lejos de la nave (donde dejan el camión aparcado). Cada chofer puede tener su propia zona habitual (centro + radio), configurada por administración; si no se configura, se usa la nave por defecto. |
 | Fichaje fuera de zona | **Se permite, se marca** | Bloquear el fichaje por estar fuera de zona sería peor para el cumplimiento legal que dejarlo constar con un aviso — un registro dudoso siempre es mejor que ningún registro. Administración revisa los marcados, igual que un olvido. |
 | Corrección de olvidos | **Con motivo obligatorio, en un ledger de solo-inserción** | Es el requisito explícito del usuario: "controlado, motivado y anotado en un sistema de auditoría". |
+| Dónde se puede fichar | **Por trabajador: "en la base" o "en remoto"**, con gestor para fijar/editar el punto remoto | No todos son chofers desplazados — se declara explícitamente el modo de cada uno, no solo un override opcional. |
+| Ver/exportar las propias horas | **Siempre disponible para el trabajador, sin casilla que lo desactive** | Primera idea del usuario: una casilla de administración para activarlo/desactivarlo por persona. Se descarta al caer en la cuenta de que el RD-ley 8/2019 da al trabajador derecho a acceso a su propio registro — una casilla que pudiera dejarlo sin acceso sería un riesgo de incumplimiento real, así que no se construye. |
+| Formatos de exportación | **Uno "legal" (XML tipo registro de jornada) + PDF**, ambos desde el panel de administración | Requisito explícito del usuario — sustituye al CSV que se había propuesto como versión mínima. |
 
 ## Lo que se reutiliza del proyecto de referencia, y lo que no
 
@@ -49,10 +52,15 @@ hasta que el usuario decida activarlo — mismo patrón ya usado para los Depós
 - El criterio de que **la fila se sobrescribe** al corregirla (no se guarda una copia congelada
   "tal cual se fichó" aparte) — la evidencia legal la da el ledger de correcciones, no la
   inmutabilidad de la fila en sí. Es la práctica estándar y evita duplicar el modelo de datos.
+- La idea de la **exportación en formato "legal"**: el proyecto de referencia genera un XML
+  `RegistroJornada` a medida (empresa con nombre/CIF, por empleado nombre+DNI, por jornada fecha/
+  entrada/salida/tiempo efectivo, método de registro) — se adapta el mismo esquema aquí, ver
+  "Interfaz" y "Prerrequisitos de datos" más abajo. También se reutiliza su exportación en PDF
+  (con `barryvdh/laravel-dompdf`, que Servalillo ya usa para los albaranes del Bloque 8).
 
 **No se reutiliza / se deja fuera:**
 - Pausas, multicanal, historial laboral SCD-2, geovallado "de oficina" genérico (aquí es por
-  chofer, ver tabla de arriba), exportación XML a medida (se deja CSV, más simple).
+  trabajador, con modo base/remoto — ver tabla de arriba).
 - El cálculo de horas inline en un controlador — aquí sí hay un `Service` dedicado, siguiendo la
   convención ya establecida en Gestión Servalillo (`DeliveryTypeSchemaValidator`,
   `RouteOptimizer`, `StopDwellService`...).
@@ -101,12 +109,34 @@ hasta que el usuario decida activarlo — mismo patrón ya usado para los Depós
 - Modelo `App\Models\AttendanceCorrection`, **no** `Auditable` — es en sí mismo un registro de
   auditoría (auditar al auditor no aporta nada), mismo criterio que `GpsPosition`/`LoginLog`.
 
-**`drivers`** (columnas nuevas, geovalla propia — nullable, la rellena administración si aplica):
-- `attendance_latitude` / `attendance_longitude` (decimal 10,7, nullable)
-- `attendance_radius_meters` (integer, nullable)
-- A `null` (caso normal: chofer que siempre sale de la nave) → se usa la geovalla por defecto. Se
-  rellenan solo para el chofer que aparca habitualmente en otro sitio, tras comunicarlo a
-  administración (tal y como planteó el usuario).
+**`users`** (columnas nuevas — el fichaje es por `User`, no por `Driver`, así que esto vive aquí y
+sirve igual para administrador que para chofer):
+- `attendance_mode` (string, enum aplicativo `base`|`remote`, default `'base'`) — **declarado
+  explícitamente por trabajador**, no un simple override opcional: administración decide para
+  cada persona si ficha desde la nave o desde un punto propio.
+- `attendance_latitude` / `attendance_longitude` (decimal 10,7, nullable) — el punto remoto,
+  relevante solo si `attendance_mode = 'remote'`.
+- `attendance_radius_meters` (integer, nullable) — radio permitido alrededor de ese punto; si es
+  `null` con modo remoto, se usa `default_radius_meters` de la config.
+- `dni` (string, nullable) — necesario para la exportación en formato legal (ver "Prerrequisitos
+  de datos" a continuación); no existe hoy en `users` ni en `drivers`.
+
+### Prerrequisitos de datos para la exportación "formato legal"
+
+El XML de registro de jornada necesita identificar a la empresa y a cada trabajador de forma
+inequívoca — dos datos que Gestión Servalillo no modela todavía:
+- **DNI del trabajador** → columna nueva `users.dni` (ver arriba), rellenable desde `/chofers` y
+  `/usuarios` (nullable: no bloquea nada ya construido; la exportación simplemente advierte de
+  qué filas les falta el DNI en vez de fallar entera).
+- **Nombre y CIF de la empresa** → bloque nuevo `config('servalillo.company')`:
+  ```php
+  'company' => [
+      'name' => env('COMPANY_NAME', config('app.name')),
+      'tax_id' => env('COMPANY_TAX_ID', ''),
+  ],
+  ```
+  (`COMPANY_TAX_ID` vacío por defecto; el usuario lo rellena en el `.env` de producción antes de
+  activar el bloque).
 
 ### Config e interruptor de activación
 
@@ -138,9 +168,10 @@ Con `enabled` en `false` (por defecto):
 - `punchOut(User $user, ?float $lat, ?float $lng): Attendance` — exige que exista la fila de hoy
   con `in_at` y `out_at` vacío (si no, aborta: "no has fichado la entrada hoy"); calcula
   `total_seconds` y `out_out_of_bounds`.
-- `effectiveGeofence(User $user): array{lat: float, lng: float, radius: int}` — si el usuario
-  tiene `driver` con `attendance_latitude` relleno, usa eso; si no, cae a
-  `config('servalillo.base.*')` + `default_radius_meters`.
+- `effectiveGeofence(User $user): array{lat: float, lng: float, radius: int}` — si
+  `$user->attendance_mode === 'remote'` y tiene coordenadas propias, las usa (con su propio radio
+  o el de la config si no lo tiene); si el modo es `'base'` (o remoto sin configurar todavía), cae
+  a `config('servalillo.base.*')` + `default_radius_meters`.
 - `correct(Attendance $attendance, array $newValues, string $reason, User $correctedBy): Attendance`
   y `createManual(User $target, array $values, string $reason, User $createdBy): Attendance` —
   ambos recalculan `total_seconds` si hay ambas horas y **siempre** insertan una fila en
@@ -166,21 +197,25 @@ Con `enabled` en `false` (por defecto):
 
 - **`/fichar`** (`App\Livewire\Attendance\Index`, ruta `attendance.index`) — página personal de
   fichaje: estado de hoy (sin fichar / trabajando desde HH:MM / jornada cerrada, X h Y min — con
-  `App\Support\Duration::humanShort()`, ya existe, se reutiliza), un botón grande "Fichar
+  `App\Support\Duration::humanShort()`, ya existe, se reutiliza) y un botón grande "Fichar
   entrada"/"Fichar salida" (capta `navigator.geolocation.getCurrentPosition`, mismo patrón que
   `Chofer\Today::captureStopCoordinates`/`tracker-test.blade.php` — sin coordenadas, ficha
-  igualmente, nunca bloquea por un problema técnico de ubicación) y una tabla con el histórico
-  propio (últimos 30 días, `<x-ui.table>`, `.surface`, nunca `.glass`). Visible solo para
-  administrador y chofer (mantenimiento no tiene fichaje propio, ver tabla de decisiones).
+  igualmente, nunca bloquea por un problema técnico de ubicación), una tabla con el histórico
+  propio (últimos 30 días, `<x-ui.table>`, `.surface`, nunca `.glass`) y un botón "Exportar mis
+  horas" (mismo PDF que el de administración, acotado a su propio usuario). **Todo esto, sin
+  ninguna casilla que lo condicione** — administración no puede quitarle a nadie el acceso a su
+  propio registro (ver "Cumplimiento legal"). Visible solo para administrador y chofer
+  (mantenimiento no tiene fichaje propio, ver tabla de decisiones).
 - Enlace de navegación **"Fichar"**: `auth()->user()->hasRole('administrador')` en el nav de
   gestión (mismo patrón ya usado para el icono de Soporte) y siempre para el chofer, junto a "Mi
   ruta". **Mantenimiento no ve este enlace.** Gateado además por
   `@if (config('servalillo.attendance.enabled'))`.
 - **`/mantenimiento/fichajes`** (`App\Livewire\Maintenance\Attendance`, permiso
-  `attendance.manage`) — nueva pestaña en `<x-maintenance.tabs>` (una línea más en el array
-  `$tabs`, mismo patrón que "Dispositivos"/"Accesos"): listado de todos los fichajes (buscar por
-  persona, filtrar por mes), con avisos visuales de fichajes **sin salida** (jornada abierta desde
-  hace más de X horas) y **fuera de zona**. Acciones:
+  `attendance.manage` — accesible a administrador **y** mantenimiento, tal y como confirmó el
+  usuario) — nueva pestaña en `<x-maintenance.tabs>` (una línea más en el array `$tabs`, mismo
+  patrón que "Dispositivos"/"Accesos"): listado de todos los fichajes (buscar por persona,
+  filtrar por mes), con avisos visuales de fichajes **sin salida** (jornada abierta desde hace más
+  de X horas) y **fuera de zona**. Acciones:
   - **"Corregir"** sobre una fila existente → modal con `in_at`/`out_at` + `reason` obligatorio →
     `AttendanceService::correct()`.
   - **"Registrar fichaje olvidado"** (día sin ninguna fila) → mismo modal, elige persona + fecha +
@@ -189,9 +224,20 @@ Con `enabled` en `false` (por defecto):
     cuándo, motivo, antes/después) — versión curada, igual criterio que el modal "Ver cambios" del
     Diario de incidencias (Bloque 14). La auditoría técnica completa sigue disponible sin filtrar
     en `/mantenimiento/auditoria` (se añade `'Fichaje' => Attendance::class` a `Audits::MODELS`).
-  - **Exportar CSV** del rango visible (`league/csv`, ya es dependencia del proyecto desde el
-    import de clientes): persona, fecha, hora entrada, hora salida, horas trabajadas, si hubo
-    corrección y por qué.
+  - **"Configurar ubicación de fichaje"** por persona → modal con un selector "En la base" /
+    "En remoto" (`attendance_mode`) y, si es remoto, latitud/longitud/radio (mismos
+    `<x-ui.input>` numéricos ya usados para las coordenadas de un cliente en `/clientes` — sin
+    necesidad de un selector de mapa para la v1, se puede añadir después si hace falta). Esto es
+    el "gestor correspondiente para establecer y modificar" que pidió el usuario.
+  - **Exportar (formato legal)**: XML `RegistroJornada` del rango/persona filtrados — mismo
+    esquema que el proyecto de referencia (empresa con nombre/CIF desde
+    `config('servalillo.company')`, por persona nombre + DNI, por jornada fecha/entrada/salida/
+    tiempo efectivo, y el método de registro — que aquí siempre es "web", al no haber kiosko ni
+    canales externos). Filas sin DNI relleno se exportan igual, con el campo vacío y un aviso en
+    pantalla (no bloquea la exportación de las demás).
+  - **Exportar PDF**: mismo motor que los albaranes (`barryvdh/laravel-dompdf`, fuente Helvetica),
+    tabla apaisada con las mismas columnas que el XML en formato legible — pensado para entregar
+    en mano o adjuntar a una respuesta a la Inspección de Trabajo.
 
 ### Cumplimiento legal (RD-ley 8/2019) — cómo lo cubre este diseño
 
@@ -202,8 +248,15 @@ Con `enabled` en `false` (por defecto):
   estas dos tablas quedan **explícitamente exentas** de cualquier purga automática, presente o
   futura. Si se toca esta zona en el futuro, **no meterlas** en ningún comando genérico de
   limpieza de datos.
-- **Accesible al trabajador**: cada usuario ve su propio histórico en `/fichar`.
-- **Accesible a la Inspección de Trabajo**: exportación CSV desde `/mantenimiento/fichajes`.
+- **Accesible al trabajador, siempre**: cada usuario ve y exporta su propio histórico en
+  `/fichar`, sin ninguna casilla ni permiso que administración pueda usar para quitárselo — el
+  diseño original contemplaba una casilla de activación por persona, pedida explícitamente por el
+  usuario; se descartó al caer en la cuenta de que el RD-ley 8/2019 da al trabajador derecho a
+  acceso a su propio registro, y una función que pudiera dejar a alguien sin ese acceso sería un
+  riesgo de incumplimiento real. Lo único que sí puede hacer administración es **corregir** un
+  fichaje (con motivo, ver el ledger) — nunca ocultárselo al propio trabajador.
+- **Accesible a la Inspección de Trabajo**: exportación en formato legal (XML) y en PDF desde
+  `/mantenimiento/fichajes`.
 - **Trazabilidad de correcciones**: ledger `attendance_corrections` de solo-inserción con motivo
   obligatorio y quién corrigió, más la auditoría técnica automática ya existente en el proyecto
   como segunda capa independiente.
@@ -213,20 +266,28 @@ Con `enabled` en `false` (por defecto):
 **Nuevos**
 - `server/database/migrations/..._create_attendances_table.php`
 - `server/database/migrations/..._create_attendance_corrections_table.php`
-- `server/database/migrations/..._add_attendance_geofence_to_drivers_table.php`
+- `server/database/migrations/..._add_attendance_fields_to_users_table.php` (modo, geovalla
+  propia, DNI)
 - `server/app/Models/Attendance.php`, `server/app/Models/AttendanceCorrection.php`
-- `server/app/Services/AttendanceService.php`
+- `server/app/Services/AttendanceService.php` (fichar/corregir/geovalla)
+- `server/app/Services/AttendanceExportService.php` (genera el XML "formato legal" y los datos
+  para la vista del PDF — servicio aparte del anterior, mismo criterio de "un Service por
+  responsabilidad no trivial" que ya sigue el proyecto)
+- `server/resources/views/pdf/attendance-report.blade.php` (plantilla Dompdf, mismo estilo que
+  `pdf/delivery-note.blade.php` del Bloque 8)
 - `server/app/Policies/AttendancePolicy.php`
 - `server/app/Livewire/Attendance/Index.php` + `resources/views/livewire/attendance/index.blade.php`
 - `server/app/Livewire/Maintenance/Attendance.php` + `resources/views/livewire/maintenance/attendance.blade.php`
 - `server/resources/views/components/attendance/correct-modal.blade.php`,
-  `.../corrections-history-modal.blade.php`
-- `server/tests/Feature/AttendanceTest.php` (fichar entrada/salida, una vez al día, geovalla,
-  mantenimiento sin acceso a fichaje propio), `server/tests/Feature/AttendanceCorrectionTest.php`
-  (motivo obligatorio, ledger, permisos, alta manual de un día sin fichar)
+  `.../location-modal.blade.php`, `.../corrections-history-modal.blade.php`
+- `server/tests/Feature/AttendanceTest.php` (fichar entrada/salida, una vez al día, geovalla por
+  modo base/remoto, mantenimiento sin acceso a fichaje propio), `.../AttendanceCorrectionTest.php`
+  (motivo obligatorio, ledger, permisos, alta manual de un día sin fichar),
+  `.../AttendanceExportTest.php` (XML bien formado con los datos esperados, PDF se genera sin
+  error, cualquier usuario con fichaje propio puede exportarlo sin permiso ni casilla adicional)
 
 **Modificados**
-- `server/config/servalillo.php` — bloque `attendance`.
+- `server/config/servalillo.php` — bloques `attendance` y `company`.
 - `server/database/seeders/RolePermissionSeeder.php` — permiso `attendance.manage`.
 - `server/routes/web.php` — rutas `fichar` y `mantenimiento/fichajes`.
 - `server/resources/views/livewire/layout/navigation.blade.php` — enlace "Fichar" (administrador +
@@ -234,23 +295,27 @@ Con `enabled` en `false` (por defecto):
 - `server/resources/views/components/maintenance/tabs.blade.php` — pestaña nueva.
 - `server/app/Livewire/Maintenance/Audits.php` (donde viva `Audits::MODELS`) — añadir
   `'Fichaje' => Attendance::class`.
-- `server/app/Livewire/Forms/DriverForm.php` + vista de `/chofers` — campos opcionales de geovalla
-  propia (lat/lng/radio), visibles/editables solo por quien tenga `attendance.manage`.
-- `server/.env.example` / `.env.production.example` — documentar `ATTENDANCE_*`.
+- `server/app/Livewire/Forms/UserForm.php`/`DriverForm.php` — campo `dni` (ambos: administrador y
+  chofer pueden fichar y necesitan DNI para la exportación legal).
+- `server/.env.example` / `.env.production.example` — documentar `ATTENDANCE_*` y
+  `COMPANY_NAME`/`COMPANY_TAX_ID`.
 - `CLAUDE.md` — sección nueva (Bloque 18) describiendo el bloque, con énfasis en la exención de
-  purga.
+  purga y en que el acceso del trabajador a su propio registro nunca se puede desactivar.
 
 ## Cómo probar (cuando se implemente)
 
 1. `docker compose exec laravel.test php artisan test --filter=Attendance`, luego la suite
    completa.
 2. Con `ATTENDANCE_ENABLED=true` en local: fichar entrada/salida como chofer y como
-   administrador; intentar fichar la entrada dos veces el mismo día (debe rechazarlo); fichar
-   desde una ubicación lejana a la nave (debe permitirlo pero marcarlo fuera de zona); entrar como
-   mantenimiento y comprobar que **no** ve "Fichar" en el nav ni tiene fichaje propio, pero sí
-   `/mantenimiento/fichajes`; desde ahí, corregir un fichaje sin motivo (debe rechazarlo), con
-   motivo (debe guardar el ledger y verse en "Ver correcciones"), dar de alta un día sin fichar, y
-   exportar CSV.
+   administrador; intentar fichar la entrada dos veces el mismo día (debe rechazarlo); a un
+   chofer en modo "remoto" con su propia ubicación, ficharle desde lejos de esa ubicación (debe
+   permitirlo pero marcarlo fuera de zona); entrar como mantenimiento y comprobar que **no** ve
+   "Fichar" en el nav ni tiene fichaje propio, pero sí `/mantenimiento/fichajes`; desde ahí,
+   corregir un fichaje sin motivo (debe rechazarlo), con motivo (debe guardar el ledger y verse en
+   "Ver correcciones"), dar de alta un día sin fichar, configurar la ubicación remota de un
+   chofer, y exportar en formato legal (XML) y en PDF. Confirmar que cualquier chofer/administrador
+   puede ver y exportar su propio histórico en `/fichar` sin que exista ningún ajuste que pueda
+   quitárselo.
 3. Desplegar con `ATTENDANCE_ENABLED=false` (interruptor apagado) y confirmar que no aparece nada
    en el nav ni las URLs son accesibles — el "queda preparado para activarlo" pedido.
 
@@ -259,9 +324,13 @@ Con `enabled` en `false` (por defecto):
 - Pausas dentro de la jornada (comida, descansos) — descartado a propósito, ver tabla de
   decisiones.
 - Múltiples ciclos de entrada/salida el mismo día — descartado a propósito.
-- Exportación en PDF o en un XML "a medida" para inspección — el proyecto de referencia lo tiene
-  (pensado para su contexto de gestoría multi-empresa); aquí un CSV es suficiente y mucho más
-  simple. Se podría añadir más adelante si hiciera falta.
+- Selector de mapa para fijar la ubicación remota de un chofer — la v1 usa campos de
+  latitud/longitud a mano (igual que ya existe para las coordenadas de un cliente); un selector
+  visual sobre un mapa Leaflet (hay precedente de sobra en el proyecto: "Ver recorrido",
+  "Localizar dispositivo") es una mejora natural si el texto a mano resulta incómodo en la
+  práctica.
 - Notificaciones automáticas de "jornada abierta demasiado tiempo" (el proyecto de referencia las
   tiene vía Telegram/email) — se puede añadir reutilizando el sistema de notificaciones in-app ya
   existente (Bloque 12) si se echa en falta una vez activado.
+- Exportación agregada (nómina mensual, totales por trabajador) más allá del listado
+  entrada/salida/horas por día — valorar si hace falta una vez en uso real.
