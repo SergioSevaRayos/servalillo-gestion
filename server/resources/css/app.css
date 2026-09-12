@@ -260,6 +260,12 @@
         0% { transform: scale(1); opacity: 0.6; }
         80%, 100% { transform: scale(2.4); opacity: 0; }
     }
+
+    /* Fichaje (Bloque 18): asa ámbar que se arrastra en <x-ui.geofence-map> para fijar el radio. */
+    .geofence-map-handle {
+        @apply grid h-4 w-4 place-items-center rounded-full border-2 border-white bg-amber-500;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
 }
 
 /* Visual 3D del depósito (panel /depositos, window.tank3d en app.js): tope de

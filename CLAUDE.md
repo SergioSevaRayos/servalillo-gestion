@@ -1339,6 +1339,77 @@ Backed enums con `->label()` en español; casteados en los modelos.
   tailnet que el NAS, puede activar `SGRA_ENABLED=true` en `server/.env` local para probar contra
   el SGRA real sin tocar producción.
 
+### Sistema de fichaje (Bloque 18, 2026-09-12) — construido, desactivado en producción
+
+- **Diseño completo en `docs/05-fichaje.md`** (léelo antes de tocar esta zona). Analizado y
+  adaptado de un proyecto ya terminado, `/home/sergio/VSC/Fichajes` (Laravel+Inertia, multi-tenant)
+  — se reutilizó el modelo de tramo entrada/salida y el ledger de correcciones de solo-inserción;
+  se dejó fuera pausas, multicanal y el historial laboral SCD-2 (no pedidos).
+- **Ficha el `User`, no el `Driver`**: `administrador` y `chofer` fichan; **`mantenimiento` no**
+  (es el gestor técnico de la plataforma, no personal de la empresa) —
+  `User::canPunchAttendance()`. `attendances` (`user_id`+`date` único, `in_at`/`out_at`
+  nullable, coordenadas y "fuera de zona" por evento, `total_seconds`) +
+  `attendance_corrections` (ledger append-only, `reason` obligatorio, `UPDATED_AT = null`) —
+  mismo patrón que `LoginLog`/`GpsPosition` para lo que no se audita a sí mismo.
+- **Geovalla por usuario**: `users.attendance_mode` (`base`|`remote`) +
+  `attendance_latitude/longitude/radius_meters`. Un chofer que aparca fuera de la nave puede tener
+  su propia zona; por defecto usa `config('servalillo.base')`. Fichar fuera de zona **nunca se
+  bloquea** (bloquear sería peor para el cumplimiento legal que fichar marcado) — solo se marca
+  para que administración lo revise. `AttendanceService::effectiveGeofence()` +
+  `App\Support\Haversine::meters()` (reutilizado, no se repitió la fórmula).
+- **`config('servalillo.attendance.enabled')`** en `false` por defecto — mismo patrón
+  "feature flag, listo pero apagado" que `sgra.enabled`. Cada componente Livewire aborta 404 en
+  `mount()` si está apagado; el nav no muestra ningún enlace.
+- **Acceso del trabajador a su propio registro NUNCA lleva casilla ni permiso** — decisión
+  explícita del usuario tras corregir el plan original: RD-ley 8/2019 da al trabajador derecho a
+  ver/exportar su propia jornada, así que una casilla que administración pudiera usar para
+  quitárselo sería un riesgo de incumplimiento real. `Attendance\Index` (`/fichar`) solo exige
+  `canPunchAttendance()`, sin permiso adicional.
+- **`/fichajes/gestion` (no `/mantenimiento/fichajes`)**: error de diseño real en el plan
+  original, detectado al implementar. `/mantenimiento/*` tiene middleware `role:mantenimiento`
+  **en exclusiva** en `routes/web.php` — un panel que administrador también necesita no puede ir
+  ahí. Se colocó como última ruta dentro del grupo `role:administrador|mantenimiento` ("Gestión"),
+  y `/fichar` fuera de cualquier grupo de rol (solo `auth`), porque administrador y chofer viven en
+  grupos de middleware distintos. **Si se añade en el futuro cualquier otra pantalla que administrador
+  y mantenimiento compartan, va en el grupo "Gestión", nunca bajo `/mantenimiento`.**
+- **Conservación: `attendances`/`attendance_corrections` quedan explícitamente exentas de
+  cualquier purga automática**, presente o futura (a diferencia de `gps_positions`,
+  `login_logs`/`error_logs`, que sí se purgan) — el RD-ley 8/2019 exige ~4 años de conservación.
+  **No metas estas dos tablas en un futuro comando genérico de limpieza de datos.**
+- Exportación: `AttendanceExportService::toLegalXml()` (XML `RegistroJornada`, `SimpleXMLElement`
+  puro, sin dependencia nueva) y `toPdfRows()` + `pdf/attendance-report.blade.php`
+  (`barryvdh/laravel-dompdf`, Helvetica, mismo patrón que `pdf/delivery-note.blade.php`).
+  `config('servalillo.company.{name,tax_id}')` alimenta la cabecera de ambos.
+- `Audits::MODELS` incluye `'Fichaje' => Attendance::class` (auditoría técnica automática,
+  complementaria al ledger de correcciones, que es la versión "para leerse" con el motivo).
+- **Desplegado con `ATTENDANCE_ENABLED=false`**: migraciones sí corren (tablas creadas, vacías);
+  activar en el futuro es cambiar el flag en el `.env` de producción y desplegar, sin migración
+  nueva.
+- **Gestión de fichajes ajenos** (`/fichajes/gestion`): "Corregir" (ajustar horas), "Cerrar
+  ahora"/"Reabrir" (atajos que prefijan la salida a ahora o la vacían, mismo modal y misma
+  validación — no son endpoints aparte) y "Ver ubicación" (mapa de solo lectura con los puntos de
+  entrada/salida sobre la geovalla de la persona, `<x-attendance-location-modal>`). Revisado
+  contra el proyecto de referencia (`/home/sergio/VSC/Fichajes`,
+  `CompanyController::updateAttendance()`): ahí tampoco hay endpoints separados para
+  cerrar/reabrir, es la misma corrección de `in_at`/`out_at`/`reason` — se siguió el mismo
+  criterio en vez de inventar acciones nuevas.
+- **Gotcha real de este bloque (2026-09-12): permisos nuevos en el seeder no llegan solos a una
+  BD de desarrollo ya sembrada.** Añadir `'attendance.manage'`/`'sgra.view'` a
+  `RolePermissionSeeder::PERMISSIONS` no los mete en la BD local hasta volver a ejecutar el
+  seeder — `migrate` sin `--seed` no lo hace, y una sesión ya logueada tampoco se refresca sola.
+  Sin ese paso, los enlaces gateados con `@can(...)` en el nav simplemente no aparecen (parecía un
+  bug del código cuando en realidad el permiso no existía todavía para ese usuario). Cada vez que
+  se añada un permiso nuevo al seeder durante desarrollo local: `docker compose exec laravel.test
+  php artisan db:seed --class=RolePermissionSeeder --force` (idempotente, usa `findOrCreate` +
+  `syncPermissions`, seguro de repetir).
+- **Exportaciones (XML y PDF) incluyen la coordenada del dispositivo** de cada evento (entrada y
+  salida) — la capta el propio navegador al fichar, no se recalcula ni se inventa.
+- **`App\Services\GeocodingService`** (buscador de direcciones sobre `<x-ui.geofence-map>`):
+  único punto que habla con Nominatim (OpenStreetMap), con `User-Agent` identificando la app
+  (exigido por su política de uso) — nunca se llama a esa API directo desde el navegador. Mismo
+  criterio "Service = único punto de contacto externo, nunca lanza al llamador" que
+  `SgraClient`/`RouteOptimizer`.
+
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
 - Regla de negocio: **1 camión = 1 ruta permanente vigente a la vez** (`Route::overlaps()`, sin fechas

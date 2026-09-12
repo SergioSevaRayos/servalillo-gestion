@@ -28,6 +28,7 @@ class RolePermissionSeeder extends Seeder
         'audits.view', 'system_logs.view',
         'support.create', 'support.manage',
         'sgra.view',
+        'attendance.manage',
     ];
 
     public const CHOFER_PERMISSIONS = [

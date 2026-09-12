@@ -33,6 +33,26 @@ test('un chofer no puede acceder al listado de usuarios', function () {
     $this->actingAs(makeUser('chofer'))->get('/usuarios')->assertForbidden();
 });
 
+test('se puede configurar una ubicación remota de fichaje para un administrador', function () {
+    config()->set('servalillo.attendance.enabled', true);
+    $admin = makeUser('administrador');
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('edit', $admin->id)
+        ->set('form.attendance_mode', 'remote')
+        ->set('form.attendance_latitude', '40.4168')
+        ->set('form.attendance_longitude', '-3.7038')
+        ->set('form.attendance_radius_meters', '200')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $admin->refresh();
+    expect($admin->attendance_mode)->toBe('remote');
+    expect((float) $admin->attendance_latitude)->toEqual(40.4168);
+    expect($admin->attendance_radius_meters)->toBe(200);
+});
+
 test('se puede reutilizar el email de una cuenta ya borrada', function () {
     $borrado = User::factory()->create(['email' => 'reciclado@servalillo.test']);
     $borrado->assignRole('administrador');

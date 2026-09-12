@@ -201,8 +201,10 @@ Con `enabled` en `false` (por defecto):
   entrada"/"Fichar salida" (capta `navigator.geolocation.getCurrentPosition`, mismo patrón que
   `Chofer\Today::captureStopCoordinates`/`tracker-test.blade.php` — sin coordenadas, ficha
   igualmente, nunca bloquea por un problema técnico de ubicación), una tabla con el histórico
-  propio (últimos 30 días, `<x-ui.table>`, `.surface`, nunca `.glass`) y un botón "Exportar mis
-  horas" (mismo PDF que el de administración, acotado a su propio usuario). **Todo esto, sin
+  propio (últimos 30 días, `<x-ui.table>`, `.surface`, nunca `.glass`) y dos botones de exportación
+  de su historial completo: **"Exportar (formato legal)"** (XML) y **"Exportar (PDF)"** — mismos
+  `AttendanceExportService`/`pdf/attendance-report.blade.php` que usa administración, acotados al
+  propio usuario. **Todo esto, sin
   ninguna casilla que lo condicione** — administración no puede quitarle a nadie el acceso a su
   propio registro (ver "Cumplimiento legal"). Visible solo para administrador y chofer
   (mantenimiento no tiene fichaje propio, ver tabla de decisiones).
@@ -210,34 +212,82 @@ Con `enabled` en `false` (por defecto):
   gestión (mismo patrón ya usado para el icono de Soporte) y siempre para el chofer, junto a "Mi
   ruta". **Mantenimiento no ve este enlace.** Gateado además por
   `@if (config('servalillo.attendance.enabled'))`.
-- **`/mantenimiento/fichajes`** (`App\Livewire\Maintenance\Attendance`, permiso
+- **`/fichajes/gestion`** (`App\Livewire\Attendance\Manage`, ruta `attendance.manage`, permiso
   `attendance.manage` — accesible a administrador **y** mantenimiento, tal y como confirmó el
-  usuario) — nueva pestaña en `<x-maintenance.tabs>` (una línea más en el array `$tabs`, mismo
-  patrón que "Dispositivos"/"Accesos"): listado de todos los fichajes (buscar por persona,
-  filtrar por mes), con avisos visuales de fichajes **sin salida** (jornada abierta desde hace más
-  de X horas) y **fuera de zona**. Acciones:
+  usuario). **Corrección sobre el diseño original de este documento**: NO vive bajo
+  `/mantenimiento/...` — ese prefijo de rutas (`routes/web.php`) tiene middleware
+  `role:mantenimiento` en exclusiva, y este panel lo usa también administrador. Se detectó al
+  implementar y se colocó, en su lugar, como la última ruta dentro del grupo existente
+  `role:administrador|mantenimiento` ("Gestión"), junto a `/soporte`, `/depositos`, etc. — mismo
+  criterio que ya usan esas rutas. Listado de todos los fichajes (buscar por persona, filtrar por
+  mes), con avisos visuales de fichajes **sin salida** (jornada abierta) y **fuera de zona**.
+  Acciones:
   - **"Corregir"** sobre una fila existente → modal con `in_at`/`out_at` + `reason` obligatorio →
-    `AttendanceService::correct()`.
-  - **"Registrar fichaje olvidado"** (día sin ninguna fila) → mismo modal, elige persona + fecha +
-    horas + `reason` → `AttendanceService::createManual()`.
+    `AttendanceService::correct()`. Cubre **cerrar una jornada abierta** (rellenar `out_at`),
+    **reabrir una cerrada** (vaciar `out_at`) y **ajustar cualquier hora real** — las tres son la
+    misma operación de fondo (mismo criterio que `CompanyController::updateAttendance()` del
+    proyecto de referencia, que tampoco distingue "cerrar"/"reabrir" de "corregir": es un único
+    endpoint que valida `in_at`/`out_at`/`reason`).
+  - **"Cerrar ahora"** (solo en filas con jornada abierta) y **"Reabrir"** (solo en filas
+    cerradas): atajos que abren el mismo modal de "Corregir" con la salida ya prefijada a ahora
+    mismo o vacía respectivamente (`Manage::openCloseNow()`/`openReopen()`) — el motivo sigue
+    siendo obligatorio, no se saltan la validación, solo evitan escribir la hora a mano en el caso
+    más común.
+  - **"Ver ubicación"** (solo en filas con coordenadas) → mapa de solo lectura
+    (`<x-attendance-location-modal>`, `Alpine.data('attendanceLocationMap')`) con el punto de
+    entrada (verde) y de salida (morado) sobre un círculo discontinuo que representa la geovalla
+    de esa persona en ese momento — responde directamente al "controlar... desde dónde han
+    fichado" que pidió el usuario, no solo el badge "fuera de zona" que ya había.
   - **"Ver correcciones"** por fila → modal de solo lectura con el ledger de esa fila (quién,
     cuándo, motivo, antes/después) — versión curada, igual criterio que el modal "Ver cambios" del
     Diario de incidencias (Bloque 14). La auditoría técnica completa sigue disponible sin filtrar
     en `/mantenimiento/auditoria` (se añade `'Fichaje' => Attendance::class` a `Audits::MODELS`).
-  - **"Configurar ubicación de fichaje"** por persona → modal con un selector "En la base" /
-    "En remoto" (`attendance_mode`) y, si es remoto, latitud/longitud/radio (mismos
-    `<x-ui.input>` numéricos ya usados para las coordenadas de un cliente en `/clientes` — sin
-    necesidad de un selector de mapa para la v1, se puede añadir después si hace falta). Esto es
-    el "gestor correspondiente para establecer y modificar" que pidió el usuario.
+  - **Tabla de solo lectura "Dónde puede fichar cada persona"** (modo + radio de cada uno), con un
+    enlace a "Chofers"/"Usuarios" para quien quiera cambiarlo. **Corrección sobre el diseño
+    original**: el primer diseño ponía aquí mismo un modal "Configurar ubicación de fichaje"; el
+    usuario pidió mover esa edición al gestor de cada persona en vez de duplicarla en un tercer
+    sitio — ver el punto siguiente.
+  - **La geovalla (`attendance_mode`/latitud/longitud/radio) se edita desde la ficha de la propia
+    persona**, no desde este panel: en `/usuarios` (`UserForm`, solo visible si el rol elegido es
+    `administrador` — mantenimiento no ficha) y en `/chofers` (`DriverForm`, siempre visible, un
+    chofer siempre ficha). Esto es el "gestor correspondiente para establecer y modificar" que
+    pidió el usuario, entendido como "el propio gestor de la persona", no un panel aparte.
+  - **Mapa interactivo Y dígitos a la vez** (`<x-ui.geofence-map>`, pedido explícito del usuario):
+    Leaflet con dos chinchetas arrastrables — el centro (pin verde) fija latitud/longitud, y un
+    asa ámbar que se mantiene siempre al este del centro a la distancia = radio, así que
+    arrastrarla hacia fuera/dentro cambia el radio (nunca el ángulo). También se puede tocar el
+    mapa para mover el centro directamente, **o escribir latitud/longitud/radio a mano en tres
+    campos junto al mapa** — ambas vías comparten el mismo estado reactivo de Alpine
+    (`Alpine.data('geofenceMap')`, `app.js`), así que escribir un número mueve el pin/círculo al
+    instante y arrastrar actualiza los campos: ninguna sustituye a la otra. Escribe con
+    `$wire.set(path, valor)` en las tres rutas del `Form` object
+    (`form.attendance_latitude/longitude/radius_meters`) al soltar el arrastre o al confirmar un
+    campo (nunca en cada frame de arrastre), y confirma un punto/radio inicial (la base, o los ya
+    guardados) nada más construir el mapa — si no, cambiar a "remoto" y guardar sin tocar el mapa
+    dejaría los campos vacíos pese a que el mapa ya muestra un pin. Mismos tiles REST de ArcGIS que
+    "Ver recorrido"/"Localizar" (Bloque 13/10), sin API key.
+  - **Buscador de direcciones sobre el mapa** (pedido explícito del usuario, "para que sea más
+    rápido"): campo de texto + botón "Buscar" encima del mapa; los resultados se eligen de una
+    lista y recentran el pin (mismo `_moveCenter()` que arrastrar o tocar el mapa, así que también
+    confirma el punto en Livewire). `App\Services\GeocodingService` es el único punto que habla
+    con la API de búsqueda de **Nominatim** (OpenStreetMap) — nunca se llama directo desde el
+    navegador: su política de uso exige un `User-Agent` que identifique la aplicación (un
+    `fetch()` del navegador no puede fijarlo de forma fiable), así que `Users\Index`/
+    `Drivers\Index::searchAddress()` hacen de proxy, mismo criterio que `SgraClient`/
+    `RouteOptimizer` hablando con sus APIs externas. Cualquier fallo de red devuelve una lista
+    vacía (comodidad, no punto crítico: el pin se sigue pudiendo fijar a mano o arrastrando).
   - **Exportar (formato legal)**: XML `RegistroJornada` del rango/persona filtrados — mismo
     esquema que el proyecto de referencia (empresa con nombre/CIF desde
-    `config('servalillo.company')`, por persona nombre + DNI, por jornada fecha/entrada/salida/
-    tiempo efectivo, y el método de registro — que aquí siempre es "web", al no haber kiosko ni
-    canales externos). Filas sin DNI relleno se exportan igual, con el campo vacío y un aviso en
-    pantalla (no bloquea la exportación de las demás).
+    `config('servalillo.company')`, por persona nombre + DNI, por jornada fecha/entrada/salida +
+    **latitud/longitud de cada evento** (`EntradaLatitud`/`EntradaLongitud`/`SalidaLatitud`/
+    `SalidaLongitud`, vacías si el fichaje no tiene coordenadas — las capta el propio dispositivo
+    al fichar, no se inventan), tiempo efectivo, y el método de registro — que aquí siempre es
+    "web", al no haber kiosko ni canales externos. Filas sin DNI relleno se exportan igual, con el
+    campo vacío y un aviso en pantalla (no bloquea la exportación de las demás).
   - **Exportar PDF**: mismo motor que los albaranes (`barryvdh/laravel-dompdf`, fuente Helvetica),
-    tabla apaisada con las mismas columnas que el XML en formato legible — pensado para entregar
-    en mano o adjuntar a una respuesta a la Inspección de Trabajo.
+    tabla apaisada con las mismas columnas que el XML en formato legible (incluidas "Coord.
+    entrada"/"Coord. salida", `lat, lng` a 6 decimales o "—") — pensado para entregar en mano o
+    adjuntar a una respuesta a la Inspección de Trabajo.
 
 ### Cumplimiento legal (RD-ley 8/2019) — cómo lo cubre este diseño
 
@@ -256,7 +306,7 @@ Con `enabled` en `false` (por defecto):
   riesgo de incumplimiento real. Lo único que sí puede hacer administración es **corregir** un
   fichaje (con motivo, ver el ledger) — nunca ocultárselo al propio trabajador.
 - **Accesible a la Inspección de Trabajo**: exportación en formato legal (XML) y en PDF desde
-  `/mantenimiento/fichajes`.
+  `/fichajes/gestion`.
 - **Trazabilidad de correcciones**: ledger `attendance_corrections` de solo-inserción con motivo
   obligatorio y quién corrigió, más la auditoría técnica automática ya existente en el proyecto
   como segunda capa independiente.
@@ -271,15 +321,23 @@ Con `enabled` en `false` (por defecto):
 - `server/app/Models/Attendance.php`, `server/app/Models/AttendanceCorrection.php`
 - `server/app/Services/AttendanceService.php` (fichar/corregir/geovalla)
 - `server/app/Services/AttendanceExportService.php` (genera el XML "formato legal" y los datos
-  para la vista del PDF — servicio aparte del anterior, mismo criterio de "un Service por
-  responsabilidad no trivial" que ya sigue el proyecto)
+  para la vista del PDF, incluidas las coordenadas del dispositivo — servicio aparte del
+  anterior, mismo criterio de "un Service por responsabilidad no trivial" que ya sigue el
+  proyecto)
+- `server/app/Services/GeocodingService.php` (proxy a Nominatim para el buscador de direcciones
+  del mapa de geovalla)
+- `server/resources/views/components/ui/geofence-map.blade.php` +
+  `Alpine.data('geofenceMap')` (`app.js`) — mapa Leaflet interactivo de la geovalla
+- `server/resources/views/components/attendance-location-modal.blade.php` +
+  `Alpine.data('attendanceLocationMap')` (`app.js`) — mapa de solo lectura de "Ver ubicación"
 - `server/resources/views/pdf/attendance-report.blade.php` (plantilla Dompdf, mismo estilo que
   `pdf/delivery-note.blade.php` del Bloque 8)
 - `server/app/Policies/AttendancePolicy.php`
 - `server/app/Livewire/Attendance/Index.php` + `resources/views/livewire/attendance/index.blade.php`
-- `server/app/Livewire/Maintenance/Attendance.php` + `resources/views/livewire/maintenance/attendance.blade.php`
-- `server/resources/views/components/attendance/correct-modal.blade.php`,
-  `.../location-modal.blade.php`, `.../corrections-history-modal.blade.php`
+- `server/app/Livewire/Attendance/Manage.php` + `resources/views/livewire/attendance/manage.blade.php`
+  (los modales de corregir/crear/ubicación/ver-correcciones van inline en esta misma vista, no como
+  componentes `<x-attendance.*>` aparte — no había ganancia real de reutilización con solo un
+  consumidor cada uno)
 - `server/tests/Feature/AttendanceTest.php` (fichar entrada/salida, una vez al día, geovalla por
   modo base/remoto, mantenimiento sin acceso a fichaje propio), `.../AttendanceCorrectionTest.php`
   (motivo obligatorio, ledger, permisos, alta manual de un día sin fichar),
@@ -289,14 +347,16 @@ Con `enabled` en `false` (por defecto):
 **Modificados**
 - `server/config/servalillo.php` — bloques `attendance` y `company`.
 - `server/database/seeders/RolePermissionSeeder.php` — permiso `attendance.manage`.
-- `server/routes/web.php` — rutas `fichar` y `mantenimiento/fichajes`.
+- `server/routes/web.php` — ruta `fichar` (fuera de cualquier grupo de rol, solo `auth`) y
+  `fichajes/gestion` (dentro del grupo `role:administrador|mantenimiento`, ver corrección arriba).
 - `server/resources/views/livewire/layout/navigation.blade.php` — enlace "Fichar" (administrador +
-  chofer, escritorio + móvil).
-- `server/resources/views/components/maintenance/tabs.blade.php` — pestaña nueva.
+  chofer, escritorio + móvil) y enlace "Fichajes" (gestión, `@can('attendance.manage')`).
 - `server/app/Livewire/Maintenance/Audits.php` (donde viva `Audits::MODELS`) — añadir
   `'Fichaje' => Attendance::class`.
 - `server/app/Livewire/Forms/UserForm.php`/`DriverForm.php` — campo `dni` (ambos: administrador y
-  chofer pueden fichar y necesitan DNI para la exportación legal).
+  chofer pueden fichar y necesitan DNI para la exportación legal) y los campos de geovalla propia
+  (`attendance_mode`/latitud/longitud/radio) — en `UserForm` solo relevantes/visibles si el rol es
+  `administrador`; en `DriverForm` siempre, porque el chofer siempre ficha.
 - `server/.env.example` / `.env.production.example` — documentar `ATTENDANCE_*` y
   `COMPANY_NAME`/`COMPANY_TAX_ID`.
 - `CLAUDE.md` — sección nueva (Bloque 18) describiendo el bloque, con énfasis en la exención de
@@ -310,7 +370,7 @@ Con `enabled` en `false` (por defecto):
    administrador; intentar fichar la entrada dos veces el mismo día (debe rechazarlo); a un
    chofer en modo "remoto" con su propia ubicación, ficharle desde lejos de esa ubicación (debe
    permitirlo pero marcarlo fuera de zona); entrar como mantenimiento y comprobar que **no** ve
-   "Fichar" en el nav ni tiene fichaje propio, pero sí `/mantenimiento/fichajes`; desde ahí,
+   "Fichar" en el nav ni tiene fichaje propio, pero sí `/fichajes/gestion`; desde ahí,
    corregir un fichaje sin motivo (debe rechazarlo), con motivo (debe guardar el ledger y verse en
    "Ver correcciones"), dar de alta un día sin fichar, configurar la ubicación remota de un
    chofer, y exportar en formato legal (XML) y en PDF. Confirmar que cualquier chofer/administrador

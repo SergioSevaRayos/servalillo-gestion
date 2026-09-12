@@ -25,11 +25,13 @@ new class extends Component
              su hueco. La lista de enlaces hace scroll horizontal propio en vez de encogerse (mismo
              criterio que el resto de la app: nunca recortar contenido, dejarlo desplazable). --}}
         <div class="flex min-w-0 flex-1 items-center gap-8">
-            <a href="{{ route('home') }}" wire:navigate class="flex shrink-0 items-center gap-2 text-primary-700 dark:text-primary-300">
+            {{-- El nombre "Gestión Servalillo" se quitó de aquí (2026-09-12): con "Fichar"/
+                 "Fichajes" sumados a la nav, ese texto era lo que forzaba el scroll horizontal de
+                 la lista de enlaces en escritorio — quitarlo (y dejar solo el icono) es lo que de
+                 verdad libera sitio, no maquillarlo. `title` en el `<a>` mantiene el nombre
+                 accesible al pasar el ratón. --}}
+            <a href="{{ route('home') }}" wire:navigate title="{{ config('app.name') }}" class="flex shrink-0 items-center text-primary-700 dark:text-primary-300">
                 <x-application-logo class="h-7 w-7" />
-                <span class="hidden font-semibold tracking-tight text-slate-800 dark:text-slate-100 sm:inline">
-                    {{ config('app.name') }}
-                </span>
             </a>
 
             <div class="themed-scrollbar hidden min-w-0 items-center gap-1 overflow-x-auto md:flex">
@@ -68,6 +70,13 @@ new class extends Component
                                 {{ __('Depósitos') }}
                             </x-nav-link>
                         @endcan
+                        @if (config('servalillo.attendance.enabled'))
+                            @can('attendance.manage')
+                                <x-nav-link :href="route('attendance.manage')" :active="request()->routeIs('attendance.manage')" wire:navigate>
+                                    {{ __('Fichajes') }}
+                                </x-nav-link>
+                            @endcan
+                        @endif
                         @can('viewAny', \App\Models\User::class)
                             <x-nav-link :href="route('users.index')" :active="request()->routeIs('users.index')" wire:navigate>
                                 {{ __('Usuarios') }}
@@ -78,10 +87,20 @@ new class extends Component
                                 {{ __('Mantenimiento') }}
                             </x-nav-link>
                         @endif
+                        @if (config('servalillo.attendance.enabled') && auth()->user()->hasRole('administrador'))
+                            <x-nav-link :href="route('attendance.index')" :active="request()->routeIs('attendance.index')" wire:navigate>
+                                {{ __('Fichar') }}
+                            </x-nav-link>
+                        @endif
                     @else
                         <x-nav-link :href="route('chofer.today')" :active="request()->routeIs('chofer.*')" wire:navigate>
                             {{ __('Mi ruta') }}
                         </x-nav-link>
+                        @if (config('servalillo.attendance.enabled'))
+                            <x-nav-link :href="route('attendance.index')" :active="request()->routeIs('attendance.index')" wire:navigate>
+                                {{ __('Fichar') }}
+                            </x-nav-link>
+                        @endif
                     @endif
                 @endauth
             </div>
@@ -180,6 +199,13 @@ new class extends Component
                         {{ __('Depósitos') }}
                     </x-responsive-nav-link>
                 @endcan
+                @if (config('servalillo.attendance.enabled'))
+                    @can('attendance.manage')
+                        <x-responsive-nav-link :href="route('attendance.manage')" :active="request()->routeIs('attendance.manage')" wire:navigate>
+                            {{ __('Fichajes') }}
+                        </x-responsive-nav-link>
+                    @endcan
+                @endif
                 @can('viewAny', \App\Models\User::class)
                     <x-responsive-nav-link :href="route('users.index')" :active="request()->routeIs('users.index')" wire:navigate>
                         {{ __('Usuarios') }}
@@ -195,6 +221,11 @@ new class extends Component
                         {{ __('Soporte / incidencias') }}
                     </x-responsive-nav-link>
                 @endif
+                @if (config('servalillo.attendance.enabled') && auth()->user()->hasRole('administrador'))
+                    <x-responsive-nav-link :href="route('attendance.index')" :active="request()->routeIs('attendance.index')" wire:navigate>
+                        {{ __('Fichar') }}
+                    </x-responsive-nav-link>
+                @endif
                 <x-responsive-nav-link :href="route('style-guide')" :active="request()->routeIs('style-guide')" wire:navigate>
                     {{ __('Guía de estilo') }}
                 </x-responsive-nav-link>
@@ -202,6 +233,11 @@ new class extends Component
                 <x-responsive-nav-link :href="route('chofer.today')" :active="request()->routeIs('chofer.*')" wire:navigate>
                     {{ __('Mi ruta') }}
                 </x-responsive-nav-link>
+                @if (config('servalillo.attendance.enabled'))
+                    <x-responsive-nav-link :href="route('attendance.index')" :active="request()->routeIs('attendance.index')" wire:navigate>
+                        {{ __('Fichar') }}
+                    </x-responsive-nav-link>
+                @endif
             @endif
 
             <x-responsive-nav-link :href="route('profile')" wire:navigate>{{ __('Mi perfil') }}</x-responsive-nav-link>

@@ -799,6 +799,303 @@ document.addEventListener('alpine:init', () => {
     }));
 
     /*
+    | Geovalla de fichaje (Bloque 18): mapa Leaflet interactivo embebido en el formulario de
+    | usuario/chofer (livewire/users|drivers/index.blade.php, <x-ui.geofence-map>) para fijar
+    | dónde puede fichar una persona sin escribir coordenadas a mano. Dos chinchetas
+    | arrastrables: el centro (pin verde) y un "asa" de radio (punto ámbar) que siempre se
+    | mantiene al este del centro, a la distancia = radio — arrastrarla hacia fuera/dentro
+    | cambia el radio, nunca el ángulo (más simple de manejar que dejarla libre por el borde).
+    | Solo escribe en Livewire (`$wire.set`) al soltar el arrastre o al hacer clic en el mapa,
+    | nunca en cada frame de `drag` (evitaría una petición por cada píxel movido).
+    */
+    Alpine.data('geofenceMap', ({ lat, lng, radius, latPath, lngPath, radiusPath, searchMethod }) => ({
+        map: null,
+        centerMarker: null,
+        handleMarker: null,
+        circle: null,
+        lat,
+        lng,
+        radius,
+        query: '',
+        results: [],
+        searching: false,
+        searched: false,
+
+        init() {
+            this._whenVisible(() => this._build());
+        },
+
+        // Nominatim solo llega desde el backend (Users\Index/Drivers\Index::searchAddress(),
+        // que hace de proxy con el User-Agent que exige su política de uso) — nunca fetch()
+        // directo desde aquí.
+        async search() {
+            const q = this.query.trim();
+            if (! q) {
+                this.results = [];
+                this.searched = false;
+
+                return;
+            }
+
+            this.searching = true;
+            try {
+                this.results = await this.$wire.call(searchMethod, q);
+            } catch {
+                this.results = [];
+            } finally {
+                this.searching = false;
+                this.searched = true;
+            }
+        },
+
+        selectResult(result) {
+            this.results = [];
+            this.query = result.label;
+            this._moveCenter({ lat: result.lat, lng: result.lng }, true);
+            this.map.setView([result.lat, result.lng], 16);
+        },
+
+        _whenVisible(cb, tries = 90) {
+            const el = this.$refs.map;
+            if (el && el.offsetParent !== null && el.clientWidth > 0) return cb();
+            if (tries <= 0) return;
+            requestAnimationFrame(() => this._whenVisible(cb, tries - 1));
+        },
+
+        _build() {
+            this.map = L.map(this.$refs.map, { scrollWheelZoom: true });
+            this.map.attributionControl.setPrefix(false);
+            // Mismos tiles REST de ArcGIS que routeMap/deviceMap — ver el comentario largo de
+            // ese componente (o CLAUDE.md, "Ver recorrido") sobre por qué no OSM ni CARTO.
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                attribution: 'Tiles &copy; Esri',
+            }).addTo(this.map);
+
+            this.circle = L.circle([this.lat, this.lng], {
+                radius: this.radius,
+                color: '#0d9488',
+                weight: 1.5,
+                fillColor: '#0d9488',
+                fillOpacity: 0.12,
+            }).addTo(this.map);
+
+            this.centerMarker = L.marker([this.lat, this.lng], {
+                draggable: true,
+                icon: L.divIcon({
+                    className: '',
+                    html: '<span class="route-map-pin" style="background:#0d9488">•</span>',
+                    iconSize: [26, 26],
+                    iconAnchor: [13, 13],
+                }),
+            }).addTo(this.map);
+
+            const handlePos = this._destinationPoint(this.lat, this.lng, this.radius, 90);
+            this.handleMarker = L.marker(handlePos, {
+                draggable: true,
+                icon: L.divIcon({
+                    className: '',
+                    html: '<span class="geofence-map-handle"></span>',
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8],
+                }),
+            }).addTo(this.map);
+
+            this.centerMarker.on('drag', (e) => this._moveCenter(e.target.getLatLng(), false));
+            this.centerMarker.on('dragend', (e) => this._moveCenter(e.target.getLatLng(), true));
+            this.handleMarker.on('drag', (e) => this._moveHandle(e.target.getLatLng(), false));
+            this.handleMarker.on('dragend', (e) => this._moveHandle(e.target.getLatLng(), true));
+            this.map.on('click', (e) => this._moveCenter(e.latlng, true));
+
+            this.map.setView([this.lat, this.lng], 15);
+            requestAnimationFrame(() => this.map.invalidateSize());
+
+            // Confirma el punto/radio iniciales (base o los ya guardados) nada más construir el
+            // mapa: sin esto, si el usuario cambia a "remoto" y guarda sin tocar el mapa, el campo
+            // seguiría vacío en el formulario aunque el mapa ya mostrara un pin — validación
+            // "obligatorio" fallaría pese a que visualmente ya hay un punto fijado.
+            this.$wire.set(latPath, Number(this.lat.toFixed(7)));
+            this.$wire.set(lngPath, Number(this.lng.toFixed(7)));
+            this.$wire.set(radiusPath, this.radius);
+        },
+
+        _moveCenter(latlng, commit) {
+            this.lat = latlng.lat;
+            this.lng = latlng.lng;
+            this.centerMarker.setLatLng(latlng);
+            this.circle.setLatLng(latlng);
+            this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
+
+            if (commit) {
+                this.$wire.set(latPath, Number(this.lat.toFixed(7)));
+                this.$wire.set(lngPath, Number(this.lng.toFixed(7)));
+            }
+        },
+
+        _moveHandle(latlng, commit) {
+            this.radius = Math.max(10, Math.round(this._haversineMeters(this.lat, this.lng, latlng.lat, latlng.lng)));
+            this.circle.setRadius(this.radius);
+            // Encaja el asa exactamente al este del centro a la distancia calculada — arrastrarla
+            // en cualquier dirección solo cambia el radio, nunca el ángulo, así siempre se ve sobre
+            // el borde real del círculo en vez de "flotando" donde soltó el usuario.
+            this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
+
+            if (commit) {
+                this.$wire.set(radiusPath, this.radius);
+            }
+        },
+
+        applyRadiusInput() {
+            if (! this.map) return;
+            this.radius = Math.max(10, Math.round(this.radius || 10));
+            this.circle.setRadius(this.radius);
+            this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
+            this.$wire.set(radiusPath, this.radius);
+        },
+
+        // Escribir la latitud/longitud a mano mueve el pin/círculo igual que arrastrarlos — el
+        // usuario pidió explícitamente que dígitos y mapa "trabajen en conjunto", no que uno
+        // sustituya al otro.
+        applyLatLngInput() {
+            if (! this.map) return;
+            if (typeof this.lat !== 'number' || Number.isNaN(this.lat)) this.lat = 0;
+            if (typeof this.lng !== 'number' || Number.isNaN(this.lng)) this.lng = 0;
+            this.lat = Math.max(-90, Math.min(90, this.lat));
+            this.lng = Math.max(-180, Math.min(180, this.lng));
+
+            const pos = [this.lat, this.lng];
+            this.centerMarker.setLatLng(pos);
+            this.circle.setLatLng(pos);
+            this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
+            this.map.panTo(pos);
+
+            this.$wire.set(latPath, Number(this.lat.toFixed(7)));
+            this.$wire.set(lngPath, Number(this.lng.toFixed(7)));
+        },
+
+        /** Punto destino a `distance` metros y `bearingDeg` grados desde (lat, lng) — fórmula esférica estándar. */
+        _destinationPoint(lat, lng, distance, bearingDeg) {
+            const R = 6371000;
+            const delta = distance / R;
+            const theta = (bearingDeg * Math.PI) / 180;
+            const phi1 = (lat * Math.PI) / 180;
+            const lambda1 = (lng * Math.PI) / 180;
+            const phi2 = Math.asin(Math.sin(phi1) * Math.cos(delta) + Math.cos(phi1) * Math.sin(delta) * Math.cos(theta));
+            const lambda2 = lambda1 + Math.atan2(
+                Math.sin(theta) * Math.sin(delta) * Math.cos(phi1),
+                Math.cos(delta) - Math.sin(phi1) * Math.sin(phi2),
+            );
+
+            return [(phi2 * 180) / Math.PI, (lambda2 * 180) / Math.PI];
+        },
+
+        /** Distancia en metros entre dos puntos (Haversine) — mismo criterio que App\Support\Haversine::meters(). */
+        _haversineMeters(lat1, lng1, lat2, lng2) {
+            const R = 6371000;
+            const phi1 = (lat1 * Math.PI) / 180;
+            const phi2 = (lat2 * Math.PI) / 180;
+            const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+            const dLambda = ((lng2 - lng1) * Math.PI) / 180;
+            const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        },
+
+        destroy() {
+            this.map?.remove();
+            this.map = null;
+        },
+    }));
+
+    /*
+    | Fichaje (Bloque 18) — "desde dónde han fichado": mapa de SOLO LECTURA (nada arrastrable,
+    | a diferencia de geofenceMap) con los puntos de entrada/salida de un fichaje concreto y la
+    | geovalla de esa persona de fondo, para que administración vea de un vistazo si el punto
+    | cae dentro o fuera. `App\Livewire\Attendance\Manage::viewLocation()` emite
+    | `open-attendance-location` con { person, date, geofence:{lat,lng,radius}, in, out }
+    | (`in`/`out` son `{lat,lng,label,outOfBounds}` o `null` si ese evento no tiene coordenadas).
+    */
+    Alpine.data('attendanceLocationMap', () => ({
+        map: null,
+        layer: null,
+        title: '',
+        subtitle: '',
+        empty: false,
+
+        open(payload) {
+            this.$dispatch('open-modal', 'attendance-location-view');
+            this._whenVisible(() => this.render(payload || {}));
+        },
+
+        _whenVisible(cb, tries = 90) {
+            const el = this.$refs.map;
+            if (el && el.offsetParent !== null && el.clientWidth > 0) return cb();
+            if (tries <= 0) return;
+            requestAnimationFrame(() => this._whenVisible(cb, tries - 1));
+        },
+
+        render(payload) {
+            this.title = payload.person || '';
+            this.subtitle = payload.date || '';
+            this.empty = ! payload.in && ! payload.out;
+
+            if (! this.map) {
+                this.map = L.map(this.$refs.map, { scrollWheelZoom: true });
+                this.map.attributionControl.setPrefix(false);
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 19,
+                    attribution: 'Tiles &copy; Esri',
+                }).addTo(this.map);
+                this.layer = L.layerGroup().addTo(this.map);
+            }
+
+            this.layer.clearLayers();
+            const bounds = [];
+
+            if (payload.geofence) {
+                const g = payload.geofence;
+                L.circle([g.lat, g.lng], {
+                    radius: g.radius,
+                    color: '#64748b',
+                    weight: 1,
+                    dashArray: '4 4',
+                    fillColor: '#64748b',
+                    fillOpacity: 0.05,
+                }).addTo(this.layer);
+                bounds.push([g.lat, g.lng]);
+            }
+
+            const pin = (point, color) => {
+                if (! point) return;
+                L.marker([point.lat, point.lng], {
+                    icon: L.divIcon({
+                        className: '',
+                        html: `<span class="route-map-pin" style="background:${color}">•</span>`,
+                        iconSize: [26, 26],
+                        iconAnchor: [13, 13],
+                    }),
+                }).bindTooltip(point.label + (point.outOfBounds ? ' · fuera de zona' : ''), { permanent: false }).addTo(this.layer);
+                bounds.push([point.lat, point.lng]);
+            };
+
+            pin(payload.in, '#0d9488');
+            pin(payload.out, '#7c3aed');
+
+            this.map.invalidateSize();
+            if (bounds.length > 1) {
+                this.map.fitBounds(bounds, { padding: [30, 30] });
+            } else if (bounds.length === 1) {
+                this.map.setView(bounds[0], 16);
+            }
+        },
+
+        destroy() {
+            this.map?.remove();
+            this.map = null;
+        },
+    }));
+
+    /*
     | Resumen para copiar y mandar por WhatsApp al registrar un pre-cliente (pendiente de
     | valoración). El componente Livewire (Clients\Index) emite `open-prospect-summary` con
     | { text }.

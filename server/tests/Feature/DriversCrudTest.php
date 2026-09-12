@@ -34,6 +34,26 @@ test('el email de chofer debe ser único', function () {
         ->assertHasErrors(['form.email']);
 });
 
+test('se puede configurar una ubicación remota de fichaje para un chofer', function () {
+    config()->set('servalillo.attendance.enabled', true);
+    $driver = Driver::factory()->for(User::factory(), 'user')->create();
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('edit', $driver)
+        ->set('form.attendance_mode', 'remote')
+        ->set('form.attendance_latitude', '40.4168')
+        ->set('form.attendance_longitude', '-3.7038')
+        ->set('form.attendance_radius_meters', '200')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $driver->user->refresh();
+    expect($driver->user->attendance_mode)->toBe('remote');
+    expect((float) $driver->user->attendance_latitude)->toEqual(40.4168);
+    expect($driver->user->attendance_radius_meters)->toBe(200);
+});
+
 test('editar un chofer sin contraseña no la modifica', function () {
     $driver = Driver::factory()->for(User::factory(), 'user')->create();
     $originalHash = $driver->user->password;

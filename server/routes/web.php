@@ -3,6 +3,8 @@
 use App\Http\Controllers\DeliveryNoteController;
 use App\Http\Controllers\RouteTerminalController;
 use App\Http\Controllers\ThemeController;
+use App\Livewire\Attendance\Index as AttendanceIndex;
+use App\Livewire\Attendance\Manage as AttendanceManage;
 use App\Livewire\Chofer\Today;
 use App\Livewire\Clients\Index as ClientsIndex;
 use App\Livewire\Clients\Show as ClientsShow;
@@ -50,6 +52,15 @@ Route::post('theme', [ThemeController::class, 'update'])->name('theme.update');
 Route::get('terminal/vincular/{token}', [RouteTerminalController::class, 'pair'])->name('terminal.pair');
 
 /*
+| Fichaje personal (Bloque 18): lo usan administrador y chofer, dos grupos de roles con
+| middleware distinto (gestión vs. chofer) — en vez de duplicar la ruta en los dos grupos,
+| va sola, detrás de "auth", y el propio componente aborta 403 si el rol no puede fichar
+| (mantenimiento) o 404 si el bloque está desactivado (ver App\Models\User::canPunchAttendance()
+| y config('servalillo.attendance.enabled')).
+*/
+Route::get('fichar', AttendanceIndex::class)->middleware('auth')->name('attendance.index');
+
+/*
 | Redirección post-login según el rol.
 */
 Route::get('home', function () {
@@ -93,6 +104,10 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
 
     // Canal de soporte: el administrador abre incidencias hacia mantenimiento (Bloque 12).
     Route::get('soporte', SupportIndex::class)->middleware('permission:support.create')->name('support.index');
+
+    // Gestión de fichajes (Bloque 18): va aquí, NO bajo /mantenimiento, porque ese prefijo es
+    // exclusivo del rol mantenimiento y este panel lo usa también administrador.
+    Route::get('fichajes/gestion', AttendanceManage::class)->middleware('permission:attendance.manage')->name('attendance.manage');
 });
 
 /*

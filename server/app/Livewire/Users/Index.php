@@ -4,6 +4,7 @@ namespace App\Livewire\Users;
 
 use App\Livewire\Forms\UserForm;
 use App\Models\User;
+use App\Services\GeocodingService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -74,7 +75,7 @@ class Index extends Component
         $editing = $this->form->editing;
 
         $editing ? $this->authorize('update', $editing) : $this->authorize('create', User::class);
-        $this->authorize('assignRoles', $editing ?? new User());
+        $this->authorize('assignRoles', $editing ?? new User);
 
         $user = $this->form->save();
 
@@ -94,6 +95,12 @@ class Index extends Component
     public function editing(): bool
     {
         return $this->form->editing !== null;
+    }
+
+    /** Buscador de direcciones del mapa de geovalla (<x-ui.geofence-map>). */
+    public function searchAddress(string $query): array
+    {
+        return app(GeocodingService::class)->search($query);
     }
 
     public function render()

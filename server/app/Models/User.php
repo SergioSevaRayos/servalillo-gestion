@@ -17,7 +17,7 @@ use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'phone', 'is_active', 'theme_preference'])]
+#[Fillable(['name', 'email', 'password', 'phone', 'is_active', 'theme_preference', 'dni', 'attendance_mode', 'attendance_latitude', 'attendance_longitude', 'attendance_radius_meters'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements Auditable
 {
@@ -36,12 +36,25 @@ class User extends Authenticatable implements Auditable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'theme_preference' => ThemePreference::class,
+            'attendance_latitude' => 'decimal:7',
+            'attendance_longitude' => 'decimal:7',
         ];
     }
 
     public function driver(): HasOne
     {
         return $this->hasOne(Driver::class);
+    }
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    /** Solo administrador y chofer fichan — mantenimiento es el gestor técnico, no personal. */
+    public function canPunchAttendance(): bool
+    {
+        return $this->hasRole('administrador') || $this->isDriver();
     }
 
     public function supportTickets(): HasMany

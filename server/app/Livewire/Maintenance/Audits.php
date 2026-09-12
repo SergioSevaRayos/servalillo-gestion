@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Maintenance;
 
+use App\Models\Attendance;
 use App\Models\Client;
 use App\Models\DeliveryNote;
 use App\Models\DeliveryType;
@@ -41,6 +42,7 @@ class Audits extends Component
         'Lectura de odómetro' => OdometerReading::class,
         'Dispositivo' => Device::class,
         'Usuario' => User::class,
+        'Fichaje' => Attendance::class,
     ];
 
     #[Url(as: 'q', history: true)]

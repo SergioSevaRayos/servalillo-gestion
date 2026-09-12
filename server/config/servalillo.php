@@ -153,4 +153,30 @@ return [
         'cache_seconds' => (int) env('SGRA_CACHE_SECONDS', 30),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Fichaje (Bloque 18, /fichar y /fichajes/gestion)
+    |--------------------------------------------------------------------------
+    | Registro de jornada (entrada/salida) de administrador y chofer — mantenimiento
+    | (el rol del propio gestor de la plataforma) no ficha, ver docs/05-fichaje.md.
+    | `enabled` en false por defecto: queda desplegado pero inactivo hasta activarlo
+    | a propósito. La geovalla por defecto es la nave (`servalillo.base`, la misma
+    | que usa "Ruta eficiente") — solo hace falta configurar algo aparte para quien
+    | ficha en remoto (`users.attendance_mode = 'remote'`).
+    */
+    'attendance' => [
+        'enabled' => (bool) env('ATTENDANCE_ENABLED', false),
+        'default_radius_meters' => (int) env('ATTENDANCE_DEFAULT_RADIUS_M', 150),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Datos de la empresa (exportación legal del fichaje)
+    |--------------------------------------------------------------------------
+    */
+    'company' => [
+        'name' => (string) env('COMPANY_NAME', config('app.name')),
+        'tax_id' => (string) env('COMPANY_TAX_ID', ''),
+    ],
+
 ];

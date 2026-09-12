@@ -80,30 +80,65 @@
 
     <div class="mt-4">{{ $drivers->links() }}</div>
 
-    <x-modal name="driver-form" max-width="lg">
+    <x-modal name="driver-form" max-width="xl">
         <form wire:submit="save" class="p-6">
             <h3 class="text-lg font-medium text-slate-900 dark:text-white">
                 {{ $this->editing() ? __('Editar chofer') : __('Nuevo chofer') }}
             </h3>
 
-            <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <x-ui.input name="name" label="{{ __('Nombre completo') }}" wire:model="form.name" required />
-                <x-ui.input name="email" label="{{ __('Email') }}" type="email" wire:model="form.email" required />
-                <x-ui.password-input
-                    name="password"
-                    label="{{ __('Contraseña') }}"
-                    wire:model="form.password"
-                    suggest
-                    :required="! $this->editing()"
-                    :help="$this->editing() ? __('Déjalo en blanco para no cambiarla.') : __('Mínimo 10 caracteres, con letras y números.')"
-                />
-                <x-ui.input name="employee_code" label="{{ __('Código de empleado') }}" wire:model="form.employee_code" />
-                <x-ui.input name="license_number" label="{{ __('Nº de carné') }}" wire:model="form.license_number" />
-                <x-ui.date-input name="license_expiry" label="{{ __('Caducidad del carné') }}" wire:model="form.license_expiry" />
-                <x-ui.input name="phone" label="{{ __('Teléfono') }}" wire:model="form.phone" />
-                <div class="flex items-end pb-2">
-                    <x-ui.checkbox name="is_active" label="{{ __('Activo') }}" wire:model="form.is_active" />
+            <div class="max-h-[65vh] overflow-y-auto themed-scrollbar px-1 -mx-1">
+                <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <x-ui.input name="name" label="{{ __('Nombre completo') }}" wire:model="form.name" required />
+                    <x-ui.input name="email" label="{{ __('Email') }}" type="email" wire:model="form.email" required />
+                    <x-ui.password-input
+                        name="password"
+                        label="{{ __('Contraseña') }}"
+                        wire:model="form.password"
+                        suggest
+                        :required="! $this->editing()"
+                        :help="$this->editing() ? __('Déjalo en blanco para no cambiarla.') : __('Mínimo 10 caracteres, con letras y números.')"
+                    />
+                    <x-ui.input name="employee_code" label="{{ __('Código de empleado') }}" wire:model="form.employee_code" />
+                    <x-ui.input name="license_number" label="{{ __('Nº de carné') }}" wire:model="form.license_number" />
+                    <x-ui.date-input name="license_expiry" label="{{ __('Caducidad del carné') }}" wire:model="form.license_expiry" />
+                    <x-ui.input name="phone" label="{{ __('Teléfono') }}" wire:model="form.phone" />
+                    <x-ui.input name="dni" label="{{ __('DNI') }}" wire:model="form.dni" />
+                    <div class="flex items-end pb-2">
+                        <x-ui.checkbox name="is_active" label="{{ __('Activo') }}" wire:model="form.is_active" />
+                    </div>
                 </div>
+
+                @if (config('servalillo.attendance.enabled'))
+                    <div class="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
+                        <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ __('Dónde puede fichar') }}</p>
+                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {{ __('Por defecto ficha desde la base. Si aparca el camión en otro sitio habitualmente, dale su propia zona.') }}
+                        </p>
+                        <div class="mt-3 max-w-xs">
+                            <x-ui.select name="attendance_mode" label="{{ __('Modo') }}" wire:model.live="form.attendance_mode">
+                                <option value="base">{{ __('Base (por defecto)') }}</option>
+                                <option value="remote">{{ __('Ubicación remota propia') }}</option>
+                            </x-ui.select>
+                        </div>
+
+                        @if ($form->attendance_mode === 'remote')
+                            <div class="mt-3">
+                                <x-ui.geofence-map
+                                    lat-path="form.attendance_latitude"
+                                    lng-path="form.attendance_longitude"
+                                    radius-path="form.attendance_radius_meters"
+                                    search-method="searchAddress"
+                                    :lat="$form->attendance_latitude"
+                                    :lng="$form->attendance_longitude"
+                                    :radius="$form->attendance_radius_meters"
+                                    :base-lat="config('servalillo.base.latitude')"
+                                    :base-lng="config('servalillo.base.longitude')"
+                                    :default-radius="config('servalillo.attendance.default_radius_meters')"
+                                />
+                            </div>
+                        @endif
+                    </div>
+                @endif
             </div>
 
             <div class="mt-6 flex justify-end gap-3">

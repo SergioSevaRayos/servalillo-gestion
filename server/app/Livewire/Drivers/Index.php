@@ -4,6 +4,7 @@ namespace App\Livewire\Drivers;
 
 use App\Livewire\Forms\DriverForm;
 use App\Models\Driver;
+use App\Services\GeocodingService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -93,6 +94,12 @@ class Index extends Component
     public function editing(): bool
     {
         return $this->form->editing !== null;
+    }
+
+    /** Buscador de direcciones del mapa de geovalla (<x-ui.geofence-map>). */
+    public function searchAddress(string $query): array
+    {
+        return app(GeocodingService::class)->search($query);
     }
 
     public function render()
