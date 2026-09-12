@@ -20,10 +20,12 @@
 | 15 | Tiempo de permanencia en parada (geocerca por GPS) | ✅ Hecho |
 | 16 | Terminal vinculado a una ruta (chofer sustituto) | ✅ Hecho |
 | 17 | Depósitos SGRA (integración externa, visual 3D) | ✅ Hecho |
+| 18 | Sistema de fichaje (entrada/salida) | 📝 Planificado — ver `docs/05-fichaje.md` |
 
 > Los Bloques 12 y 13 se construyeron por delante de 10/11 a petición del usuario (igual que el 9).
-> Los Bloques 14-17 no estaban en el `docs/01` original: son funciones pedidas sobre la marcha una vez
-> la app ya estaba en producción, numeradas en el orden en que se construyeron.
+> Los Bloques 14-18 no estaban en el `docs/01` original: son funciones pedidas sobre la marcha una vez
+> la app ya estaba en producción, numeradas en el orden en que se construyeron (o, en el caso del
+> Bloque 18, en el orden en que se planificaron — es el único todavía sin implementar).
 
 > El Bloque 9 original era "API Flutter (Sanctum)"; el usuario intercaló la gestión de clientes
 > por delante, así que la API pasa a ser el Bloque 10 y el tracking el 11.
