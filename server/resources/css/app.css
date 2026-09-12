@@ -234,6 +234,15 @@
         @apply grid h-[26px] w-[26px] place-items-center rounded-full border-2 border-white text-xs font-bold text-white;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
     }
+    /*
+    | Parada completada: además del verde vivo, la chincheta pasa a "píldora" (check + nº de
+    | parada) en vez del círculo con un solo carácter — se ve de un vistazo CUÁL parada se cerró,
+    | no solo que "alguna" se cerró. `display: flex` (no el `grid` de la base) para que los dos
+    | glifos queden en fila; gana a `.route-map-pin` por ir declarada después en la hoja de estilos.
+    */
+    .route-map-pin--completed {
+        @apply inline-flex w-auto px-2;
+    }
 
     /* Marcador del camión (última posición del tracker) en el mapa de recorrido / dispositivo. */
     .route-map-vehicle {

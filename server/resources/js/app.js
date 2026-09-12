@@ -610,12 +610,19 @@ document.addEventListener('alpine:init', () => {
         },
 
         _pin(s) {
-            const colors = { pending: '#0d9488', completed: '#059669', failed: '#e11d48', skipped: '#64748b' };
+            // Verde más vivo para "completada" (antes #059669, emerald-600, se confundía a golpe
+            // de vista con "pendiente") + check y nº de parada juntos ("píldora", ver
+            // .route-map-pin--completed): de un vistazo en el mapa se ve CUÁL parada se cerró, no
+            // solo que alguna lo está — un check solo no distinguía la 1 de la 4.
+            const colors = { pending: '#0d9488', completed: '#10b981', failed: '#e11d48', skipped: '#64748b' };
+            const isCompleted = s.status === 'completed';
+            const label = isCompleted ? `&check;&nbsp;${s.n}` : s.n;
+            const width = isCompleted ? 34 : 26;
             return L.divIcon({
                 className: '',
-                html: `<span class="route-map-pin" style="background:${colors[s.status] || '#0d9488'}">${s.n}</span>`,
-                iconSize: [26, 26],
-                iconAnchor: [13, 13],
+                html: `<span class="route-map-pin${isCompleted ? ' route-map-pin--completed' : ''}" style="background:${colors[s.status] || '#0d9488'}">${label}</span>`,
+                iconSize: [width, 26],
+                iconAnchor: [width / 2, 13],
                 popupAnchor: [0, -13],
             });
         },
