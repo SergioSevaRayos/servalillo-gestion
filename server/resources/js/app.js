@@ -462,6 +462,12 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
+    // Iconos de las chinchetas de "Ver recorrido" (ver _pin más abajo). `stroke="currentColor"`
+    // hereda el blanco de `.route-map-pin` — igual criterio que el resto de SVG inline de la app
+    // (campana, soporte...), sin depender de una librería de iconos.
+    const ROUTE_MAP_ICON_CLOCK = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>';
+    const ROUTE_MAP_ICON_CROSS = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
     /*
     | "Ver recorrido" (Bloque 13): mapa Leaflet con las paradas de una ruta y su trazado.
     | El componente Livewire (Board / Chofer\Today) emite el evento `open-route-map` con
@@ -527,14 +533,41 @@ document.addEventListener('alpine:init', () => {
                 L.polyline(line, { color: '#0d9488', weight: 4, opacity: 0.85 }).addTo(this.layer);
             }
 
+            // Dos o más paradas en la misma coordenada (o muy cerca) se pintaban EXACTAMENTE una
+            // encima de otra — la última añadida al mapa tapaba del todo a las anteriores, que
+            // "desaparecían" sin ningún aviso (bug real: la parada 1 completada quedaba oculta
+            // bajo la 3, fallida, con la misma coordenada). Se separan en un pequeño círculo
+            // alrededor del punto real SOLO para dibujarlas — el punto real (y por tanto la línea
+            // de ruta) no se toca.
+            const OFFSET_DEG = 0.00012; // ~13 m a estas latitudes, de sobra para no solaparse
+            const groups = new Map();
             stops.forEach((s) => {
-                L.marker([s.lat, s.lng], { icon: this._pin(s) })
-                    .addTo(this.layer)
-                    .bindPopup(() => {
-                        const el = document.createElement('div');
-                        el.textContent = `${s.n}. ${s.name}`;
-                        return el;
-                    });
+                const key = `${s.lat.toFixed(5)},${s.lng.toFixed(5)}`;
+                if (! groups.has(key)) groups.set(key, []);
+                groups.get(key).push(s);
+            });
+            groups.forEach((group) => {
+                if (group.length < 2) return;
+                group.forEach((s, i) => {
+                    const angle = (2 * Math.PI * i) / group.length;
+                    s._lat = s.lat + OFFSET_DEG * Math.cos(angle);
+                    s._lng = s.lng + OFFSET_DEG * Math.sin(angle);
+                });
+            });
+
+            stops.forEach((s) => {
+                const marker = L.marker([s._lat ?? s.lat, s._lng ?? s.lng], { icon: this._pin(s) }).addTo(this.layer);
+                marker.bindPopup(() => {
+                    const el = document.createElement('div');
+                    el.textContent = `${s.n}. ${s.name} — ${s.status_label}`;
+                    return el;
+                });
+                // Un único bocadillo de info (el popup), que se abre tanto al tocar (pantallas
+                // táctiles, donde no existe "pasar el ratón") como al pasar el ratón por encima
+                // (escritorio) — antes había ADEMÁS un tooltip aparte, y al pasar el ratón y
+                // luego pulsar, Leaflet no cerraba el tooltip solo porque se abriera el popup: se
+                // veían las dos burbujas a la vez, duplicando la misma información.
+                marker.on('mouseover', () => marker.openPopup());
             });
 
             const bounds = points.slice();
@@ -610,17 +643,30 @@ document.addEventListener('alpine:init', () => {
         },
 
         _pin(s) {
-            // Verde más vivo para "completada" (antes #059669, emerald-600, se confundía a golpe
-            // de vista con "pendiente") + check y nº de parada juntos ("píldora", ver
-            // .route-map-pin--completed): de un vistazo en el mapa se ve CUÁL parada se cerró, no
-            // solo que alguna lo está — un check solo no distinguía la 1 de la 4.
-            const colors = { pending: '#0d9488', completed: '#10b981', failed: '#e11d48', skipped: '#64748b' };
-            const isCompleted = s.status === 'completed';
-            const label = isCompleted ? `&check;&nbsp;${s.n}` : s.n;
-            const width = isCompleted ? 34 : 26;
+            // Color + icono por estado, para distinguir de un vistazo qué pasó con cada parada
+            // cerrada sin tener que abrirla. "Reprogramada" no es una columna propia — la detecta
+            // RouteGeometry::payloadFor() por el marcador de texto que deja StopActionForm en
+            // failure_reason ("· Reprogramada para…") — ver ese servicio si se toca esta lógica.
+            const colors = { pending: '#0d9488', completed: '#10b981', failed: '#f97316', skipped: '#e11d48' };
+            const color = colors[s.status] || '#0d9488';
+
+            let glyph = null;
+            if (s.status === 'completed') {
+                glyph = '&check;';
+            } else if (s.status === 'failed') {
+                glyph = s.rescheduled ? ROUTE_MAP_ICON_CLOCK : ROUTE_MAP_ICON_CROSS;
+            } else if (s.status === 'skipped') {
+                glyph = ROUTE_MAP_ICON_CROSS;
+            }
+
+            // check y nº de parada juntos ("píldora"): un icono solo no distingue la 1 de la 4.
+            const isPill = glyph !== null;
+            const label = isPill ? `${glyph}&nbsp;${s.n}` : s.n;
+            const width = isPill ? 34 : 26;
+
             return L.divIcon({
                 className: '',
-                html: `<span class="route-map-pin${isCompleted ? ' route-map-pin--completed' : ''}" style="background:${colors[s.status] || '#0d9488'}">${label}</span>`,
+                html: `<span class="route-map-pin${isPill ? ' route-map-pin--pill' : ''}" style="background:${color}">${label}</span>`,
                 iconSize: [width, 26],
                 iconAnchor: [width / 2, 13],
                 popupAnchor: [0, -13],

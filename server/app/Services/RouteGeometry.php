@@ -59,7 +59,7 @@ class RouteGeometry
      * Datos listos para el mapa: paradas numeradas (por su posición real) con coordenadas
      * + geometría del recorrido. Las paradas sin coordenadas se cuentan aparte (`skipped`).
      *
-     * @return array{stops: list<array{n: int, name: string, lat: float, lng: float, status: string}>, meta: array|null, skipped: int, vehicle: array|null}
+     * @return array{stops: list<array{n: int, name: string, lat: float, lng: float, status: string, status_label: string, rescheduled: bool}>, meta: array|null, skipped: int, vehicle: array|null}
      */
     public function payloadFor(RouteDay $route): array
     {
@@ -69,6 +69,11 @@ class RouteGeometry
             'lat' => $s->latitude !== null ? (float) $s->latitude : null,
             'lng' => $s->longitude !== null ? (float) $s->longitude : null,
             'status' => $s->status->value,
+            'status_label' => $s->status->label(),
+            // No hay columna dedicada para "se reprogramó" — StopActionForm::apply() deja este
+            // marcador de texto en failure_reason al reprogramar (ver ese fichero); es la única
+            // señal disponible sin añadir una migración solo para un icono del mapa.
+            'rescheduled' => str_contains((string) $s->failure_reason, 'Reprogramada para'),
         ]);
 
         $located = $stops->filter(fn (array $s) => $s['lat'] !== null && $s['lng'] !== null)->values();

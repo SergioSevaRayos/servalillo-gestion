@@ -62,10 +62,27 @@ it('payloadFor numera las paradas por su posición y aparta las que no tienen co
 
     expect($payload['skipped'])->toBe(1)
         ->and($payload['stops'])->toHaveCount(2)
-        ->and($payload['stops'][0])->toMatchArray(['n' => 1, 'name' => 'Uno', 'status' => 'pending'])
+        ->and($payload['stops'][0])->toMatchArray(['n' => 1, 'name' => 'Uno', 'status' => 'pending', 'status_label' => RouteStopStatus::Pending->label(), 'rescheduled' => false])
         ->and($payload['stops'][1]['n'])->toBe(3) // "Tres" mantiene su número real
         ->and($payload['meta']['distance_m'])->toBe(12500.0)
         ->and($payload['vehicle'])->toBeNull(); // sin posiciones GPS
+});
+
+it('payloadFor marca "rescheduled" a partir del texto que deja StopActionForm en failure_reason', function () {
+    $route = makeRoute('2026-09-10');
+    RouteStop::factory()->for($route, 'route')->create([
+        'position' => 1, 'latitude' => 28.40, 'longitude' => -16.40,
+        'status' => RouteStopStatus::Failed, 'failure_reason' => 'No había nadie · Reprogramada para 20/09/2026',
+    ]);
+    RouteStop::factory()->for($route, 'route')->create([
+        'position' => 2, 'latitude' => 28.41, 'longitude' => -16.41,
+        'status' => RouteStopStatus::Failed, 'failure_reason' => 'No había nadie',
+    ]);
+
+    $payload = app(RouteGeometry::class)->payloadFor($route);
+
+    expect($payload['stops'][0]['rescheduled'])->toBeTrue()
+        ->and($payload['stops'][1]['rescheduled'])->toBeFalse();
 });
 
 it('payloadFor añade el camión y el trazado hasta la primera parada si hay posición GPS', function () {
