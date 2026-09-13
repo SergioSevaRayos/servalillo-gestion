@@ -166,7 +166,7 @@ class History extends Component
         $day = RouteDay::where('route_id', $this->route->id)->findOrFail($routeDayId);
         $this->authorize('view', $day);
 
-        $this->dispatch('open-route-map', ...app(RouteGeometry::class)->payloadFor($day));
+        $this->dispatch('open-route-map', ...app(RouteGeometry::class)->payloadFor($day, includeUnplannedStops: true));
     }
 
     #[Computed]
@@ -198,6 +198,17 @@ class History extends Component
         return collect(app(StopDwellService::class)->transitLegs($this->viewingDay))
             ->keyBy('to_stop_id')
             ->all();
+    }
+
+    /** Paradas no programadas del día abierto — solo se ven aquí (admin/mantenimiento). */
+    #[Computed]
+    public function unplannedStops()
+    {
+        if ($this->viewingDay === null) {
+            return collect();
+        }
+
+        return $this->viewingDay->unplannedStops()->orderBy('entered_at')->get();
     }
 
     public function render()

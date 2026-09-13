@@ -1,8 +1,10 @@
 {{--
     "Ver recorrido" (Bloque 13). Modal con un mapa Leaflet de las paradas de la ruta y su
-    trazado. El componente Livewire (Board / Chofer\Today) emite `open-route-map` con
-    { stops, meta, skipped }; el Alpine `routeMap` (resources/js/app.js) abre este modal y
-    monta el mapa cuando el contenedor ya tiene tamaño.
+    trazado. El componente Livewire (Board / History / Chofer\Today) emite `open-route-map`
+    con { stops, meta, skipped, vehicle, unplanned_stops }; el Alpine `routeMap`
+    (resources/js/app.js) abre este modal y monta el mapa cuando el contenedor ya tiene
+    tamaño. `unplanned_stops` solo lo mandan Board/History (administración/mantenimiento) —
+    ver App\Services\RouteGeometry::payloadFor().
 --}}
 <x-modal name="route-map" max-width="4xl">
     <div class="p-4" x-data="routeMap()" x-on:open-route-map.window="open($event.detail)">
@@ -16,6 +18,7 @@
 
         <p class="mt-2 text-sm font-medium text-slate-600 dark:text-slate-300" x-text="vehicleNote" x-show="vehicleNote"></p>
         <p class="mt-1 text-sm font-medium text-amber-600 dark:text-amber-400" x-text="approachNote" x-show="approachNote"></p>
+        <p class="mt-1 text-sm font-medium text-amber-600 dark:text-amber-400" x-text="unplannedNote" x-show="unplannedNote"></p>
         <p class="mt-1 text-xs text-slate-400" x-text="skippedNote" x-show="skippedNote"></p>
 
         <div class="mt-4 flex flex-wrap items-center justify-end gap-2">

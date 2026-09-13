@@ -6,6 +6,7 @@ use App\Models\GpsPosition;
 use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Models\StopVisit;
+use App\Models\UnplannedStop;
 use App\Support\Haversine;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -141,15 +142,24 @@ class StopDwellService
             ->whereNotNull('longitude')
             ->get(['id', 'latitude', 'longitude']);
 
-        $visits = $stops->isEmpty()
+        $cfg = config('servalillo.dwell');
+        $positions = $this->filterPositions($day, $this->positionsFor($day), $cfg);
+
+        $visits = $stops->isEmpty() || $positions->isEmpty()
             ? collect()
-            : $this->buildVisits($day, $stops);
+            : $this->buildVisits($day, $stops, $positions, $cfg);
 
-        DB::transaction(function () use ($day, $visits) {
+        $unplanned = $this->buildUnplannedStops($day, $stops, $positions, $cfg);
+
+        DB::transaction(function () use ($day, $visits, $unplanned) {
             StopVisit::where('route_id', $day->id)->delete();
-
             if ($visits->isNotEmpty()) {
                 StopVisit::insert($visits->all());
+            }
+
+            UnplannedStop::where('route_id', $day->id)->delete();
+            if ($unplanned->isNotEmpty()) {
+                UnplannedStop::insert($unplanned->all());
             }
         });
 
@@ -160,18 +170,11 @@ class StopDwellService
 
     /**
      * @param  Collection<int, RouteStop>  $stops
+     * @param  Collection<int, GpsPosition>  $positions  ya filtradas (precisión, base, horario)
      * @return Collection<int, array<string, mixed>> filas listas para StopVisit::insert()
      */
-    private function buildVisits(RouteDay $day, Collection $stops): Collection
+    private function buildVisits(RouteDay $day, Collection $stops, Collection $positions, array $cfg): Collection
     {
-        $cfg = config('servalillo.dwell');
-
-        $positions = $this->filterPositions($day, $this->positionsFor($day), $cfg);
-
-        if ($positions->isEmpty()) {
-            return collect();
-        }
-
         // Atribuir cada posición a la parada MÁS CERCANA dentro del radio (gana la más cercana:
         // dos geocercas solapadas nunca cuentan la misma posición dos veces).
         $buckets = [];
@@ -261,6 +264,107 @@ class StopDwellService
         $intervals[] = [$start, $previous, $start->diffInSeconds($previous)];
 
         return $intervals;
+    }
+
+    /**
+     * Paradas NO programadas: tramos de al menos `unplanned_stop_min_seconds` en los que el
+     * camión estuvo parado en un punto que no es ni una parada de la ruta ni la base — p. ej.
+     * repostar por libre, un desvío, una avería. Solo lo ve administración/mantenimiento
+     * (`RouteGeometry::payloadFor()` lo omite por defecto; solo Board/History piden
+     * `includeUnplannedStops: true`) — el chofer nunca lo ve.
+     *
+     * Mismo criterio de "puentear huecos de señal" que `buildVisits()` (`merge_gap_seconds`),
+     * pero el radio de agrupación es más ajustado (`unplanned_stop_radius_meters`) y se mide
+     * fix a fix (el anterior del grupo, no un punto fijo): aquí no hay una geocerca ya
+     * definida, así que se agrupan fixes consecutivos cercanos ENTRE SÍ.
+     *
+     * @param  Collection<int, RouteStop>  $stops
+     * @param  Collection<int, GpsPosition>  $positions  ya filtradas (precisión, base, horario)
+     * @return Collection<int, array<string, mixed>> filas listas para UnplannedStop::insert()
+     */
+    private function buildUnplannedStops(RouteDay $day, Collection $stops, Collection $positions, array $cfg): Collection
+    {
+        if ($positions->isEmpty()) {
+            return collect();
+        }
+
+        // Cualquier posición cerca de una parada de la ruta ya se cuenta ahí (visita normal
+        // o simple paso) — no puede ser también "no programada".
+        $remaining = $positions->reject(function (GpsPosition $p) use ($stops, $cfg) {
+            foreach ($stops as $stop) {
+                $distance = Haversine::meters(
+                    (float) $p->latitude, (float) $p->longitude,
+                    (float) $stop->latitude, (float) $stop->longitude,
+                );
+
+                if ($distance <= $cfg['radius_meters']) {
+                    return true;
+                }
+            }
+
+            return false;
+        })->values();
+
+        if ($remaining->isEmpty()) {
+            return collect();
+        }
+
+        $radius = (float) $cfg['unplanned_stop_radius_meters'];
+        $minSeconds = (int) $cfg['unplanned_stop_min_seconds'];
+        $lastFixOverall = $positions->last()->recorded_at;
+        $now = now();
+        $stale = $lastFixOverall->diffInSeconds($now) > $cfg['merge_gap_seconds'];
+
+        $rows = collect();
+        $cluster = [$remaining->first()];
+
+        for ($i = 1, $n = $remaining->count(); $i < $n; $i++) {
+            $point = $remaining[$i];
+            $last = $cluster[count($cluster) - 1];
+
+            $gap = $point->recorded_at->getTimestamp() - $last->recorded_at->getTimestamp();
+            $distance = Haversine::meters(
+                (float) $point->latitude, (float) $point->longitude,
+                (float) $last->latitude, (float) $last->longitude,
+            );
+
+            if ($distance <= $radius && $gap <= $cfg['merge_gap_seconds']) {
+                $cluster[] = $point;
+
+                continue;
+            }
+
+            $this->pushUnplannedCluster($rows, $day, $cluster, $minSeconds, $stale, $lastFixOverall, $now);
+            $cluster = [$point];
+        }
+
+        $this->pushUnplannedCluster($rows, $day, $cluster, $minSeconds, $stale, $lastFixOverall, $now);
+
+        return $rows;
+    }
+
+    /** @param  list<GpsPosition>  $cluster */
+    private function pushUnplannedCluster(Collection $rows, RouteDay $day, array $cluster, int $minSeconds, bool $stale, Carbon $lastFixOverall, Carbon $now): void
+    {
+        $first = $cluster[0];
+        $last = $cluster[count($cluster) - 1];
+        $seconds = $first->recorded_at->diffInSeconds($last->recorded_at);
+        $open = ! $stale && $last->recorded_at->equalTo($lastFixOverall);
+
+        if (! $open && $seconds < $minSeconds) {
+            return; // se movió antes de completar el umbral, o solo pasó por ahí
+        }
+
+        $rows->push([
+            'route_id' => $day->id,
+            'latitude' => round(collect($cluster)->avg(fn (GpsPosition $p) => (float) $p->latitude), 7),
+            'longitude' => round(collect($cluster)->avg(fn (GpsPosition $p) => (float) $p->longitude), 7),
+            'entered_at' => $first->recorded_at,
+            'left_at' => $open ? null : $last->recorded_at,
+            'seconds' => $open ? null : $seconds,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
     }
 
     /** @return Collection<int, GpsPosition> ordenadas por `recorded_at` */

@@ -34,6 +34,17 @@ function googleMapsDirectionsUrl(stops) {
         + (waypoints.length ? `&waypoints=${waypoints.join('%7C')}` : '');
 }
 
+/* Equivalente JS de App\Support\Duration::humanShort() — duraciones cortas en los mapas Leaflet. */
+function humanShortDuration(seconds) {
+    const minutes = Math.round(Math.max(0, seconds) / 60);
+    if (minutes < 60) return `${minutes} min`;
+
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+
+    return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, '0')} min`;
+}
+
 document.addEventListener('alpine:init', () => {
     Alpine.store('theme', {
         current: document.documentElement.dataset.theme || 'system',
@@ -481,6 +492,7 @@ document.addEventListener('alpine:init', () => {
         skippedNote: '',
         approachNote: '',
         vehicleNote: '',
+        unplannedNote: '',
         mapsUrl: '',
 
         open(detail) {
@@ -571,6 +583,35 @@ document.addEventListener('alpine:init', () => {
             });
 
             const bounds = points.slice();
+
+            // Paradas no programadas (solo llegan aquí para administración/mantenimiento —
+            // Chofer\Today::showRouteMap() nunca las pide, ver RouteGeometry::payloadFor()).
+            // Icono estándar de aviso + el tiempo parado, para distinguirlas de un vistazo de
+            // las paradas reales de la ruta.
+            const unplanned = Array.isArray(detail.unplanned_stops) ? detail.unplanned_stops : [];
+            this.unplannedNote = unplanned.length === 1
+                ? '⚠️ 1 parada no programada detectada.'
+                : (unplanned.length > 1 ? `⚠️ ${unplanned.length} paradas no programadas detectadas.` : '');
+
+            unplanned.forEach((u) => {
+                const label = u.open ? 'en curso' : humanShortDuration(u.seconds);
+                const marker = L.marker([u.lat, u.lng], {
+                    icon: L.divIcon({
+                        className: '',
+                        html: `<span class="route-map-pin route-map-pin--pill" style="background:#f59e0b">⚠️&nbsp;${label}</span>`,
+                        iconSize: [70, 26],
+                        iconAnchor: [35, 13],
+                        popupAnchor: [0, -13],
+                    }),
+                }).addTo(this.layer);
+                marker.bindPopup(() => {
+                    const el = document.createElement('div');
+                    el.textContent = `Parada no programada — ${label}`;
+                    return el;
+                });
+                marker.on('mouseover', () => marker.openPopup());
+                bounds.push([u.lat, u.lng]);
+            });
 
             const v = detail.vehicle || null;
             this.approachNote = '';
@@ -808,7 +849,7 @@ document.addEventListener('alpine:init', () => {
     | Solo escribe en Livewire (`$wire.set`) al soltar el arrastre o al hacer clic en el mapa,
     | nunca en cada frame de `drag` (evitaría una petición por cada píxel movido).
     */
-    Alpine.data('geofenceMap', ({ lat, lng, radius, latPath, lngPath, radiusPath, searchMethod }) => ({
+    Alpine.data('geofenceMap', ({ lat, lng, radius, latPath, lngPath, radiusPath, searchMethod, showRadius }) => ({
         map: null,
         centerMarker: null,
         handleMarker: null,
@@ -816,6 +857,7 @@ document.addEventListener('alpine:init', () => {
         lat,
         lng,
         radius,
+        showRadius: showRadius !== false,
         query: '',
         results: [],
         searching: false,
@@ -872,13 +914,15 @@ document.addEventListener('alpine:init', () => {
                 attribution: 'Tiles &copy; Esri',
             }).addTo(this.map);
 
-            this.circle = L.circle([this.lat, this.lng], {
-                radius: this.radius,
-                color: '#0d9488',
-                weight: 1.5,
-                fillColor: '#0d9488',
-                fillOpacity: 0.12,
-            }).addTo(this.map);
+            if (this.showRadius) {
+                this.circle = L.circle([this.lat, this.lng], {
+                    radius: this.radius,
+                    color: '#0d9488',
+                    weight: 1.5,
+                    fillColor: '#0d9488',
+                    fillOpacity: 0.12,
+                }).addTo(this.map);
+            }
 
             this.centerMarker = L.marker([this.lat, this.lng], {
                 draggable: true,
@@ -890,21 +934,24 @@ document.addEventListener('alpine:init', () => {
                 }),
             }).addTo(this.map);
 
-            const handlePos = this._destinationPoint(this.lat, this.lng, this.radius, 90);
-            this.handleMarker = L.marker(handlePos, {
-                draggable: true,
-                icon: L.divIcon({
-                    className: '',
-                    html: '<span class="geofence-map-handle"></span>',
-                    iconSize: [16, 16],
-                    iconAnchor: [8, 8],
-                }),
-            }).addTo(this.map);
+            if (this.showRadius) {
+                const handlePos = this._destinationPoint(this.lat, this.lng, this.radius, 90);
+                this.handleMarker = L.marker(handlePos, {
+                    draggable: true,
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<span class="geofence-map-handle"></span>',
+                        iconSize: [16, 16],
+                        iconAnchor: [8, 8],
+                    }),
+                }).addTo(this.map);
+
+                this.handleMarker.on('drag', (e) => this._moveHandle(e.target.getLatLng(), false));
+                this.handleMarker.on('dragend', (e) => this._moveHandle(e.target.getLatLng(), true));
+            }
 
             this.centerMarker.on('drag', (e) => this._moveCenter(e.target.getLatLng(), false));
             this.centerMarker.on('dragend', (e) => this._moveCenter(e.target.getLatLng(), true));
-            this.handleMarker.on('drag', (e) => this._moveHandle(e.target.getLatLng(), false));
-            this.handleMarker.on('dragend', (e) => this._moveHandle(e.target.getLatLng(), true));
             this.map.on('click', (e) => this._moveCenter(e.latlng, true));
 
             this.map.setView([this.lat, this.lng], 15);
@@ -916,15 +963,19 @@ document.addEventListener('alpine:init', () => {
             // "obligatorio" fallaría pese a que visualmente ya hay un punto fijado.
             this.$wire.set(latPath, Number(this.lat.toFixed(7)));
             this.$wire.set(lngPath, Number(this.lng.toFixed(7)));
-            this.$wire.set(radiusPath, this.radius);
+            if (this.showRadius) {
+                this.$wire.set(radiusPath, this.radius);
+            }
         },
 
         _moveCenter(latlng, commit) {
             this.lat = latlng.lat;
             this.lng = latlng.lng;
             this.centerMarker.setLatLng(latlng);
-            this.circle.setLatLng(latlng);
-            this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
+            if (this.showRadius) {
+                this.circle.setLatLng(latlng);
+                this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
+            }
 
             if (commit) {
                 this.$wire.set(latPath, Number(this.lat.toFixed(7)));
@@ -965,8 +1016,10 @@ document.addEventListener('alpine:init', () => {
 
             const pos = [this.lat, this.lng];
             this.centerMarker.setLatLng(pos);
-            this.circle.setLatLng(pos);
-            this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
+            if (this.showRadius) {
+                this.circle.setLatLng(pos);
+                this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
+            }
             this.map.panTo(pos);
 
             this.$wire.set(latPath, Number(this.lat.toFixed(7)));

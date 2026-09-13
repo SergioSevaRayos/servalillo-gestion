@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\GpsPosition;
 use App\Models\RouteDay;
 use App\Models\RouteStop;
+use App\Models\UnplannedStop;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
@@ -59,9 +60,14 @@ class RouteGeometry
      * Datos listos para el mapa: paradas numeradas (por su posición real) con coordenadas
      * + geometría del recorrido. Las paradas sin coordenadas se cuentan aparte (`skipped`).
      *
-     * @return array{stops: list<array{n: int, name: string, lat: float, lng: float, status: string, status_label: string, rescheduled: bool}>, meta: array|null, skipped: int, vehicle: array|null}
+     * `$includeUnplannedStops` es explícito y en `false` por defecto: las paradas no
+     * programadas (StopDwellService::buildUnplannedStops()) solo las ve administración/
+     * mantenimiento (Board/History lo piden a propósito), nunca el chofer — Chofer\Today::
+     * showRouteMap() no lo pasa, así que su payload nunca las incluye.
+     *
+     * @return array{stops: list<array{n: int, name: string, lat: float, lng: float, status: string, status_label: string, rescheduled: bool}>, meta: array|null, skipped: int, vehicle: array|null, unplanned_stops: list<array{lat: float, lng: float, entered_at: string, left_at: ?string, seconds: ?int, open: bool}>}
      */
-    public function payloadFor(RouteDay $route): array
+    public function payloadFor(RouteDay $route, bool $includeUnplannedStops = false): array
     {
         $stops = $route->stops()->get()->values()->map(fn (RouteStop $s, int $i) => [
             'n' => $i + 1,
@@ -83,7 +89,21 @@ class RouteGeometry
             'meta' => $this->for($located->map(fn (array $s) => [$s['lat'], $s['lng']])->all()),
             'skipped' => $stops->count() - $located->count(),
             'vehicle' => $this->vehicleFor($route, $located),
+            'unplanned_stops' => $includeUnplannedStops ? $this->unplannedStopsFor($route) : [],
         ];
+    }
+
+    /** @return list<array{lat: float, lng: float, entered_at: string, left_at: ?string, seconds: ?int, open: bool}> */
+    private function unplannedStopsFor(RouteDay $route): array
+    {
+        return $route->unplannedStops()->orderBy('entered_at')->get()->map(fn (UnplannedStop $u) => [
+            'lat' => (float) $u->latitude,
+            'lng' => (float) $u->longitude,
+            'entered_at' => $u->entered_at->toIso8601String(),
+            'left_at' => $u->left_at?->toIso8601String(),
+            'seconds' => $u->seconds,
+            'open' => $u->left_at === null,
+        ])->values()->all();
     }
 
     /**

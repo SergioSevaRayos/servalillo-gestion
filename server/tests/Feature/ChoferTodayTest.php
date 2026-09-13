@@ -11,6 +11,7 @@ use App\Models\Route;
 use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Models\Truck;
+use App\Models\UnplannedStop;
 use App\Support\GoogleMaps;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -498,6 +499,20 @@ it('el chofer abre "Ver recorrido" y se emite el evento del mapa', function () {
     Livewire::actingAs($user)->test(Today::class)
         ->call('showRouteMap')
         ->assertDispatched('open-route-map', fn ($event, $params) => count($params['stops']) === 2);
+});
+
+it('el chofer nunca ve las paradas no programadas en "Ver recorrido"', function () {
+    config()->set('servalillo.routing.enabled', false);
+
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    UnplannedStop::create([
+        'route_id' => $route->id, 'latitude' => 28.40, 'longitude' => -16.40,
+        'entered_at' => '2026-09-10 10:00:00', 'left_at' => '2026-09-10 10:10:00', 'seconds' => 600,
+    ]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('showRouteMap')
+        ->assertDispatched('open-route-map', fn ($event, $params) => $params['unplanned_stops'] === []);
 });
 
 it('un chofer sin ruta no puede ver el recorrido (404)', function () {

@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\Driver;
 use App\Models\RouteDay;
 use App\Models\RouteStop;
+use App\Models\UnplannedStop;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
@@ -349,6 +350,21 @@ test('"Ver recorrido": emite el evento del mapa con las paradas de la ruta', fun
         ->call('showRouteMap', $route->id)
         ->assertDispatched('open-route-map', fn ($event, $params) => count($params['stops']) === 2
             && $params['stops'][0]['name'] === 'Parada Mapa');
+});
+
+test('"Ver recorrido" del tablero incluye las paradas no programadas (solo administración/mantenimiento)', function () {
+    config()->set('servalillo.routing.enabled', false);
+
+    $route = makeRoute('2026-09-10');
+    UnplannedStop::create([
+        'route_id' => $route->id, 'latitude' => 28.40, 'longitude' => -16.40,
+        'entered_at' => '2026-09-10 10:00:00', 'left_at' => '2026-09-10 10:10:00', 'seconds' => 600,
+    ]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->call('showRouteMap', $route->id)
+        ->assertDispatched('open-route-map', fn ($event, $params) => count($params['unplanned_stops']) === 1);
 });
 
 test('"Ruta eficiente": un chofer recibe 403', function () {

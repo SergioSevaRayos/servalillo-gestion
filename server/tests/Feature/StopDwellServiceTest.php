@@ -2,6 +2,7 @@
 
 use App\Models\RouteStop;
 use App\Models\StopVisit;
+use App\Models\UnplannedStop;
 use App\Services\StopDwellService;
 use App\Support\Haversine;
 use Illuminate\Support\Carbon;
@@ -361,4 +362,112 @@ it('respeta el horario de jornada cuando clamp_to_shift está activo', function 
 it('metersOffset y Haversine concuerdan', function () {
     [$lat, $lng] = metersOffset($this->stopLat, $this->stopLng, 60, 80); // 100 m en diagonal
     expect(Haversine::meters($this->stopLat, $this->stopLng, $lat, $lng))->toBeGreaterThan(95)->toBeLessThan(105);
+});
+
+/*
+| Paradas NO programadas (2026-09-13): tramos ≥ unplanned_stop_min_seconds en un punto que
+| no es ni una parada de la ruta ni la base. Mismas fixtures/helpers que arriba.
+*/
+
+it('detecta una parada no programada de al menos el umbral configurado', function () {
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+    config()->set('servalillo.dwell.unplanned_stop_radius_meters', 100);
+
+    $day = makeRoute('2026-03-02');
+    $point = metersOffset($this->stopLat, $this->stopLng, 1000, 0); // lejos de cualquier parada/base
+    gpsTrack($day, denseRun($point, '10:00:00', '10:08:00')); // 11 fixes cada 45 s => 450 s
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    $unplanned = UnplannedStop::where('route_id', $day->id)->sole();
+    expect($unplanned->seconds)->toBe(450)
+        ->and($unplanned->left_at)->not->toBeNull()
+        ->and((float) $unplanned->latitude)->toEqualWithDelta($point[0], 0.001)
+        ->and((float) $unplanned->longitude)->toEqualWithDelta($point[1], 0.001);
+});
+
+it('no cuenta un paso corto por debajo del umbral como parada no programada', function () {
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+
+    $day = makeRoute('2026-03-02');
+    $point = metersOffset($this->stopLat, $this->stopLng, 1000, 0);
+    gpsTrack($day, denseRun($point, '10:00:00', '10:01:30')); // 90 s < 300 s
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    expect(UnplannedStop::where('route_id', $day->id)->count())->toBe(0);
+});
+
+it('no cuenta como no programada una parada cerca de una parada de la ruta', function () {
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+
+    $stop = dwellDay($this->stopLat, $this->stopLng);
+    $point = metersOffset($this->stopLat, $this->stopLng, 40, 0); // dentro del radio de la parada
+    gpsTrack($stop->route, denseRun($point, '10:00:00', '10:08:00'));
+
+    app(StopDwellService::class)->recomputeForRouteDay($stop->route);
+
+    expect(UnplannedStop::where('route_id', $stop->route->id)->count())->toBe(0)
+        ->and(StopVisit::where('route_stop_id', $stop->id)->exists())->toBeTrue();
+});
+
+it('no cuenta como no programada una parada cerca de la base', function () {
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+    config()->set('servalillo.base.latitude', $this->stopLat);
+    config()->set('servalillo.base.longitude', $this->stopLng);
+    config()->set('servalillo.dwell.exclude_base_radius_meters', 150);
+
+    $day = makeRoute('2026-03-02');
+    $point = metersOffset($this->stopLat, $this->stopLng, 40, 0); // dentro del radio de exclusión de la base
+    gpsTrack($day, denseRun($point, '10:00:00', '10:08:00'));
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    expect(UnplannedStop::where('route_id', $day->id)->count())->toBe(0);
+});
+
+it('detecta dos paradas no programadas distintas si el camión se mueve entre ellas', function () {
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+
+    $day = makeRoute('2026-03-02');
+    $pointA = metersOffset($this->stopLat, $this->stopLng, 1000, 0);
+    $pointB = metersOffset($this->stopLat, $this->stopLng, 1000, 1000); // bien lejos de A
+
+    gpsTrack($day, array_merge(
+        denseRun($pointA, '10:00:00', '10:08:00'),
+        denseRun($pointB, '11:00:00', '11:08:00'),
+    ));
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    expect(UnplannedStop::where('route_id', $day->id)->count())->toBe(2);
+});
+
+it('deja la parada no programada abierta si el último fix conocido sigue ahí', function () {
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+    Carbon::setTestNow(Carbon::parse('2026-03-02 10:10:00')); // poco después del último fix
+
+    $day = makeRoute('2026-03-02');
+    $point = metersOffset($this->stopLat, $this->stopLng, 1000, 0);
+    gpsTrack($day, denseRun($point, '10:00:00', '10:08:00'));
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    $unplanned = UnplannedStop::where('route_id', $day->id)->sole();
+    expect($unplanned->left_at)->toBeNull()
+        ->and($unplanned->seconds)->toBeNull();
+});
+
+it('paradas no programadas: es idempotente', function () {
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+
+    $day = makeRoute('2026-03-02');
+    $point = metersOffset($this->stopLat, $this->stopLng, 1000, 0);
+    gpsTrack($day, denseRun($point, '10:00:00', '10:08:00'));
+
+    $svc = app(StopDwellService::class);
+    $svc->recomputeForRouteDay($day);
+    $svc->recomputeForRouteDay($day->fresh());
+
+    expect(UnplannedStop::where('route_id', $day->id)->count())->toBe(1);
 });

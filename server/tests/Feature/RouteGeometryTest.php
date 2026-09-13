@@ -4,6 +4,7 @@ use App\Enums\RouteStopStatus;
 use App\Models\Device;
 use App\Models\GpsPosition;
 use App\Models\RouteStop;
+use App\Models\UnplannedStop;
 use App\Services\RouteGeometry;
 use Illuminate\Support\Facades\Http;
 
@@ -66,6 +67,36 @@ it('payloadFor numera las paradas por su posición y aparta las que no tienen co
         ->and($payload['stops'][1]['n'])->toBe(3) // "Tres" mantiene su número real
         ->and($payload['meta']['distance_m'])->toBe(12500.0)
         ->and($payload['vehicle'])->toBeNull(); // sin posiciones GPS
+});
+
+it('payloadFor omite las paradas no programadas por defecto (el chofer nunca las pide)', function () {
+    $route = makeRoute('2026-09-10');
+    UnplannedStop::create([
+        'route_id' => $route->id, 'latitude' => 28.40, 'longitude' => -16.40,
+        'entered_at' => '2026-09-10 10:00:00', 'left_at' => '2026-09-10 10:10:00', 'seconds' => 600,
+    ]);
+
+    $payload = app(RouteGeometry::class)->payloadFor($route);
+
+    expect($payload['unplanned_stops'])->toBe([]);
+});
+
+it('payloadFor incluye las paradas no programadas si se pide explícitamente (administración/mantenimiento)', function () {
+    $route = makeRoute('2026-09-10');
+    UnplannedStop::create([
+        'route_id' => $route->id, 'latitude' => 28.40, 'longitude' => -16.40,
+        'entered_at' => '2026-09-10 10:00:00', 'left_at' => '2026-09-10 10:10:00', 'seconds' => 600,
+    ]);
+    UnplannedStop::create([
+        'route_id' => $route->id, 'latitude' => 28.41, 'longitude' => -16.41,
+        'entered_at' => '2026-09-10 12:00:00', 'left_at' => null, 'seconds' => null,
+    ]);
+
+    $payload = app(RouteGeometry::class)->payloadFor($route, includeUnplannedStops: true);
+
+    expect($payload['unplanned_stops'])->toHaveCount(2)
+        ->and($payload['unplanned_stops'][0])->toMatchArray(['lat' => 28.40, 'lng' => -16.40, 'seconds' => 600, 'open' => false])
+        ->and($payload['unplanned_stops'][1])->toMatchArray(['seconds' => null, 'open' => true]);
 });
 
 it('payloadFor marca "rescheduled" a partir del texto que deja StopActionForm en failure_reason', function () {

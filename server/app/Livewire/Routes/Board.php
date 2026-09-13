@@ -449,13 +449,16 @@ class Board extends Component
         return $route ? app(RouteOptimizer::class)->vehiclePositionAge($route) : null;
     }
 
-    /** "Ver recorrido": abre el mapa con las paradas de la ruta y su trazado. */
+    /**
+     * "Ver recorrido": abre el mapa con las paradas de la ruta y su trazado. Incluye las
+     * paradas no programadas (solo administración/mantenimiento llegan a este componente).
+     */
     public function showRouteMap(int $routeId): void
     {
         $route = RouteDay::findOrFail($routeId);
         $this->authorize('view', $route);
 
-        $this->dispatch('open-route-map', ...app(RouteGeometry::class)->payloadFor($route));
+        $this->dispatch('open-route-map', ...app(RouteGeometry::class)->payloadFor($route, includeUnplannedStops: true));
     }
 
     #[Computed]

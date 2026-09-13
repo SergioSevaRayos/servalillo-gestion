@@ -128,6 +128,12 @@ return [
         'clamp_to_shift' => (bool) env('DWELL_CLAMP_TO_SHIFT', true),
         'recompute_every_seconds' => (int) env('DWELL_RECOMPUTE_EVERY_SECONDS', 90),
         'recompute_max_age_days' => (int) env('DWELL_RECOMPUTE_MAX_AGE_DAYS', 2),
+        // Paradas NO programadas (2026-09-13): tramos ≥ unplanned_stop_min_seconds en un
+        // punto que no es ni una parada de la ruta ni la base. Radio más ajustado que
+        // radius_meters porque aquí no hay geocerca ya definida: se agrupan fixes
+        // consecutivos cercanos ENTRE SÍ, no a un punto fijo conocido.
+        'unplanned_stop_min_seconds' => (int) env('DWELL_UNPLANNED_MIN_SECONDS', 300),
+        'unplanned_stop_radius_meters' => (int) env('DWELL_UNPLANNED_RADIUS_METERS', 100),
     ],
 
     /*

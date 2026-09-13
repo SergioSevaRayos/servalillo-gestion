@@ -7,6 +7,7 @@ use App\Models\Device;
 use App\Models\Driver;
 use App\Models\Route;
 use App\Models\RouteStop;
+use App\Models\UnplannedStop;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -52,6 +53,37 @@ test('un chofer no puede acceder al historial de rutas', function () {
     $route = Route::factory()->create();
 
     $this->actingAs(makeUser('chofer'))->get(route('routes.history', $route))->assertForbidden();
+});
+
+test('ver detalle de un día muestra sus paradas no programadas', function () {
+    $route = Route::factory()->create();
+    $day = makeRouteDay($route, '2026-09-10');
+    UnplannedStop::create([
+        'route_id' => $day->id, 'latitude' => 28.40, 'longitude' => -16.40,
+        'entered_at' => '2026-09-10 10:00:00', 'left_at' => '2026-09-10 10:12:00', 'seconds' => 720,
+    ]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(History::class, ['route' => $route])
+        ->call('viewDay', $day->id)
+        ->assertSee(__('Paradas no programadas'))
+        ->assertSee('12 min');
+});
+
+test('"Ver recorrido" del historial incluye las paradas no programadas del día', function () {
+    config()->set('servalillo.routing.enabled', false);
+
+    $route = Route::factory()->create();
+    $day = makeRouteDay($route, '2026-09-10');
+    UnplannedStop::create([
+        'route_id' => $day->id, 'latitude' => 28.40, 'longitude' => -16.40,
+        'entered_at' => '2026-09-10 10:00:00', 'left_at' => '2026-09-10 10:10:00', 'seconds' => 600,
+    ]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(History::class, ['route' => $route])
+        ->call('showDayMap', $day->id)
+        ->assertDispatched('open-route-map', fn ($event, $params) => count($params['unplanned_stops']) === 1);
 });
 
 test('oficina cambia el estado de un día desde el historial', function () {

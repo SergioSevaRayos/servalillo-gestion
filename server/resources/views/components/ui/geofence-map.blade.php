@@ -1,14 +1,15 @@
 @props([
     'latPath',
     'lngPath',
-    'radiusPath',
+    'radiusPath' => null,
     'searchMethod',
     'lat' => null,
     'lng' => null,
     'radius' => null,
     'baseLat',
     'baseLng',
-    'defaultRadius',
+    'defaultRadius' => null,
+    'showRadius' => true,
 ])
 
 {{--
@@ -22,17 +23,22 @@
     resources/js/app.js. `searchMethod` es el nombre del método del componente Livewire padre
     (`Users\Index::searchAddress()` / `Drivers\Index::searchAddress()`) que hace de proxy a
     Nominatim — nunca se llama a la API externa directo desde el navegador.
+
+    `showRadius="false"` (Mantenimiento → Ajustes, ubicación de la base): solo el punto, sin
+    círculo/asa de radio ni su input — un simple selector de coordenadas. `radiusPath`/
+    `defaultRadius` no hacen falta en ese modo.
 --}}
 <div
     wire:ignore
     x-data="geofenceMap({
         lat: {{ $lat !== null ? (float) $lat : (float) $baseLat }},
         lng: {{ $lng !== null ? (float) $lng : (float) $baseLng }},
-        radius: {{ $radius !== null ? (int) $radius : (int) $defaultRadius }},
+        radius: {{ $radius !== null ? (int) $radius : (int) ($defaultRadius ?? 100) }},
         latPath: @js($latPath),
         lngPath: @js($lngPath),
         radiusPath: @js($radiusPath),
         searchMethod: @js($searchMethod),
+        showRadius: @js($showRadius),
     })"
 >
     <div class="relative">
@@ -64,13 +70,16 @@
         </p>
     </div>
 
-    <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+    <p class="mt-2 text-xs text-slate-500 dark:text-slate-400" x-show="showRadius">
         {{ __('Arrastra el pin verde para fijar el punto y el ámbar para ajustar el radio, toca el mapa, o escribe los valores a mano — van a la vez.') }}
+    </p>
+    <p class="mt-2 text-xs text-slate-500 dark:text-slate-400" x-show="! showRadius">
+        {{ __('Arrastra el pin para fijar el punto, tócalo en el mapa, o escribe las coordenadas a mano — van a la vez.') }}
     </p>
 
     <div x-ref="map" class="mt-2 h-64 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700"></div>
 
-    <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div class="mt-3 grid grid-cols-1 gap-3" :class="showRadius ? 'sm:grid-cols-3' : 'sm:grid-cols-2'">
         <div>
             <label class="text-xs text-slate-500 dark:text-slate-400">{{ __('Latitud') }}</label>
             <input
@@ -85,7 +94,7 @@
                 class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-soft-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             />
         </div>
-        <div>
+        <div x-show="showRadius">
             <label class="text-xs text-slate-500 dark:text-slate-400">{{ __('Radio (metros)') }}</label>
             <input
                 type="number" min="10" x-model.number="radius" x-on:change="applyRadiusInput()"

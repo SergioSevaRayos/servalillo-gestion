@@ -152,6 +152,34 @@
                         <li class="py-4 text-sm text-slate-500 dark:text-slate-400">{{ __('Sin paradas ese día.') }}</li>
                     @endforelse
                 </ul>
+
+                @if ($this->unplannedStops->isNotEmpty())
+                    <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
+                        <p class="flex items-center gap-1.5 text-sm font-medium text-amber-800 dark:text-amber-300">
+                            <span aria-hidden="true">⚠️</span>
+                            {{ __('Paradas no programadas') }}
+                        </p>
+                        <ul class="mt-2 space-y-1.5">
+                            @foreach ($this->unplannedStops as $unplanned)
+                                <li class="flex items-center justify-between gap-3 text-xs text-amber-700 dark:text-amber-400">
+                                    <span>
+                                        {{ $unplanned->entered_at->format('H:i') }}
+                                        –
+                                        {{ $unplanned->left_at?->format('H:i') ?? __('en curso') }}
+                                        @if ($unplanned->seconds !== null)
+                                            · {{ \App\Support\Duration::humanShort($unplanned->seconds) }}
+                                        @endif
+                                    </span>
+                                    <a
+                                        href="{{ \App\Support\GoogleMaps::pointUrl($unplanned->latitude, $unplanned->longitude) }}"
+                                        target="_blank" rel="noopener"
+                                        class="shrink-0 font-medium text-amber-800 hover:underline dark:text-amber-300"
+                                    >{{ __('Ver en el mapa') }}</a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
             @endif
 
             <div class="mt-6 flex justify-end">

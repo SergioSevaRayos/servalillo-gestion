@@ -19,6 +19,7 @@ use App\Livewire\Maintenance\Devices as MaintenanceDevices;
 use App\Livewire\Maintenance\Errors as MaintenanceErrors;
 use App\Livewire\Maintenance\LoginLogs as MaintenanceLoginLogs;
 use App\Livewire\Maintenance\Overview as MaintenanceOverview;
+use App\Livewire\Maintenance\Settings as MaintenanceSettings;
 use App\Livewire\Maintenance\Support as MaintenanceSupport;
 use App\Livewire\Maintenance\SystemLog as MaintenanceSystemLog;
 use App\Livewire\Routes\Board as RoutesBoard;
@@ -137,6 +138,7 @@ Route::middleware(['auth', 'role:mantenimiento'])->prefix('mantenimiento')->name
     Route::get('accesos', MaintenanceLoginLogs::class)->middleware('permission:system_logs.view')->name('logins');
     Route::get('soporte', MaintenanceSupport::class)->middleware('permission:support.manage')->name('support');
     Route::get('dispositivos', MaintenanceDevices::class)->middleware('permission:devices.manage')->name('devices');
+    Route::get('ajustes', MaintenanceSettings::class)->name('settings');
 });
 
 /*

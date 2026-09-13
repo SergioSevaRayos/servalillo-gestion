@@ -523,6 +523,20 @@ Backed enums con `->label()` en español; casteados en los modelos.
 - El auditing real está **desactivado en consola** (`config/audit.php` → `console => false`), así que
   el seeder inserta filas de `audits` a mano (`seedMaintenanceData()`) imitando eventos web, además
   de unos cuantos `ErrorLog` de ejemplo.
+- **`/mantenimiento/ajustes` (`App\Livewire\Maintenance\Settings`, 2026-09-13)** — ajustes generales
+  editables sin tocar el `.env` ni desplegar, exclusivo de `mantenimiento` (sin permiso nuevo,
+  `abort_unless(auth()->user()->isMaintenance())` en `mount()`, igual que la ruta). Hoy dos:
+  **ubicación de la base** (empresa) y **minutos mínimos de una parada no programada** (ver Bloque
+  15). `App\Models\CompanySetting` — fila única (`current()` = `firstOrCreate([])`), `Auditable`.
+  `App\Providers\AppServiceProvider::applyCompanySettings()` (llamado desde `boot()`) pisa
+  `config('servalillo.base.*')`/`config('servalillo.dwell.unplanned_stop_min_seconds')` con estos
+  valores en cada petición si no son `null`; si la tabla no existe todavía (antes de la primera
+  migración) se traga el `QueryException` y se queda con el `.env`. Pensado para las pruebas
+  iniciales del fichaje/paradas no programadas: fijar la base en un domicilio particular y
+  cambiarla luego sin desplegar. El mapa reutiliza `<x-ui.geofence-map :show-radius="false">`
+  (prop nueva, 2026-09-13: oculta el círculo/asa de radio y su input — un simple selector de punto,
+  sin `radiusPath` — ver `Alpine.data('geofenceMap')` en `app.js`, guardas `if (this.showRadius)`
+  en cada sitio que toca el círculo/asa).
 - **Pendiente conocido (no es del Bloque 6):** la paginación de los listados Livewire sale en inglés
   ("Showing X to Y of Z results"). Livewire usa su propia vista `livewire::tailwind`, no la
   `resources/views/vendor/pagination/tailwind.blade.php` ya restilizada. Afecta también a los
@@ -1200,17 +1214,38 @@ Backed enums con `->label()` en español; casteados en los modelos.
     (1,0 m/s por defecto, `DWELL_MOVING_SPEED_MIN_MPS`) — "velocidad mientras circulaba", no
     "velocidad media incluyendo los ratos parado". El máximo (`max_speed_kmh`) se queda sin
     filtrar (un pico ya descarta por sí solo cualquier lectura a 0, no hace falta filtrarlo).
+- **Paradas no programadas (2026-09-13)**: cuando el camión está parado ≥5 min (configurable) en
+  un punto que NO es ni una parada de la ruta ni la base — repostar por libre, un desvío, una
+  avería — queda anotado. `App\Models\UnplannedStop` (tabla `unplanned_stops`, mismo criterio de
+  dato derivado que `stop_visits`: `StopDwellService::run()` la reconstruye entera por día, borra +
+  reinserta). `StopDwellService::buildUnplannedStops()` agrupa los fixes que sobran tras descartar
+  los de cualquier parada de la ruta (la exclusión de la base ya la hace `filterPositions()`):
+  a diferencia de `buildVisits()` (geocerca fija conocida), aquí se agrupan fixes consecutivos
+  cercanos ENTRE SÍ (`unplanned_stop_radius_meters`, 100 m por defecto) — no hay un punto fijo de
+  referencia. Mismo puente de huecos de señal GPS que las visitas normales (`merge_gap_seconds`).
+  **Visible SOLO para administración/mantenimiento**: `RouteGeometry::payloadFor(RouteDay,
+  $includeUnplannedStops = false)` las omite por defecto; solo `Routes\Board::showRouteMap()` y
+  `Routes\History::showDayMap()` piden `true` — `Chofer\Today::showRouteMap()` nunca lo pasa, así
+  que el chofer no las ve nunca, ni en "Ver recorrido" ni en ningún otro sitio (no tiene "Ver
+  detalle"). En el mapa se pintan con el icono estándar de aviso (⚠️) + el tiempo parado (p. ej.
+  "⚠️ 12 min"), mismo patrón de píldora que las paradas cerradas (`.route-map-pin--pill`); en
+  `history.blade.php` ("Ver detalle") salen listadas con hora de entrada/salida, duración y un
+  enlace a Google Maps (`App\Support\GoogleMaps::pointUrl()`). El umbral de minutos es configurable
+  desde `/mantenimiento/ajustes` (ver más abajo, "Ajustes generales").
 - **Fuera de alcance** (posible fase posterior): detección de entrada/salida en tiempo real en la
   ingesta; interpolación del cruce exacto del radio; `speed_mps ≈ 0` como filtro extra; media por
   chofer en `FleetStatsService`; aviso "parada completada pero el camión nunca entró en su radio";
   orientar el marcador del camión con `heading_deg` (se captura y guarda, pero no se usa en ningún
   sitio todavía).
-- Tests: `StopDwellServiceTest` (19 casos: conteo, drive-by, split, geocercas solapadas, base,
+- Tests: `StopDwellServiceTest` (26 casos: conteo, drive-by, split, geocercas solapadas, base,
   precisión, re-entrada, visita abierta, idempotencia, lote desordenado, sin coords,
   clamp_to_shift, puente de hueco de señal GPS, corte por encima del umbral, límite exacto, lote de
-  recuperación tras sin cobertura), `TransitLegsTest`, `RecomputeStopDwellCommandTest`,
-  `StopDwellOnViewTest`, `RouteStopDwellAccessorsTest`. Helpers en `tests/Pest.php`:
-  `metersOffset()`, `gpsTrack()`.
+  recuperación tras sin cobertura, y desde 2026-09-13 la detección de paradas no programadas — con
+  umbral, radio, exclusión por parada/base, varias distintas, abierta e idempotencia),
+  `TransitLegsTest`, `RecomputeStopDwellCommandTest`, `StopDwellOnViewTest`,
+  `RouteStopDwellAccessorsTest`, y las nuevas aserciones de `RouteGeometryTest`/`RoutesBoardTest`/
+  `RouteHistoryTest`/`ChoferTodayTest` sobre la visibilidad de `unplanned_stops`. Helpers en
+  `tests/Pest.php`: `metersOffset()`, `gpsTrack()`.
 
 ### Terminal vinculado a una ruta (Bloque 16, 2026-09-11) — chofer sustituto
 - **Qué resuelve**: si el chofer titular de una ruta se pone malo, un sustituto solo tiene que

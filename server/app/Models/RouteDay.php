@@ -156,6 +156,12 @@ class RouteDay extends Model implements Auditable
         return $this->hasMany(StopVisit::class, 'route_id');
     }
 
+    /** Paradas no programadas (≥5 min fuera de cualquier parada de la ruta y de la base) de este día. */
+    public function unplannedStops(): HasMany
+    {
+        return $this->hasMany(UnplannedStop::class, 'route_id');
+    }
+
     public function scopeForDate(Builder $query, mixed $date): Builder
     {
         return $query->whereDate('route_date', $date);

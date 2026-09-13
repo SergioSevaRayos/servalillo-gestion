@@ -4,6 +4,7 @@ namespace App\Livewire\Maintenance;
 
 use App\Models\Attendance;
 use App\Models\Client;
+use App\Models\CompanySetting;
 use App\Models\DeliveryNote;
 use App\Models\DeliveryType;
 use App\Models\Device;
@@ -43,6 +44,7 @@ class Audits extends Component
         'Dispositivo' => Device::class,
         'Usuario' => User::class,
         'Fichaje' => Attendance::class,
+        'Ajustes generales' => CompanySetting::class,
     ];
 
     #[Url(as: 'q', history: true)]
