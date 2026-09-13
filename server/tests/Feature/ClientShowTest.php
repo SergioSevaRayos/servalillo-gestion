@@ -29,18 +29,57 @@ it('muestra la ficha del cliente con su histórico emparejado por CIF', function
         ->assertDontSeeHtml('OTRO-CIF');
 });
 
-it('planificar reparto crea una parada en el backlog con los datos del cliente', function () {
+it('planificar reparto abre el modal con las rutas candidatas de su tipo de servicio', function () {
     $this->actingAs(makeUser('administrador'));
     $client = Client::factory()->create(['name' => 'Taller Pérez', 'typical_quantity' => 500, 'latitude' => 28.46, 'longitude' => -16.25]);
+    makeRoute('2026-09-10'); // ruta permanente de reparto (mismo service_kind por defecto)
 
     Livewire::test(Show::class, ['client' => $client])
-        ->call('planDelivery')
+        ->call('openPlanDelivery')
+        ->assertDispatched('open-modal', 'client-plan')
+        ->assertSet('planForm.client.id', $client->id)
+        ->assertCount('planRoutes', 1);
+});
+
+it('planificar reparto con una ruta elegida crea las paradas del rango en esa ruta', function () {
+    $this->actingAs(makeUser('administrador'));
+    $client = Client::factory()->create(['name' => 'Taller Pérez', 'typical_quantity' => 500, 'latitude' => 28.46, 'longitude' => -16.25]);
+    $routeDay = makeRoute('2026-09-14'); // lunes
+
+    Livewire::test(Show::class, ['client' => $client])
+        ->call('openPlanDelivery')
+        ->set('planForm.route_id', (string) $routeDay->route_id)
+        ->set('planForm.starts_on', '2026-09-14')
+        ->set('planForm.ends_on', '2026-09-20')
+        ->call('togglePlanWeekday', 1) // lunes
+        ->call('togglePlanWeekday', 3) // miércoles
+        ->call('savePlan')
         ->assertDispatched('toast');
 
-    $stop = RouteStop::whereNull('route_id')->firstWhere('customer_name', 'Taller Pérez');
+    $stops = RouteStop::where('customer_name', 'Taller Pérez')->orderBy('scheduled_for')->with('route')->get();
+    expect($stops)->toHaveCount(2)
+        ->and($stops[0]->scheduled_for->toDateString())->toBe('2026-09-14')
+        ->and($stops[1]->scheduled_for->toDateString())->toBe('2026-09-16')
+        // cada día tiene su propio RouteDay, pero ambos cuelgan de la misma ruta permanente
+        ->and($stops->pluck('route.route_id')->unique()->count())->toBe(1)
+        ->and((float) $stops[0]->planned_quantity)->toBe(500.0)
+        ->and($stops[0]->status)->toBe(RouteStopStatus::Pending);
+});
+
+it('planificar reparto sin ruta elegida deja las paradas en "Sin asignar"', function () {
+    $this->actingAs(makeUser('administrador'));
+    $client = Client::factory()->create(['name' => 'Sin Ruta SL']);
+
+    Livewire::test(Show::class, ['client' => $client])
+        ->call('openPlanDelivery')
+        ->set('planForm.starts_on', '2026-09-14')
+        ->set('planForm.ends_on', '2026-09-14')
+        ->call('togglePlanWeekday', 1)
+        ->call('savePlan');
+
+    $stop = RouteStop::whereNull('route_id')->firstWhere('customer_name', 'Sin Ruta SL');
     expect($stop)->not->toBeNull()
-        ->and((float) $stop->planned_quantity)->toBe(500.0)
-        ->and($stop->status)->toBe(RouteStopStatus::Pending);
+        ->and($stop->scheduled_for->toDateString())->toBe('2026-09-14');
 });
 
 it('un chofer no ve la ficha de cliente', function () {

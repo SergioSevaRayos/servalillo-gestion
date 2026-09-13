@@ -38,7 +38,9 @@
                 @endcan
             @else
                 @can('update', $client)
-                    <x-ui.button variant="secondary" size="sm" wire:click="planDelivery">{{ __('Planificar :kind', ['kind' => \Illuminate\Support\Str::lower($client->service_kind->label())]) }}</x-ui.button>
+                    @if (auth()->user()->can('routes.update'))
+                        <x-ui.button variant="secondary" size="sm" wire:click="openPlanDelivery">{{ __('Planificar :kind', ['kind' => \Illuminate\Support\Str::lower($client->service_kind->label())]) }}</x-ui.button>
+                    @endif
                     <x-ui.button size="sm" wire:click="edit">{{ __('Editar') }}</x-ui.button>
                 @endcan
             @endif
@@ -225,4 +227,8 @@
             </div>
         </form>
     </x-modal>
+
+    @unless ($client->isProspect())
+        <x-clients.plan-modal :form="$planForm" :routes="$this->planRoutes" />
+    @endunless
 </div>

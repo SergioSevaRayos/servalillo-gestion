@@ -35,6 +35,13 @@ class History extends Component
     #[Url(history: true)]
     public ?string $to = null;
 
+    /** Por defecto, la fecha más próxima (hoy o la más reciente) primero. */
+    #[Url(history: true)]
+    public string $sort = 'route_date';
+
+    #[Url(history: true)]
+    public string $direction = 'desc';
+
     public ?int $viewingDayId = null;
 
     public ?int $statusRouteId = null;
@@ -144,6 +151,16 @@ class History extends Component
         $this->resetPage();
     }
 
+    public function sortBy(string $field): void
+    {
+        if ($this->sort === $field) {
+            $this->direction = $this->direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sort = $field;
+            $this->direction = 'asc';
+        }
+    }
+
     public function viewDay(int $routeDayId): void
     {
         $day = RouteDay::where('route_id', $this->route->id)->findOrFail($routeDayId);
@@ -213,6 +230,8 @@ class History extends Component
 
     public function render()
     {
+        $sortable = ['route_date', 'status', 'stops_count', 'on_site_seconds'];
+
         $days = RouteDay::query()
             ->where('route_id', $this->route->id)
             ->withCount([
@@ -224,7 +243,9 @@ class History extends Component
             ->withSum('stopVisits as on_site_seconds', 'seconds')
             ->when($this->from, fn ($q) => $q->whereDate('route_date', '>=', $this->from))
             ->when($this->to, fn ($q) => $q->whereDate('route_date', '<=', $this->to))
-            ->orderByDesc('route_date')
+            ->when(in_array($this->sort, $sortable, true),
+                fn ($q) => $q->orderBy($this->sort, $this->direction),
+                fn ($q) => $q->orderByDesc('route_date'))
             ->paginate(14);
 
         return view('livewire.routes.history', ['days' => $days]);

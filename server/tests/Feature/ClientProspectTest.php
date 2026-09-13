@@ -129,7 +129,7 @@ it('no se puede planificar reparto de un pre-cliente', function () {
     $p = Client::factory()->prospect()->create();
 
     Livewire::test(Show::class, ['client' => $p])
-        ->call('planDelivery')
+        ->call('openPlanDelivery')
         ->assertStatus(403);
 });
 

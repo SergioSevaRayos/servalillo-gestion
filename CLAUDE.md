@@ -742,9 +742,30 @@ Backed enums con `->label()` en español; casteados en los modelos.
   (backlog general) **OR** `scheduled_for = fecha vista`): esa columna es **independiente del día**
   que se esté viendo en el tablero, muestra siempre todo lo que sigue sin ruta
   (`RouteStop::unassigned()`), tenga o no `scheduled_for` y sea cual sea su valor.
-- **"Planificar reparto"** en la ficha crea un `RouteStop` con `route_id = null` (backlog "Sin
-  asignar" del Kanban) copiando nombre/CIF/dirección/coordenadas/litros del cliente y
-  `delivery_type_id = DeliveryType::waterId()`. Requiere `clients.update` **y** `routes.update`.
+- **"Planificar reparto"** (ficha del cliente y, desde 2026-09-13, también la fila de
+  `/clientes` — mismo botón, mismo modal) abre `<x-clients.plan-modal>`: ruta (o "Sin
+  asignar"), rango de fechas y días de la semana. `App\Services\ClientDeliveryPlanner::plan()`
+  genera de una vez un `RouteStop` por cada día del rango que caiga en esos días de la semana,
+  copiando nombre/CIF/dirección/coordenadas/litros del cliente y `delivery_type_id =
+  DeliveryType::waterId()`. **Decisión explícita del usuario, dos veces confirmada**: (1) esto
+  es un **lote fijo de una sola vez para el rango pedido**, NO un calendario recurrente
+  permanente — no toca `clients.delivery_weekdays`/`schedule_starts_on`/`schedule_ends_on` (eso
+  ya existe aparte y lo sigue generando solo `RecurringStopService` cada noche); para seguir más
+  allá del rango, se vuelve a planificar. (2) el selector de ruta **permite "Sin asignar"**
+  (cae al backlog del tablero, igual que el botón de siempre) en vez de ser obligatorio. Pensado
+  para agilizar "Viajes": con varias rutas candidatas, `RecurringRouteService::
+  findRouteDayForAutoAssign()` no puede adivinar sola cuál usar (exige exactamente 1 candidata)
+  — aquí oficina la elige a mano de una vez para todo el rango. Con una ruta elegida, cada día
+  usa `RecurringRouteService::ensureForDate()` (crea el `RouteDay` de esa fecha si falta, lo
+  reabre si ya estaba completada) — **cada día tiene su propio `RouteDay`**, aunque cuelguen
+  todos de la misma `Route` permanente (no confundir `route_stops.route_id`, que apunta a un
+  `RouteDay` concreto, con el `route_id` de ese `RouteDay` hacia la `Route` permanente). Mismo
+  criterio de no-duplicado que `RecurringStopService::stopExists()` (por CIF/nombre + fecha,
+  incluidas paradas borradas). Rango tope 1 año (protección ante un despiste de fecha). Como SÍ
+  hay `route_id` real cuando se elige ruta, `RouteStopObserver` notifica al chofer normalmente
+  (una notificación por parada creada) — no se silencia, a diferencia del generador nocturno.
+  Requiere `clients.update` **y** `routes.update`. Formulario compartido `App\Livewire\Forms\
+  ClientPlanForm` entre `Clients\Index`/`Clients\Show` (mismo patrón que `ClientForm`).
 - **El producto siempre es agua**: se eliminó `clients.default_delivery_type_id`. `DeliveryType::waterId()`
   (slug `agua`) es el que usan `planDelivery`, `Chofer\Today::addClientStop` y el generador.
 - **Import Access = comando, una sola vez** (decisión del usuario, NO subida por UI):

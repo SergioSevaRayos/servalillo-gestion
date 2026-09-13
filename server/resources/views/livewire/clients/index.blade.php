@@ -102,6 +102,9 @@
                                 @endcan
                             @else
                                 @can('update', $client)
+                                    @if (auth()->user()->can('routes.update'))
+                                        <x-ui.button variant="ghost" size="sm" wire:click="openPlanDelivery({{ $client->id }})">{{ __('Planificar') }}</x-ui.button>
+                                    @endif
                                     <x-ui.button variant="ghost" size="sm" wire:click="edit({{ $client->id }})">{{ __('Editar') }}</x-ui.button>
                                 @endcan
                                 @can('delete', $client)
@@ -151,6 +154,8 @@
             </div>
         </form>
     </x-modal>
+
+    <x-clients.plan-modal :form="$this->planForm" :routes="$this->planRoutes" />
 
     <x-prospect-summary-modal />
 </div>

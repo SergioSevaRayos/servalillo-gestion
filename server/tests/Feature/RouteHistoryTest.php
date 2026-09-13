@@ -49,6 +49,50 @@ test('ver detalle de un día muestra sus paradas', function () {
         ->assertSee('Bar Central');
 });
 
+test('por defecto el historial muestra la fecha más reciente primero', function () {
+    $route = Route::factory()->create();
+    makeRouteDay($route, '2026-09-01');
+    makeRouteDay($route, '2026-09-15');
+    makeRouteDay($route, '2026-09-10');
+
+    $component = Livewire::actingAs(makeUser('administrador'))
+        ->test(History::class, ['route' => $route])
+        ->assertSet('sort', 'route_date')
+        ->assertSet('direction', 'desc');
+
+    $html = $component->html();
+    expect(strpos($html, '15/09/2026'))
+        ->toBeLessThan(strpos($html, '10/09/2026'))
+        ->and(strpos($html, '10/09/2026'))->toBeLessThan(strpos($html, '01/09/2026'));
+});
+
+test('la cabecera de fecha invierte el orden al pulsarla', function () {
+    $route = Route::factory()->create();
+    makeRouteDay($route, '2026-09-01');
+    makeRouteDay($route, '2026-09-15');
+
+    $component = Livewire::actingAs(makeUser('administrador'))
+        ->test(History::class, ['route' => $route])
+        ->call('sortBy', 'route_date')
+        ->assertSet('sort', 'route_date')
+        ->assertSet('direction', 'asc');
+
+    $html = $component->html();
+    expect(strpos($html, '01/09/2026'))->toBeLessThan(strpos($html, '15/09/2026'));
+});
+
+test('se puede ordenar el historial por estado', function () {
+    $route = Route::factory()->create();
+    makeRouteDay($route, '2026-09-01')->update(['status' => RouteStatus::Completed]);
+    makeRouteDay($route, '2026-09-02')->update(['status' => RouteStatus::Published]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(History::class, ['route' => $route])
+        ->call('sortBy', 'status')
+        ->assertSet('sort', 'status')
+        ->assertSet('direction', 'asc');
+});
+
 test('un chofer no puede acceder al historial de rutas', function () {
     $route = Route::factory()->create();
 

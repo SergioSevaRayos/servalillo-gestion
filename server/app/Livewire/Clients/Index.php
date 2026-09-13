@@ -6,8 +6,11 @@ use App\Enums\ClientStatus;
 use App\Enums\ClientType;
 use App\Enums\ServiceKind;
 use App\Livewire\Forms\ClientForm;
+use App\Livewire\Forms\ClientPlanForm;
 use App\Models\Client;
 use App\Models\DeliveryType;
+use App\Models\Route;
+use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
@@ -20,6 +23,8 @@ class Index extends Component
     use WithPagination;
 
     public ClientForm $form;
+
+    public ClientPlanForm $planForm;
 
     #[Url(as: 'q', history: true)]
     public string $search = '';
@@ -140,6 +145,51 @@ class Index extends Component
 
         $client->forceDelete();
         $this->dispatch('toast', message: 'Pre-cliente descartado.', variant: 'success');
+    }
+
+    /** Abre el modal de "Planificar reparto" (ruta + rango de fechas + días de la semana). */
+    public function openPlanDelivery(Client $client): void
+    {
+        $this->authorize('update', $client);
+        abort_unless(auth()->user()->can('routes.update'), 403);
+
+        $this->planForm->setClient($client);
+        $this->dispatch('open-modal', 'client-plan');
+    }
+
+    public function togglePlanWeekday(int $day): void
+    {
+        $this->planForm->toggleWeekday($day);
+    }
+
+    public function savePlan(): void
+    {
+        abort_if($this->planForm->client === null, 404);
+        $this->authorize('update', $this->planForm->client);
+        abort_unless(auth()->user()->can('routes.update'), 403);
+
+        $created = $this->planForm->save();
+
+        $this->dispatch('close-modal', 'client-plan');
+        $this->dispatch('toast',
+            message: $created > 0 ? "{$created} paradas planificadas." : 'No se ha creado ninguna parada nueva (ya existían para esas fechas).',
+            variant: $created > 0 ? 'success' : 'warning',
+        );
+    }
+
+    /** Rutas permanentes candidatas: mismo tipo de servicio que el cliente que se está planificando. */
+    #[Computed]
+    public function planRoutes(): Collection
+    {
+        if (! $this->planForm->client) {
+            return collect();
+        }
+
+        return Route::query()
+            ->where('service_kind', $this->planForm->client->service_kind->value)
+            ->with(['truck', 'driver.user'])
+            ->orderBy('name')
+            ->get();
     }
 
     #[Computed]

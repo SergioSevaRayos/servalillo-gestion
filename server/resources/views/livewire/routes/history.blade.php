@@ -29,12 +29,12 @@
     <x-ui.table>
         <thead>
             <tr>
-                <th>{{ __('Fecha') }}</th>
-                <th>{{ __('Estado') }}</th>
-                <th>{{ __('Paradas') }}</th>
+                <x-ui.sortable-th field="route_date" :sort="$sort" :direction="$direction">{{ __('Fecha') }}</x-ui.sortable-th>
+                <x-ui.sortable-th field="status" :sort="$sort" :direction="$direction">{{ __('Estado') }}</x-ui.sortable-th>
+                <x-ui.sortable-th field="stops_count" :sort="$sort" :direction="$direction">{{ __('Paradas') }}</x-ui.sortable-th>
                 <th>{{ __('Litros') }}</th>
                 <th>{{ __('Jornada') }}</th>
-                <th>{{ __('En paradas') }}</th>
+                <x-ui.sortable-th field="on_site_seconds" :sort="$sort" :direction="$direction">{{ __('En paradas') }}</x-ui.sortable-th>
                 <th class="text-right">{{ __('Acciones') }}</th>
             </tr>
         </thead>

@@ -5,9 +5,12 @@ namespace App\Livewire\Clients;
 use App\Enums\ClientStatus;
 use App\Enums\RouteStopStatus;
 use App\Livewire\Forms\ClientForm;
+use App\Livewire\Forms\ClientPlanForm;
 use App\Models\Client;
 use App\Models\DeliveryType;
+use App\Models\Route;
 use App\Models\RouteStop;
+use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -19,6 +22,8 @@ class Show extends Component
     public Client $client;
 
     public ClientForm $form;
+
+    public ClientPlanForm $planForm;
 
     public function mount(Client $client): void
     {
@@ -76,35 +81,46 @@ class Show extends Component
         $this->redirect(route('clients.index'), navigate: true);
     }
 
-    /** Crea una parada en el backlog ("Sin asignar") con los datos del cliente. */
-    public function planDelivery(): void
+    /** Abre el modal de "Planificar reparto" (ruta + rango de fechas + días de la semana). */
+    public function openPlanDelivery(): void
     {
         abort_if($this->client->isProspect(), 403, 'Convierte el pre-cliente en cliente antes de planificar.');
 
         $this->authorize('update', $this->client);
         abort_unless(auth()->user()->can('routes.update'), 403);
 
-        $stop = RouteStop::create([
-            'route_id' => null,
-            'position' => (RouteStop::whereNull('route_id')->max('position') ?? 0) + 1,
-            'service_kind' => $this->client->service_kind->value,
-            'customer_name' => $this->client->name,
-            'customer_tax_id' => $this->client->tax_id,
-            'address' => $this->client->address,
-            'latitude' => $this->client->latitude,
-            'longitude' => $this->client->longitude,
-            'contact_name' => $this->client->contact_name,
-            'contact_phone' => $this->client->phone,
-            'delivery_type_id' => DeliveryType::waterId(),
-            'status' => RouteStopStatus::Pending,
-            'planned_quantity' => $this->client->typical_quantity,
-            'data' => [],
-        ]);
+        $this->planForm->setClient($this->client);
+        $this->dispatch('open-modal', 'client-plan');
+    }
 
+    public function togglePlanWeekday(int $day): void
+    {
+        $this->planForm->toggleWeekday($day);
+    }
+
+    public function savePlan(): void
+    {
+        $this->authorize('update', $this->client);
+        abort_unless(auth()->user()->can('routes.update'), 403);
+
+        $created = $this->planForm->save();
+
+        $this->dispatch('close-modal', 'client-plan');
         $this->dispatch('toast',
-            message: "{$this->client->service_kind->label()} añadido a \"Sin asignar\" (parada #{$stop->id}).",
-            variant: 'success',
+            message: $created > 0 ? "{$created} paradas planificadas." : 'No se ha creado ninguna parada nueva (ya existían para esas fechas).',
+            variant: $created > 0 ? 'success' : 'warning',
         );
+    }
+
+    /** Rutas permanentes candidatas: mismo tipo de servicio que el cliente. */
+    #[Computed]
+    public function planRoutes(): Collection
+    {
+        return Route::query()
+            ->where('service_kind', $this->client->service_kind->value)
+            ->with(['truck', 'driver.user'])
+            ->orderBy('name')
+            ->get();
     }
 
     #[Computed]
