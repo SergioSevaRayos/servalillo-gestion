@@ -103,7 +103,7 @@ class Totals extends Component
 
         $range = $this->resolvedRange();
 
-        return app(AttendanceStatsService::class)->dailyBreakdown($this->detailUserId, $range['from'], $range['to']);
+        return app(AttendanceStatsService::class)->dailyBreakdownWithHours($this->detailUserId, $range['from'], $range['to']);
     }
 
     public function render()

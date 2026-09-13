@@ -116,3 +116,59 @@ it('Duration::decimalHours da coma decimal española con 2 decimales', function 
     expect(Duration::decimalHours(3600))->toBe('1,00 h');
     expect(Duration::decimalHours(0))->toBe('0,00 h');
 });
+
+it('contractedWeeklySeconds usa la config por defecto si la persona no tiene horas propias', function () {
+    config(['servalillo.attendance.default_weekly_hours' => 40]);
+    $user = makeUser('chofer');
+
+    expect($this->service->contractedWeeklySeconds($user->id))->toBe(40 * 3600);
+});
+
+it('contractedWeeklySeconds usa las horas propias de la persona si las tiene', function () {
+    $user = makeUser('chofer');
+    $user->update(['weekly_contracted_hours' => 20]);
+
+    expect($this->service->contractedWeeklySeconds($user->id))->toBe(20 * 3600);
+});
+
+it('dailyBreakdownWithHours reparte ordinarias/extra dentro de la misma semana', function () {
+    $user = makeUser('chofer');
+    $user->update(['weekly_contracted_hours' => 10]); // umbral bajo para forzar el cruce a mitad de semana
+    // Lunes 2026-09-14: 6h (todas ordinarias, quedan 4h de margen). Martes: 8h (4h ordinarias + 4h extra).
+    Attendance::factory()->for($user)->create(['date' => '2026-09-14', 'out_at' => now(), 'total_seconds' => 6 * 3600]);
+    Attendance::factory()->for($user)->create(['date' => '2026-09-15', 'out_at' => now(), 'total_seconds' => 8 * 3600]);
+
+    $rows = collect($this->service->dailyBreakdownWithHours($user->id, '2026-09-14', '2026-09-15'))->keyBy('date');
+
+    expect($rows['2026-09-14']['ordinary_seconds'])->toBe(6 * 3600);
+    expect($rows['2026-09-14']['extra_seconds'])->toBe(0);
+    expect($rows['2026-09-15']['ordinary_seconds'])->toBe(4 * 3600);
+    expect($rows['2026-09-15']['extra_seconds'])->toBe(4 * 3600);
+});
+
+it('dailyBreakdownWithHours calcula el acumulado semanal aunque el rango pedido empiece a mitad de semana', function () {
+    $user = makeUser('chofer');
+    $user->update(['weekly_contracted_hours' => 10]);
+    // Misma semana ISO (lunes 2026-09-14 a domingo 2026-09-20). Se pide solo el martes,
+    // pero el lunes (fuera del rango pedido) ya ha consumido las 10h ordinarias.
+    Attendance::factory()->for($user)->create(['date' => '2026-09-14', 'out_at' => now(), 'total_seconds' => 10 * 3600]);
+    Attendance::factory()->for($user)->create(['date' => '2026-09-15', 'out_at' => now(), 'total_seconds' => 3 * 3600]);
+
+    $rows = collect($this->service->dailyBreakdownWithHours($user->id, '2026-09-15', '2026-09-15'))->keyBy('date');
+
+    expect($rows)->toHaveCount(1);
+    expect($rows['2026-09-15']['ordinary_seconds'])->toBe(0);
+    expect($rows['2026-09-15']['extra_seconds'])->toBe(3 * 3600);
+});
+
+it('dailyBreakdownWithHours no cuenta un día con jornada abierta como ordinaria ni extra', function () {
+    $user = makeUser('chofer');
+    $user->update(['weekly_contracted_hours' => 40]);
+    Attendance::factory()->for($user)->create(['date' => '2026-09-14', 'in_at' => now(), 'out_at' => null, 'total_seconds' => null]);
+
+    $rows = collect($this->service->dailyBreakdownWithHours($user->id, '2026-09-14', '2026-09-14'))->keyBy('date');
+
+    expect($rows['2026-09-14']['open'])->toBeTrue();
+    expect($rows['2026-09-14']['ordinary_seconds'])->toBeNull();
+    expect($rows['2026-09-14']['extra_seconds'])->toBeNull();
+});

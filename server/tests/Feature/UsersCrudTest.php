@@ -53,6 +53,33 @@ test('se puede configurar una ubicación remota de fichaje para un administrador
     expect($admin->attendance_radius_meters)->toBe(200);
 });
 
+test('se pueden fijar las horas semanales contratadas de un administrador', function () {
+    config()->set('servalillo.attendance.enabled', true);
+    $admin = makeUser('administrador');
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('edit', $admin->id)
+        ->set('form.weekly_contracted_hours', '25')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $admin->refresh();
+    expect((float) $admin->weekly_contracted_hours)->toEqual(25.0);
+});
+
+test('las horas semanales contratadas fuera de rango no se guardan', function () {
+    config()->set('servalillo.attendance.enabled', true);
+    $admin = makeUser('administrador');
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('edit', $admin->id)
+        ->set('form.weekly_contracted_hours', '81')
+        ->call('save')
+        ->assertHasErrors(['form.weekly_contracted_hours']);
+});
+
 test('se puede reutilizar el email de una cuenta ya borrada', function () {
     $borrado = User::factory()->create(['email' => 'reciclado@servalillo.test']);
     $borrado->assignRole('administrador');

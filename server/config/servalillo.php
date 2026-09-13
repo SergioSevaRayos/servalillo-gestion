@@ -167,6 +167,10 @@ return [
     'attendance' => [
         'enabled' => (bool) env('ATTENDANCE_ENABLED', false),
         'default_radius_meters' => (int) env('ATTENDANCE_DEFAULT_RADIUS_M', 150),
+        // Umbral de horas ordinarias/semana cuando la persona no tiene las suyas propias
+        // rellenadas (`users.weekly_contracted_hours`) — para desagregar horas
+        // ordinarias/extraordinarias en la exportación legal (art. 34 bis ET, proyecto de ley).
+        'default_weekly_hours' => (float) env('ATTENDANCE_DEFAULT_WEEKLY_HOURS', 40),
     ],
 
     /*

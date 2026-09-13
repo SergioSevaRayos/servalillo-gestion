@@ -139,6 +139,18 @@
                                 />
                             </div>
                         @endif
+
+                        @if ($form->attendance_mode !== 'external')
+                            <div class="mt-4 max-w-xs">
+                                <x-ui.input
+                                    type="number" step="0.5" name="weekly_contracted_hours"
+                                    label="{{ __('Horas semanales contratadas') }}"
+                                    wire:model="form.weekly_contracted_hours"
+                                    placeholder="{{ __('Por defecto: :h h/semana', ['h' => config('servalillo.attendance.default_weekly_hours')]) }}"
+                                    help="{{ __('Lo que pase de aquí en una semana se exporta como hora extraordinaria.') }}"
+                                />
+                            </div>
+                        @endif
                     </div>
                 @endif
             </div>

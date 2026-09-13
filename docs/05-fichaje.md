@@ -352,6 +352,132 @@ Con `enabled` en `false` (por defecto):
   obligatorio y quién corrigió, más la auditoría técnica automática ya existente en el proyecto
   como segunda capa independiente.
 
+### Auditoría del formato de datos frente a la ley (2026-09-13)
+
+El usuario pidió verificar que lo que se guarda/exporta encaja con "los fichajes obligatorios en
+2027". Investigado a fondo (texto oficial, no un resumen de prensa), la situación real tiene dos
+capas muy distintas que conviene no mezclar:
+
+**1. Ley ya vigente hoy — art. 34.9 del Estatuto de los Trabajadores** (introducido por el
+[RD-ley 8/2019, de 8 de marzo](https://www.boe.es/buscar/act.php?id=BOE-A-2019-3481)). Exige
+registro diario de la hora de inicio y fin de cada jornada, conservación 4 años, y acceso del
+trabajador/sus representantes/la Inspección — pero **no exige que el sistema sea digital**, vale
+uno manual, siempre que garantice fiabilidad e invariabilidad. **Frente a esta ley, que es la que
+manda de verdad hoy, Gestión Servalillo cumple de sobra** (ver bullets anteriores) — de hecho va
+por encima de lo mínimo exigido, al ser 100% digital con geolocalización y un ledger de
+correcciones motivado que la ley ni pide.
+
+**2. Todavía NO es ley — Proyecto de Ley de reducción de la jornada laboral.** Sustituye el art.
+34.9 por un nuevo **art. 34 bis ET**, mucho más exigente. Texto extraído directamente del borrador
+oficial descargado del Ministerio de Trabajo (`expinterweb.mites.gob.es`):
+
+> **Art. 34 bis. Registro de jornada** (resumen literal de los puntos clave):
+> 1. Registro diario **por medios digitales**.
+> 2. Debe garantizar objetividad, fiabilidad y accesibilidad:
+>    a) asientos personales y directos, inmediatos al inicio/fin, **registrando las interrupciones
+>    que afecten al cómputo**, y **desglosando si las horas son ordinarias, extraordinarias o
+>    complementarias**;
+>    b) identificación inequívoca de quién ficha **y de las modificaciones de los asientos**;
+>    c) formato **tratable, legible y compatible**, con **interoperabilidad** que permita su
+>    acceso y gestión;
+>    d) acceso inmediato en el centro de trabajo y en cualquier momento para trabajador/
+>    representantes/ITSS, y **accesible en remoto** para ITSS y representación de los trabajadores;
+>    e) conservación 4 años.
+>
+> **Disposición final cuarta (entrada en vigor)**: el art. 34 bis entraría en vigor **a los 6 meses
+> de publicarse la ley en el BOE** — que todavía no ha ocurrido, la tramitación está parada —,
+> **excepto la obligación de interoperabilidad y accesibilidad remota, que entrará en vigor cuando
+> lo determine un reglamento de desarrollo que a día de hoy no existe ni tiene plazo fijado.**
+
+**Importante**: el usuario recordaba 2027 como fecha, pero confirma que era una estimación suya,
+no una fecha oficial — y la investigación lo confirma: **no hay ninguna fecha de entrada en vigor
+confirmada**, ni 2026 ni 2027. Distintas fuentes de prensa/sector (no oficiales) apuntan a que la
+tramitación parlamentaria se retomaría en septiembre de 2026, pero eso no fija cuándo se publicaría
+en el BOE ni, por tanto, cuándo empezarían a correr esos 6 meses.
+
+**Tabla comparativa (campo a campo, sobre el código real)**:
+
+| Requisito | Ley vigente (34.9 ET) | Proyecto de ley (34 bis ET, NO vigente) | Gestión Servalillo hoy |
+|---|---|---|---|
+| Hora de inicio y fin, cada día | Obligatorio | Obligatorio | ✅ `in_at`/`out_at` |
+| Medios digitales | No exigido | Obligatorio | ✅ ya es 100% digital |
+| Identificación inequívoca de quién ficha | Implícito | Explícito | ✅ `user_id`, fichaje personal en `/fichar` |
+| Registro de interrupciones/pausas | No aplica | Exigido si afectan al cómputo | ❌ no existe — excluido a propósito ("sistema sencillo", ver "Decisiones de alcance"); el usuario confirmó (2026-09-13) que de momento sigue fuera de alcance |
+| Desglose horas ordinarias/extra/complementarias | No exigido | Exigido | ✅ implementado 2026-09-13: `users.weekly_contracted_hours` + `AttendanceStatsService::dailyBreakdownWithHours()` (solo ordinaria/extra, sin "complementarias" — no se ofreció esa opción) |
+| Trazabilidad de modificaciones | Implícito | Explícito | ✅ `attendance_corrections` (ledger, motivo obligatorio) — y desde 2026-09-13 **sí viaja en el export** (hallazgo 2 resuelto, ver abajo) |
+| Formato tratable/legible/compatible | No exigido | Exigido | ✅ implementado 2026-09-13: el XML/PDF/JSON llevan también los segundos en crudo junto al texto legible (hallazgo 1 resuelto, ver abajo) |
+| Interoperabilidad con la ITSS | No exigido | Exigido (fecha abierta, reglamento pendiente) | ⚠️ implementado 2026-09-13 un endpoint JSON genérico (`GET /fichajes/exportar.json`), explícitamente **NO una integración real con la ITSS** (no existe spec) — preparado para adaptar cuando el reglamento de desarrollo fije el formato real |
+| Acceso remoto en tiempo real para la ITSS | No exigido | Exigido (fecha abierta) | ❌ no existe — depende del mismo reglamento pendiente que el punto anterior, sigue sin construirse a propósito |
+| Conservación 4 años | Obligatorio | Obligatorio | ✅ sin purga, ver bullets anteriores y `CLAUDE.md` |
+| Acceso del propio trabajador, siempre | Obligatorio | Obligatorio | ✅ `/fichar`, sin permiso ni casilla que lo condicione |
+| Acceso de representantes legales de los trabajadores | Obligatorio si existen | Obligatorio | N/A hoy (plantilla pequeña, sin RLT) — anotar si algún día la hay |
+| Totalización mensual/de horas extra junto a la nómina | No aplica así | Exigido | ❌ no aplica — la nómina no la gestiona esta app; fuera de alcance salvo que se decida integrarla |
+
+**Hallazgos de bajo coste — ambos implementados el 2026-09-13** (ver sección siguiente):
+1. ~~`AttendanceExportService::toLegalXml()` guarda `TiempoEfectivo` con `Duration::humanShort()`
+   ("8 h 05 min"), pensado para leer, no para procesar~~ → resuelto: el XML/PDF/JSON llevan ahora
+   también los segundos en crudo (`TiempoEfectivoSegundos`, `ordinary_seconds`/`extra_seconds`,
+   etc.) junto al texto legible, sin quitar este último.
+2. ~~Ni el XML ni el PDF exportados dicen si una jornada fue corregida ni por qué~~ → resuelto: el
+   XML añade `Corregido` + `UltimaCorreccion/Por|Fecha|Motivo`, el PDF añade la nota de corrección
+   junto al badge, con el motivo/quién/cuándo de la ÚLTIMA corrección (no todo el historial —
+   el ledger completo sigue siendo solo cosa de la app, "Ver correcciones").
+
+**Lo que NO se recomienda construir todavía**: pausas, interoperabilidad/accesibilidad remota real
+con la ITSS y "horas complementarias" (concepto laboral que ni se ha ofrecido como opción) dependen
+de un reglamento que ni existe ni tiene plazo — construir contra una especificación que aún puede
+cambiar sería trabajo tirado. Se deja como "vigilar la tramitación", no como pendiente de hacer.
+
+### Adaptación al proyecto de ley — implementado 2026-09-13
+
+Tras la auditoría de arriba, el usuario pidió ("tenemos que dejarlo ya preparado al cien por
+cien") adaptar el código a lo que exige el proyecto de ley, dentro de lo que ya tiene sentido
+construir hoy (ver "Lo que NO se recomienda" arriba). Tres decisiones, todas confirmadas
+explícitamente por el usuario antes de tocar código:
+
+- **Interoperabilidad con la ITSS → solo un endpoint genérico de exportación.** No existe ninguna
+  especificación técnica real (el propio proyecto de ley deja el formato a un reglamento de
+  desarrollo que aún no existe), así que construir una integración de verdad sería adivinar sobre
+  una spec que puede cambiar. Se implementó `GET /fichajes/exportar.json`
+  (`App\Http\Controllers\AttendanceExportController::json()`, protegido por sesión web +
+  `permission:attendance.manage`, **no** una API pública/token — nada que ver con un canal real de
+  la ITSS) devolviendo `AttendanceExportService::toInteroperableArray()`: mismo contenido
+  enriquecido que el XML/PDF (coordenadas, desglose ordinaria/extra, última corrección), en JSON.
+  Botón "Exportar (JSON interoperable)" en `/fichajes/gestion`, con un `title` explícito avisando
+  de que es preliminar. **Si algún día aparece el reglamento con un formato/protocolo real, este es
+  el punto a adaptar** — no hay que construir nada desde cero, ya existe el mismo dato enriquecido
+  en un solo Service.
+- **Pausas/interrupciones → NO, de momento.** El usuario confirmó mantener el "sistema sencillo"
+  original (ver "Decisiones de alcance"), pese a que el art. 34 bis ET las exigiría. Queda como
+  gap documentado y vigilado, no como pendiente técnico.
+- **Desglose ordinarias/extraordinarias → sí, añadiendo horas semanales contratadas por persona.**
+  El art. 34 bis exige desagregar ordinarias/extraordinarias/complementarias; sin saber cuántas
+  horas semanales tiene contratadas cada persona no hay umbral con el que distinguir una de otra.
+  Se añadió `users.weekly_contracted_hours` (nullable — si no se rellena, se usa
+  `config('servalillo.attendance.default_weekly_hours')`, 40 h por defecto,
+  `ATTENDANCE_DEFAULT_WEEKLY_HOURS`), editable desde `/usuarios` y `/chofers`. Se implementó un
+  reparto de dos vías (ordinaria/extra), **sin** "complementarias" — esa es una categoría laboral
+  aparte (horas pactadas expresamente en un contrato a tiempo parcial) que nunca se ofreció como
+  opción y no aplica al modelo de "chofer sin jornada fija" de esta empresa.
+  `AttendanceStatsService::dailyBreakdownWithHours()` agota primero las horas ordinarias de la
+  semana ISO (lunes-domingo) en orden cronológico; lo que exceda el umbral semanal, sea el día que
+  sea, es extraordinaria. Se calcula siempre sobre la semana ISO completa que contiene cada día
+  (aunque el rango pedido sea más corto) para que el reparto de los primeros días de un mes no
+  salga mal por no ver la semana entera. Un día con jornada abierta no aporta ni consume horas de
+  ningún tipo hasta cerrarse (mismo criterio de precisión que el resto del servicio). Se ve en:
+  el detalle de `/fichajes/totales` (columnas "Ordinarias"/"Extra"), el PDF exportado (columnas
+  homónimas) y el XML/JSON (`TiempoOrdinario(Segundos)`/`TiempoExtraordinario(Segundos)`).
+
+**Ficheros tocados** (todo probado, sin regresiones — 479 tests):
+`database/migrations/2026_09_13_090000_add_weekly_contracted_hours_to_users_table.php`,
+`config/servalillo.php`, `app/Models/User.php` (`effectiveWeeklyContractedHours()`),
+`app/Livewire/Forms/{UserForm,DriverForm}.php` + sus vistas de edición,
+`app/Services/AttendanceStatsService.php` (`contractedWeeklySeconds()`,
+`dailyBreakdownWithHours()`), `app/Services/AttendanceExportService.php` (XML/PDF/JSON
+enriquecidos), `app/Http/Controllers/AttendanceExportController.php` (nuevo),
+`routes/web.php` (`attendance.export-json`), `app/Livewire/Attendance/{Manage,Totals}.php` y sus
+vistas.
+
 ## Ficheros (cuando se implemente)
 
 **Nuevos**

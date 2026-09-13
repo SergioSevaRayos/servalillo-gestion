@@ -70,6 +70,21 @@ test('se puede marcar a un chofer como fichaje con huella externa en la base', f
     expect($driver->user->canPunchAttendance())->toBeFalse();
 });
 
+test('se pueden fijar las horas semanales contratadas de un chofer', function () {
+    config()->set('servalillo.attendance.enabled', true);
+    $driver = Driver::factory()->for(User::factory(), 'user')->create();
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('edit', $driver)
+        ->set('form.weekly_contracted_hours', '30')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $driver->user->refresh();
+    expect((float) $driver->user->weekly_contracted_hours)->toEqual(30.0);
+});
+
 test('editar un chofer sin contraseña no la modifica', function () {
     $driver = Driver::factory()->for(User::factory(), 'user')->create();
     $originalHash = $driver->user->password;

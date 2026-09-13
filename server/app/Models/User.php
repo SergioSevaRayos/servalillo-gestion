@@ -17,7 +17,7 @@ use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'phone', 'is_active', 'theme_preference', 'dni', 'attendance_mode', 'attendance_latitude', 'attendance_longitude', 'attendance_radius_meters'])]
+#[Fillable(['name', 'email', 'password', 'phone', 'is_active', 'theme_preference', 'dni', 'attendance_mode', 'attendance_latitude', 'attendance_longitude', 'attendance_radius_meters', 'weekly_contracted_hours'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements Auditable
 {
@@ -60,6 +60,15 @@ class User extends Authenticatable implements Auditable
     public function canPunchAttendance(): bool
     {
         return ($this->hasRole('administrador') || $this->isDriver()) && $this->attendance_mode !== 'external';
+    }
+
+    /**
+     * Horas semanales contratadas para desagregar ordinarias/extraordinarias en la
+     * exportación legal — si la persona no tiene las suyas, se usa el umbral general.
+     */
+    public function effectiveWeeklyContractedHours(): float
+    {
+        return (float) ($this->weekly_contracted_hours ?? config('servalillo.attendance.default_weekly_hours'));
     }
 
     public function supportTickets(): HasMany

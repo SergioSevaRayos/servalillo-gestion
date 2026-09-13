@@ -9,6 +9,14 @@
         <div class="flex flex-wrap gap-2">
             <x-ui.button variant="secondary" wire:click="exportXml">{{ __('Exportar (formato legal)') }}</x-ui.button>
             <x-ui.button variant="secondary" wire:click="exportPdf">{{ __('Exportar PDF') }}</x-ui.button>
+            @php
+                $monthStart = \Illuminate\Support\Carbon::createFromFormat('Y-m', $this->currentMonth())->startOfMonth();
+            @endphp
+            <x-ui.button
+                variant="secondary"
+                href="{{ route('attendance.export-json', ['from' => $monthStart->toDateString(), 'to' => $monthStart->copy()->endOfMonth()->toDateString()]) }}"
+                title="{{ __('Formato interoperable preliminar — a adaptar cuando exista el reglamento oficial.') }}"
+            >{{ __('Exportar (JSON interoperable)') }}</x-ui.button>
             <x-ui.button wire:click="openCreate">{{ __('Registrar fichaje olvidado') }}</x-ui.button>
         </div>
     </div>

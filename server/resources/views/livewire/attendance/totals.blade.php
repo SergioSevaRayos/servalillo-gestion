@@ -69,6 +69,8 @@
                             <th>{{ __('Entrada') }}</th>
                             <th>{{ __('Salida') }}</th>
                             <th class="text-right">{{ __('Horas') }}</th>
+                            <th class="text-right">{{ __('Ordinarias') }}</th>
+                            <th class="text-right">{{ __('Extra') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -86,10 +88,20 @@
                                 <td data-label="{{ __('Horas') }}" class="text-right">
                                     {{ $row['seconds'] !== null ? \App\Support\Duration::humanShort($row['seconds']) : '—' }}
                                 </td>
+                                <td data-label="{{ __('Ordinarias') }}" class="text-right">
+                                    {{ $row['ordinary_seconds'] !== null ? \App\Support\Duration::humanShort($row['ordinary_seconds']) : '—' }}
+                                </td>
+                                <td data-label="{{ __('Extra') }}" class="text-right">
+                                    @if (($row['extra_seconds'] ?? 0) > 0)
+                                        <span class="font-medium text-amber-600 dark:text-amber-400">{{ \App\Support\Duration::humanShort($row['extra_seconds']) }}</span>
+                                    @else
+                                        {{ $row['extra_seconds'] !== null ? \App\Support\Duration::humanShort($row['extra_seconds']) : '—' }}
+                                    @endif
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4">
+                                <td colspan="6">
                                     <x-ui.empty-state title="{{ __('Sin fichajes en este periodo') }}" />
                                 </td>
                             </tr>

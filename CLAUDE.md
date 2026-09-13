@@ -1444,6 +1444,24 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `/chofers`/`/usuarios`, sin geovalla ni mapa (igual que `base`). **Si algún día se integra ese
   sistema externo, el punto de entrada natural es un importador hacia `attendances`** (mismo
   criterio que `ClientImporter`, Bloque 9) — no existe todavía, es solo el hueco más razonable.
+- **Auditoría legal del formato de datos (2026-09-13)**: `docs/05-fichaje.md`, sección "Auditoría
+  del formato de datos frente a la ley", tiene la comparación campo a campo contra la ley vigente
+  (34.9 ET, ya se cumple) y contra el Proyecto de Ley de reducción de jornada (nuevo art. 34 bis
+  ET, **todavía no aprobado, sin fecha de entrada en vigor**) — léela antes de dar por bueno o por
+  urgente cualquier cambio "porque lo va a exigir la ley pronto": la interoperabilidad real con la
+  ITSS (acceso remoto en tiempo real) sigue dependiendo de un reglamento que aún no existe.
+- **Adaptación al proyecto de ley (2026-09-13)** — `docs/05-fichaje.md`, sección "Adaptación al
+  proyecto de ley — implementado 2026-09-13", detalle completo. Resumen: (1) `users.
+  weekly_contracted_hours` (nullable, umbral general `ATTENDANCE_DEFAULT_WEEKLY_HOURS`=40 si no se
+  rellena) + `AttendanceStatsService::dailyBreakdownWithHours()` desagregan horas
+  ordinarias/extraordinarias por semana ISO (sin "complementarias", no ofrecida como opción; sin
+  pausas, el usuario mantuvo el "sistema sencillo") — visible en `/fichajes/totales`, el PDF y el
+  XML/JSON exportados. (2) El XML/PDF/JSON llevan ahora también los segundos en crudo junto al
+  texto legible, y el motivo/quién/cuándo de la ÚLTIMA corrección (los 2 "hallazgos de bajo coste"
+  de la auditoría, resueltos). (3) `GET /fichajes/exportar.json`
+  (`AttendanceExportController::json()`, permiso `attendance.manage`) — un endpoint de exportación
+  genérico, **explícitamente NO una integración real con la ITSS** (no existe spec todavía): mismo
+  contenido enriquecido que el XML/PDF, en JSON, listo para adaptar cuando exista el reglamento.
 
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.

@@ -63,7 +63,8 @@ class Manage extends Component
         abort_unless(auth()->user()->can('attendance.manage'), 403);
     }
 
-    private function currentMonth(): string
+    /** Público: lo usa también la vista para enlazar el export JSON con el mes filtrado. */
+    public function currentMonth(): string
     {
         return $this->month !== '' ? $this->month : today()->format('Y-m');
     }

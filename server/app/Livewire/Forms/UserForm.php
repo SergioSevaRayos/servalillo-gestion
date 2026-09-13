@@ -42,6 +42,10 @@ class UserForm extends Form
 
     public ?string $attendance_radius_meters = null;
 
+    // Horas ordinarias/extraordinarias en la exportación legal (art. 34 bis ET, proyecto
+    // de ley) — nulo = usa el umbral general de la empresa.
+    public ?string $weekly_contracted_hours = null;
+
     public function rules(): array
     {
         $userId = $this->editing?->id;
@@ -59,6 +63,7 @@ class UserForm extends Form
             'attendance_latitude' => [$remote ? 'required' : 'nullable', 'numeric', 'between:-90,90'],
             'attendance_longitude' => [$remote ? 'required' : 'nullable', 'numeric', 'between:-180,180'],
             'attendance_radius_meters' => ['nullable', 'integer', 'min:10'],
+            'weekly_contracted_hours' => ['nullable', 'numeric', 'min:1', 'max:80'],
         ];
     }
 
@@ -76,6 +81,7 @@ class UserForm extends Form
         $this->attendance_latitude = $user->attendance_latitude !== null ? (string) $user->attendance_latitude : null;
         $this->attendance_longitude = $user->attendance_longitude !== null ? (string) $user->attendance_longitude : null;
         $this->attendance_radius_meters = $user->attendance_radius_meters !== null ? (string) $user->attendance_radius_meters : null;
+        $this->weekly_contracted_hours = $user->weekly_contracted_hours !== null ? (string) $user->weekly_contracted_hours : null;
     }
 
     public function save(): User
@@ -94,6 +100,7 @@ class UserForm extends Form
             'attendance_latitude' => $remote ? $validated['attendance_latitude'] : null,
             'attendance_longitude' => $remote ? $validated['attendance_longitude'] : null,
             'attendance_radius_meters' => $remote ? ($validated['attendance_radius_meters'] ?: null) : null,
+            'weekly_contracted_hours' => $validated['weekly_contracted_hours'] ?: null,
         ]);
 
         if (! empty($validated['password'])) {

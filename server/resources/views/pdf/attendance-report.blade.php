@@ -45,6 +45,8 @@
                 <th>{{ __('Salida') }}</th>
                 <th>{{ __('Coord. salida') }}</th>
                 <th class="num">{{ __('Horas') }}</th>
+                <th class="num">{{ __('Ordinarias') }}</th>
+                <th class="num">{{ __('Extra') }}</th>
                 <th>{{ __('Corregido') }}</th>
             </tr>
         </thead>
@@ -59,7 +61,15 @@
                     <td>{{ $row['out_at'] ?? '—' }}</td>
                     <td>{{ $row['out_coords'] ?? '—' }}</td>
                     <td class="num">{{ $row['hours'] }}</td>
-                    <td>@if ($row['corrected'])<span class="badge">{{ __('Sí') }}</span>@else {{ __('No') }} @endif</td>
+                    <td class="num">{{ $row['ordinary_hours'] }}</td>
+                    <td class="num">{{ $row['extra_hours'] }}</td>
+                    <td>
+                        @if ($row['corrected'])
+                            <span class="badge">{{ __('Sí') }}@if ($row['corrected_note']) — {{ \Illuminate\Support\Str::limit($row['corrected_note'], 40) }}@endif</span>
+                        @else
+                            {{ __('No') }}
+                        @endif
+                    </td>
                 </tr>
             @endforeach
         </tbody>

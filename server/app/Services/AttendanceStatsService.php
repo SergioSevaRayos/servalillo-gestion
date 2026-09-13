@@ -129,4 +129,86 @@ class AttendanceStatsService
                 'open' => $row->in_at !== null && $row->out_at === null,
             ])->values()->all();
     }
+
+    /** Segundos de la jornada ordinaria semanal de una persona (las suyas propias, o el umbral general). */
+    public function contractedWeeklySeconds(int $userId): int
+    {
+        $user = User::find($userId);
+        $hours = $user
+            ? $user->effectiveWeeklyContractedHours()
+            : (float) config('servalillo.attendance.default_weekly_hours');
+
+        return (int) round($hours * 3600);
+    }
+
+    /**
+     * Desglose día a día CON horas ordinarias/extraordinarias (art. 34 bis ET, proyecto de
+     * ley — "identificarán de manera desagregada si las horas realizadas son ordinarias [o]
+     * extraordinarias"). El acumulado se calcula sobre la SEMANA ISO COMPLETA que contiene
+     * cada día, aunque el rango pedido sea más corto (p. ej. un mes cuya primera semana
+     * empieza en el mes anterior) — si no, el reparto ordinaria/extra de los primeros días
+     * del rango saldría mal. Se calcula sobre la semana entera y solo al final se recorta
+     * al rango pedido.
+     *
+     * Las horas "ordinarias" de una semana se agotan primero (con el orden cronológico de
+     * los días); todo lo que exceda el umbral semanal, sea el día que sea, es "extraordinaria".
+     * Un día con jornada abierta no consume ni aporta horas ordinarias ni extraordinarias
+     * (no se cuenta hasta cerrarse, igual que en cualquier otro total de este servicio).
+     *
+     * @return list<array{date: string, in_at: ?string, out_at: ?string, seconds: ?int, open: bool, ordinary_seconds: ?int, extra_seconds: ?int}>
+     */
+    public function dailyBreakdownWithHours(int $userId, string $from, string $to): array
+    {
+        $from = Carbon::parse($from);
+        $to = Carbon::parse($to);
+        $expandedFrom = $from->copy()->startOfWeek(Carbon::MONDAY);
+        $expandedTo = $to->copy()->endOfWeek(Carbon::SUNDAY);
+        $contractedSeconds = $this->contractedWeeklySeconds($userId);
+
+        $rows = DB::table('attendances')
+            ->where('user_id', $userId)
+            ->whereBetween('date', [$expandedFrom->toDateString(), $expandedTo->toDateString()])
+            ->orderBy('date')
+            ->get(['date', 'in_at', 'out_at', 'total_seconds']);
+
+        $result = [];
+        $weekOrdinaryUsed = 0;
+        $currentWeekStart = null;
+
+        foreach ($rows as $row) {
+            $date = Carbon::parse($row->date);
+            $weekStart = $date->copy()->startOfWeek(Carbon::MONDAY)->toDateString();
+
+            if ($weekStart !== $currentWeekStart) {
+                $currentWeekStart = $weekStart;
+                $weekOrdinaryUsed = 0;
+            }
+
+            $closed = $row->out_at !== null;
+            $seconds = $closed ? (int) $row->total_seconds : null;
+            $ordinary = null;
+            $extra = null;
+
+            if ($closed) {
+                $ordinary = min($seconds, max(0, $contractedSeconds - $weekOrdinaryUsed));
+                $extra = $seconds - $ordinary;
+                $weekOrdinaryUsed += $ordinary;
+            }
+
+            $result[$date->toDateString()] = [
+                'date' => $date->toDateString(),
+                'in_at' => $row->in_at,
+                'out_at' => $row->out_at,
+                'seconds' => $seconds,
+                'open' => $row->in_at !== null && $row->out_at === null,
+                'ordinary_seconds' => $ordinary,
+                'extra_seconds' => $extra,
+            ];
+        }
+
+        return array_values(array_filter(
+            $result,
+            fn (array $day) => $day['date'] >= $from->toDateString() && $day['date'] <= $to->toDateString(),
+        ));
+    }
 }

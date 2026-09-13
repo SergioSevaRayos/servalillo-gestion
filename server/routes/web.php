@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\DeliveryNoteController;
 use App\Http\Controllers\RouteTerminalController;
 use App\Http\Controllers\ThemeController;
@@ -110,6 +111,11 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
     // exclusivo del rol mantenimiento y este panel lo usa también administrador.
     Route::get('fichajes/gestion', AttendanceManage::class)->middleware('permission:attendance.manage')->name('attendance.manage');
     Route::get('fichajes/totales', AttendanceTotals::class)->middleware('permission:attendance.manage')->name('attendance.totals');
+
+    // Export "interoperable" preliminar (JSON) — preparado para adaptar cuando el reglamento
+    // de desarrollo del art. 34 bis ET fije el formato real (ver docs/05-fichaje.md).
+    Route::get('fichajes/exportar.json', [AttendanceExportController::class, 'json'])
+        ->middleware('permission:attendance.manage')->name('attendance.export-json');
 });
 
 /*
