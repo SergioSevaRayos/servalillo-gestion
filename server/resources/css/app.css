@@ -245,6 +245,21 @@
         @apply inline-flex w-auto px-2;
     }
 
+    /*
+    | Parada NO programada (2026-09-13): texto de ancho variable ("5 min" vs. "1 h 05 min" vs.
+    | "en curso"), a diferencia de la píldora de arriba (icono + nº, siempre corta). Un `iconSize`
+    | fijo adivinado se veía descuadrado en las etiquetas largas: el wrapper que genera Leaflet
+    | (`iconSize`/`iconAnchor`) no centra un hijo más ancho que él, solo lo posiciona desde su
+    | esquina superior izquierda. Se resuelve con el icono a anchura 0 exactamente sobre la
+    | coordenada (`iconSize:[0,26]`, `iconAnchor:[0,13]` en app.js) y esta píldora
+    | autocentrándose con un `translateX(-50%)` — el porcentaje de un `transform` se calcula
+    | sobre el tamaño YA RENDERIZADO del propio elemento, no el de su contenedor, así que
+    | centra sin importar lo larga que sea la etiqueta.
+    */
+    .route-map-pin--unplanned {
+        @apply absolute left-0 -translate-x-1/2;
+    }
+
     /* Marcador del camión (última posición del tracker) en el mapa de recorrido / dispositivo. */
     .route-map-vehicle {
         @apply grid h-[30px] w-[30px] place-items-center rounded-full border-[3px] border-white bg-amber-500 text-base;

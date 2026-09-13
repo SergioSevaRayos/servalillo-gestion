@@ -595,13 +595,19 @@ document.addEventListener('alpine:init', () => {
 
             unplanned.forEach((u) => {
                 const label = u.open ? 'en curso' : humanShortDuration(u.seconds);
+                // Ancho variable ("5 min" vs. "1 h 05 min" vs. "en curso"): en vez de adivinar
+                // un iconSize fijo (se veía descuadrado con las etiquetas largas — el
+                // wrapper de Leaflet no centra un hijo `inline-flex` más ancho que él), el
+                // icono es un punto de anchura 0 exactamente sobre la coordenada y la píldora
+                // se autocentra con `translateX(-50%)` (porcentaje sobre SU PROPIO ancho ya
+                // renderizado, no el del wrapper) — ver `.route-map-pin--unplanned` en app.css.
                 const marker = L.marker([u.lat, u.lng], {
                     icon: L.divIcon({
                         className: '',
-                        html: `<span class="route-map-pin route-map-pin--pill" style="background:#f59e0b">⚠️&nbsp;${label}</span>`,
-                        iconSize: [70, 26],
-                        iconAnchor: [35, 13],
-                        popupAnchor: [0, -13],
+                        html: `<span class="route-map-pin route-map-pin--pill route-map-pin--unplanned" style="background:#f59e0b">⚠️&nbsp;${label}</span>`,
+                        iconSize: [0, 26],
+                        iconAnchor: [0, 13],
+                        popupAnchor: [0, -20],
                     }),
                 }).addTo(this.layer);
                 marker.bindPopup(() => {
