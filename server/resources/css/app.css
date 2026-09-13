@@ -255,9 +255,18 @@
     | autocentrándose con un `translateX(-50%)` — el porcentaje de un `transform` se calcula
     | sobre el tamaño YA RENDERIZADO del propio elemento, no el de su contenedor, así que
     | centra sin importar lo larga que sea la etiqueta.
+    |
+    | **`whitespace-nowrap` es imprescindible aquí** (bug real visto en producción: "en curso"
+    | partido en dos líneas dentro de una píldora estrecha). Con `iconSize` a anchura 0, el
+    | "ancho disponible" (containing block) para un hijo `position:absolute` con `width:auto`
+    | es 0 — el algoritmo de "shrink-to-fit" de CSS usa `min(max(ancho mínimo, ancho
+    | disponible), ancho preferido)`, y con el texto libre de partirse en líneas, ese "ancho
+    | disponible" de 0 gana y el texto se envuelve a la palabra más estrecha posible. Forzar
+    | `nowrap` hace que el ancho mínimo YA SEA el ancho preferido (una sola línea), así que el
+    | resultado del cálculo es siempre ese, ignorando el ancho (0) del contenedor.
     */
     .route-map-pin--unplanned {
-        @apply absolute left-0 -translate-x-1/2;
+        @apply absolute left-0 -translate-x-1/2 whitespace-nowrap;
     }
 
     /* Marcador del camión (última posición del tracker) en el mapa de recorrido / dispositivo. */
