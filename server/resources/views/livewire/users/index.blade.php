@@ -113,8 +113,15 @@
                             <x-ui.select name="attendance_mode" label="{{ __('Modo') }}" wire:model.live="form.attendance_mode">
                                 <option value="base">{{ __('Base (por defecto)') }}</option>
                                 <option value="remote">{{ __('Ubicación remota propia') }}</option>
+                                <option value="external">{{ __('Huella en base (sistema externo)') }}</option>
                             </x-ui.select>
                         </div>
+
+                        @if ($form->attendance_mode === 'external')
+                            <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                                {{ __('Esta persona no fichará en esta app: su asistencia se lleva con el lector de huella de la base, un sistema aparte sin conexión con Gestión Servalillo.') }}
+                            </p>
+                        @endif
 
                         @if ($form->attendance_mode === 'remote')
                             <div class="mt-3">

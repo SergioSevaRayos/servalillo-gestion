@@ -26,6 +26,14 @@ it('no deja fichar a mantenimiento', function () {
     $this->actingAs(makeUser('mantenimiento'))->get('/fichar')->assertForbidden();
 });
 
+it('no deja fichar a un chofer que ficha con huella externa en la base', function () {
+    $chofer = makeUser('chofer');
+    $chofer->update(['attendance_mode' => 'external']);
+
+    $this->actingAs($chofer)->get('/fichar')->assertForbidden();
+    expect($chofer->canPunchAttendance())->toBeFalse();
+});
+
 it('ficha entrada y salida en la ubicación de la base', function () {
     $user = makeUser('administrador');
 

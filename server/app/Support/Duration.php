@@ -22,4 +22,16 @@ class Duration
             ? $hours.' h'
             : sprintf('%d h %02d min', $hours, $rest);
     }
+
+    /**
+     * Horas decimales para cálculos de nómina ("172,25 h"): coma decimal española, 2
+     * decimales fijos. El segundo exacto solo se divide por 3600 aquí, en la última capa
+     * de presentación — nunca se redondea antes (ver App\Services\AttendanceStatsService).
+     */
+    public static function decimalHours(int $seconds): string
+    {
+        $hours = max(0, $seconds) / 3600;
+
+        return number_format($hours, 2, ',', '.').' h';
+    }
 }

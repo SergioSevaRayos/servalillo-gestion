@@ -1401,7 +1401,19 @@ Backed enums con `->label()` en español; casteados en los modelos.
   bug del código cuando en realidad el permiso no existía todavía para ese usuario). Cada vez que
   se añada un permiso nuevo al seeder durante desarrollo local: `docker compose exec laravel.test
   php artisan db:seed --class=RolePermissionSeeder --force` (idempotente, usa `findOrCreate` +
-  `syncPermissions`, seguro de repetir).
+  `syncPermissions`, seguro de repetir). **El mismo gotcha se repitió en producción** al desplegar
+  este bloque (`deploy.sh` corre `migrate --force`, nunca seeders) — `administrador` se quedó sin
+  `attendance.manage`/`sgra.view` reales hasta correr `ssh $VPS "cd .../server && php artisan
+  db:seed --class=RolePermissionSeeder --force"` a mano. **Añade este paso al propio `deploy.sh`
+  o a la checklist de despliegue** la próxima vez que un cambio meta un permiso nuevo en el
+  seeder — no basta con haberlo corregido en local.
+- **Segundo gotcha real, encadenado con el anterior (mismo día, al activar `ATTENDANCE_ENABLED`
+  para probar en caliente): el reseed sí funcionó, pero el usuario real seguía sin ver nada.**
+  Causa distinta — OPcache de PHP-FPM sirviendo config vieja tras editar el `.env` a mano; ver el
+  gotcha general en "Despliegue (producción)" (`systemctl reload php8.4-fpm`). Los dos juntos son
+  la lección completa de esta sesión: **tras tocar el `.env` o el seeder de permisos en producción
+  fuera de `deploy.sh`, hacen falta AMBOS pasos** (reseed de permisos si aplica + reload de
+  PHP-FPM), y verificarlo con una sesión real, no con `tinker`/`curl` sin sesión.
 - **Exportaciones (XML y PDF) incluyen la coordenada del dispositivo** de cada evento (entrada y
   salida) — la capta el propio navegador al fichar, no se recalcula ni se inventa.
 - **`App\Services\GeocodingService`** (buscador de direcciones sobre `<x-ui.geofence-map>`):
@@ -1409,6 +1421,29 @@ Backed enums con `->label()` en español; casteados en los modelos.
   (exigido por su política de uso) — nunca se llama a esa API directo desde el navegador. Mismo
   criterio "Service = único punto de contacto externo, nunca lanza al llamador" que
   `SgraClient`/`RouteOptimizer`.
+- **`/fichajes/totales`** (`App\Livewire\Attendance\Totals`, misma pestaña de gestión que
+  `/fichajes/gestion` vía `<x-attendance.tabs>`, mismo permiso `attendance.manage`): tabla
+  comparativa horas/días por persona para un periodo (día/semana/mes/año + fecha ancla), con
+  detalle día a día por persona en modal. Toda la agregación vive en
+  `App\Services\AttendanceStatsService` — único punto de cálculo, reutilizado también por los 4
+  KPI de `/fichar` (hoy/semana/mes/año), así que el número que ve un chofer siempre coincide con
+  el que ve administración para él. **"Días" = jornadas *cerradas*, no un equivalente de 8h** —
+  los chofers no tienen jornada fija, así que un día de 3h y uno de 14h cuentan igual como "1
+  día" (decisión explícita del usuario, que rechazó la idea de un equivalente de 8h). Una jornada
+  **abierta nunca suma** a ningún total (solo se muestra aparte como "en curso" en `/fichar`, o
+  marcada visiblemente y excluida en el detalle día a día) — el jornal no puede depender de una
+  estimación de una jornada sin terminar. Semana = **ISO, lunes-domingo** (`Carbon::MONDAY`/
+  `Carbon::SUNDAY` explícitos, nunca el default de locale). `App\Support\Duration::decimalHours()`
+  añade el formato "172,25 h" (coma española) que pide nómina, sin tocar `humanShort()`.
+- **`attendance_mode = 'external'` — huella en base (2026-09-13)**: un chofer en este modo ficha
+  con lector de huella en la base a través de **otro sistema, ya implementado, sin ninguna
+  relación con esta app** (ni API ni importación — decisión explícita del usuario). Efecto:
+  `User::canPunchAttendance()` da `false` para él (sin "Fichar" en el nav, 403 si visita `/fichar`
+  directo) y queda excluido de `AttendanceStatsService::comparisonTable()`/`Manage::eligibleUsers()`
+  — mostrarlo con "0 horas" sería engañoso. Se configura desde el mismo selector "Modo" de
+  `/chofers`/`/usuarios`, sin geovalla ni mapa (igual que `base`). **Si algún día se integra ese
+  sistema externo, el punto de entrada natural es un importador hacia `attendances`** (mismo
+  criterio que `ClientImporter`, Bloque 9) — no existe todavía, es solo el hueco más razonable.
 
 ## Convenciones
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
@@ -1447,3 +1482,24 @@ Runbook completo en **`docs/04-despliegue-vps.md`**. Resumen:
 - **APK release = solo HTTPS**: `network_security_config.xml` deja el cleartext solo en
   `<debug-overrides>`. Pruebas LAN → `flutter build apk --debug`. Producción → `--release
   --dart-define-from-file=dart_define.production.json`.
+- **⚠️ Cualquier cambio manual en el `.env` de producción (fuera de `deploy.sh`) exige recargar
+  PHP-FPM, no solo `php artisan config:cache`.** Incidente real (2026-09-12, al activar
+  `ATTENDANCE_ENABLED` para probar el Bloque 18 en caliente): edité el `.env` por SSH y corrí
+  `config:cache`/`optimize` — comprobado por `tinker` (CLI), todo salía correcto
+  (`config('servalillo.attendance.enabled')` ya daba `true`). Pero **`php` en modo CLI tiene
+  OPcache desactivado por defecto** (`opcache.enable_cli=0`), así que esas comprobaciones no
+  decían nada de lo que veían los procesos de **PHP-FPM** (los que de verdad atienden nginx), que
+  con `opcache.validate_timestamps=0` (típico en producción, por rendimiento) siguen sirviendo el
+  bytecode viejo de `bootstrap/cache/config.php` indefinidamente hasta que se reinician. Resultado:
+  el usuario real, navegando por HTTPS, seguía sin ver "Fichar" en el nav ni el bloque de geovalla
+  en `/usuarios`/`/chofers`, mientras todas mis comprobaciones por SSH decían que estaba todo bien
+  — un falso positivo. `curl -I https://.../ruta-protegida` sin sesión **tampoco sirve** para
+  detectar esto: una redirección 302 del middleware `auth` pasa igual sin llegar nunca al
+  `config()` que falla, así que "la ruta responde" no prueba que el flag esté activo de verdad
+  para los workers web. **Fix**: `sudo systemctl reload php8.4-fpm` después de cualquier
+  `config:cache`/`optimize` manual — es justo lo que `deploy.sh` ya hace siempre tras un despliegue
+  normal, por eso este problema nunca se había visto antes: solo aparece al tocar el `.env` a mano
+  entre despliegues, no al desplegar con el script. **Regla a partir de ahora**: tras editar el
+  `.env` de producción a mano, SIEMPRE `config:cache` (u `optimize`) **+ `systemctl reload
+  php8.4-fpm`**, y verificar con una petición real autenticada (no con `curl` sin sesión ni con
+  `tinker`), antes de dar el cambio por bueno.

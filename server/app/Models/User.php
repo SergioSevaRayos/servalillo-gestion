@@ -51,10 +51,15 @@ class User extends Authenticatable implements Auditable
         return $this->hasMany(Attendance::class);
     }
 
-    /** Solo administrador y chofer fichan — mantenimiento es el gestor técnico, no personal. */
+    /**
+     * Solo administrador y chofer fichan — mantenimiento es el gestor técnico, no personal.
+     * Excluye además a quien ficha con huella en la base a través del sistema externo
+     * (`attendance_mode = 'external'`, ya implementado y sin relación con esta app):
+     * esa persona no usa `/fichar` en absoluto, sus horas se llevan aparte.
+     */
     public function canPunchAttendance(): bool
     {
-        return $this->hasRole('administrador') || $this->isDriver();
+        return ($this->hasRole('administrador') || $this->isDriver()) && $this->attendance_mode !== 'external';
     }
 
     public function supportTickets(): HasMany

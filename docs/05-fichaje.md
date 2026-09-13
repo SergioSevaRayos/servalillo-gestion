@@ -288,6 +288,47 @@ Con `enabled` en `false` (por defecto):
     tabla apaisada con las mismas columnas que el XML en formato legible (incluidas "Coord.
     entrada"/"Coord. salida", `lat, lng` a 6 decimales o "—") — pensado para entregar en mano o
     adjuntar a una respuesta a la Inspección de Trabajo.
+- **`/fichajes/totales`** (`App\Livewire\Attendance\Totals`, ruta `attendance.totals`, mismo
+  permiso `attendance.manage` — es otra pestaña del mismo panel, no un permiso nuevo, ver
+  `<x-attendance.tabs>` compartida con `Manage`, mismo patrón que `<x-maintenance.tabs>`).
+  Pedido explícito del usuario: "el jornal del chofer dependerá de las horas trabajadas", así que
+  el cálculo tiene que ser preciso.
+  - **`App\Services\AttendanceStatsService`** es el único punto de cálculo — reutilizado también
+    por las 4 tarjetas KPI de `/fichar` (hoy/semana/mes/año), así que el número que ve un chofer
+    de sus propias horas siempre coincide con el que ve administración para él.
+  - **Solo cuentan las jornadas YA CERRADAS** (`out_at IS NOT NULL`) en cualquier total — una
+    jornada abierta nunca suma, ni siquiera parcialmente, a día/semana/mes/año. Se muestra aparte
+    como dato informativo "en curso" (en `/fichar`) o marcada y excluida (en el detalle día a día
+    de `/fichajes/totales`). Decisión explícita: el jornal no puede depender de una estimación de
+    una jornada sin terminar.
+  - **"Días trabajados" = nº de jornadas cerradas en el periodo, NO un equivalente de 8h.**
+    Corrección real sobre el primer planteamiento: se pensó en dividir las horas totales entre 8
+    para dar un "equivalente en jornadas", pero el usuario lo descartó explícitamente — "los
+    chofers no tienen un total diario de 8h, estos pueden trabajar diariamente lo que sea
+    necesario". Un día de 3h y uno de 14h cuentan igual como "1 día".
+  - **Semana = ISO, lunes-domingo**, siempre explícito (`Carbon::MONDAY`/`Carbon::SUNDAY`), nunca
+    el default de locale de Carbon — con un test que fija una fecha en domingo y otra en lunes de
+    la semana siguiente para comprobar que caen en periodos distintos.
+  - **`App\Support\Duration::decimalHours()`** añade el formato "172,25 h" (coma decimal
+    española, 2 decimales) junto al ya existente "172 h 15 min" de `humanShort()` — el que de
+    verdad se usa para multiplicar por el precio/hora en nómina.
+  - Panel: filtro de periodo (Día/Semana/Mes/Año) + una fecha ancla (`<x-ui.date-input>`) de la
+    que se deriva el rango exacto; tabla comparativa (una fila por persona que ficha: horas
+    decimales, horas legibles, días); botón "Ver detalle" por fila que abre un modal con el
+    desglose día a día de esa persona en el mismo periodo.
+- **`attendance_mode = 'external'` — "Huella en base" (2026-09-13)**: un tercer modo, además de
+  `base`/`remote`, para chofers que fichan con un lector de huella dactilar en la base **a través
+  de un sistema totalmente independiente, ya implementado, sin ninguna relación con Gestión
+  Servalillo** (ni API, ni importación de datos — decisión explícita del usuario: "ese sistema ya
+  está implementado y no tiene relación con la app web que estamos construyendo"). Efecto en esta
+  app: `User::canPunchAttendance()` devuelve `false` para estas personas (no ven "Fichar" en el
+  nav, `/fichar` les da 403 si lo visitan directo) y quedan **excluidas** de
+  `AttendanceStatsService::comparisonTable()`/`eligibleUsers()` — mostrarlas con "0 horas" sería
+  engañoso, ya que sí trabajan, solo que sus horas se llevan en el otro sistema. Se configura
+  desde el mismo selector "Modo" de `/chofers`/`/usuarios` (sin geovalla ni mapa, igual que
+  `base`). Si en el futuro se decide integrar ese sistema externo, el punto de entrada natural
+  sería un importador hacia la tabla `attendances` (mismo criterio que `ClientImporter`, Bloque 9)
+  — no está construido, es solo el hueco conceptual más razonable si llega a hacer falta.
 
 ### Cumplimiento legal (RD-ley 8/2019) — cómo lo cubre este diseño
 
@@ -343,6 +384,12 @@ Con `enabled` en `false` (por defecto):
   (motivo obligatorio, ledger, permisos, alta manual de un día sin fichar),
   `.../AttendanceExportTest.php` (XML bien formado con los datos esperados, PDF se genera sin
   error, cualquier usuario con fichaje propio puede exportarlo sin permiso ni casilla adicional)
+- `server/app/Services/AttendanceStatsService.php` (único punto de cálculo de horas/días) +
+  `server/app/Livewire/Attendance/Totals.php` + `resources/views/livewire/attendance/totals.blade.php`
+  + `resources/views/components/attendance/tabs.blade.php` (pestañas Fichajes/Totales compartidas)
+- `server/tests/Feature/AttendanceStatsServiceTest.php` (precisión exacta de la suma, semana ISO,
+  jornada abierta excluida, relleno a cero, exclusión de mantenimiento y de modo `external`),
+  `.../AttendanceTotalsTest.php` (permisos, recálculo al cambiar periodo/fecha, modal de detalle)
 
 **Modificados**
 - `server/config/servalillo.php` — bloques `attendance` y `company`.
@@ -361,6 +408,12 @@ Con `enabled` en `false` (por defecto):
   `COMPANY_NAME`/`COMPANY_TAX_ID`.
 - `CLAUDE.md` — sección nueva (Bloque 18) describiendo el bloque, con énfasis en la exención de
   purga y en que el acceso del trabajador a su propio registro nunca se puede desactivar.
+- `server/app/Models/User.php` — `canPunchAttendance()` excluye `attendance_mode = 'external'`.
+- `server/app/Support/Duration.php` — `decimalHours()`.
+- `server/app/Livewire/Attendance/Index.php` — KPIs de periodos actuales + jornada en curso.
+- `server/app/Livewire/Forms/UserForm.php`/`DriverForm.php` — tercera opción `external` en
+  `attendance_mode`.
+- `server/routes/web.php` — ruta `fichajes/totales`.
 
 ## Cómo probar (cuando se implemente)
 

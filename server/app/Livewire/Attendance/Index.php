@@ -5,6 +5,7 @@ namespace App\Livewire\Attendance;
 use App\Models\Attendance;
 use App\Services\AttendanceExportService;
 use App\Services\AttendanceService;
+use App\Services\AttendanceStatsService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
@@ -41,11 +42,25 @@ class Index extends Component
             ->get();
     }
 
+    /** Los 4 periodos actuales (hoy/semana/mes/año) — mismo cálculo que ve administración de esta persona. */
+    #[Computed]
+    public function periods(): array
+    {
+        return app(AttendanceStatsService::class)->currentPeriods(auth()->id());
+    }
+
+    /** Jornada de hoy en curso (si la hay) — informativo, nunca incluido en `periods()`. */
+    #[Computed]
+    public function openShiftSeconds(): ?int
+    {
+        return app(AttendanceStatsService::class)->openShiftSeconds(auth()->id());
+    }
+
     public function punchIn(?float $lat = null, ?float $lng = null): void
     {
         app(AttendanceService::class)->punchIn(auth()->user(), $lat, $lng);
 
-        unset($this->today, $this->history);
+        unset($this->today, $this->history, $this->periods, $this->openShiftSeconds);
         $this->dispatch('toast', message: 'Entrada fichada.', variant: 'success');
     }
 
@@ -53,7 +68,7 @@ class Index extends Component
     {
         app(AttendanceService::class)->punchOut(auth()->user(), $lat, $lng);
 
-        unset($this->today, $this->history);
+        unset($this->today, $this->history, $this->periods, $this->openShiftSeconds);
         $this->dispatch('toast', message: 'Salida fichada.', variant: 'success');
     }
 

@@ -9,6 +9,19 @@ beforeEach(function () {
     config()->set('servalillo.attendance.enabled', true);
 });
 
+it('no ofrece como elegible a quien ficha con huella externa en la base', function () {
+    $external = makeUser('chofer');
+    $external->update(['attendance_mode' => 'external']);
+    $normal = makeUser('chofer');
+
+    $eligible = Livewire::actingAs(makeUser('administrador'))
+        ->test(Manage::class)
+        ->get('eligibleUsers');
+
+    expect($eligible->pluck('id'))->toContain($normal->id);
+    expect($eligible->pluck('id'))->not->toContain($external->id);
+});
+
 it('devuelve 404 si el bloque está desactivado', function () {
     config()->set('servalillo.attendance.enabled', false);
 

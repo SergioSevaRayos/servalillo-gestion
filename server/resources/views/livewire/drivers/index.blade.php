@@ -112,14 +112,21 @@
                     <div class="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
                         <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ __('Dónde puede fichar') }}</p>
                         <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            {{ __('Por defecto ficha desde la base. Si aparca el camión en otro sitio habitualmente, dale su propia zona.') }}
+                            {{ __('Por defecto ficha desde la base. Si aparca el camión en otro sitio habitualmente, dale su propia zona. Si ficha con huella en la base (sistema aparte), no necesita fichar aquí.') }}
                         </p>
                         <div class="mt-3 max-w-xs">
                             <x-ui.select name="attendance_mode" label="{{ __('Modo') }}" wire:model.live="form.attendance_mode">
                                 <option value="base">{{ __('Base (por defecto)') }}</option>
                                 <option value="remote">{{ __('Ubicación remota propia') }}</option>
+                                <option value="external">{{ __('Huella en base (sistema externo)') }}</option>
                             </x-ui.select>
                         </div>
+
+                        @if ($form->attendance_mode === 'external')
+                            <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                                {{ __('Esta persona no fichará en esta app: su asistencia se lleva con el lector de huella de la base, un sistema aparte sin conexión con Gestión Servalillo.') }}
+                            </p>
+                        @endif
 
                         @if ($form->attendance_mode === 'remote')
                             <div class="mt-3">

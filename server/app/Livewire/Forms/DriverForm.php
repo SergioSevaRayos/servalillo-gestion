@@ -58,7 +58,7 @@ class DriverForm extends Form
             'phone' => ['nullable', 'string', 'max:30'],
             'dni' => ['nullable', 'string', 'max:20'],
             'is_active' => ['boolean'],
-            'attendance_mode' => ['required', Rule::in(['base', 'remote'])],
+            'attendance_mode' => ['required', Rule::in(['base', 'remote', 'external'])],
             'attendance_latitude' => [$remote ? 'required' : 'nullable', 'numeric', 'between:-90,90'],
             'attendance_longitude' => [$remote ? 'required' : 'nullable', 'numeric', 'between:-180,180'],
             'attendance_radius_meters' => ['nullable', 'integer', 'min:10'],

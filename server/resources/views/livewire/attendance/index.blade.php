@@ -59,6 +59,35 @@
         </div>
     </x-ui.card>
 
+    {{-- Horas trabajadas por periodo: mismo cálculo que ve administración de esta persona
+         (App\Services\AttendanceStatsService, único punto de cálculo). .surface, nunca
+         .glass — esta página también la usa el chofer. Una jornada abierta no está
+         incluida aquí (solo cuenta al cerrarse), se avisa aparte debajo. --}}
+    <div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div class="surface rounded-xl p-4 text-center">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Hoy') }}</p>
+            <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{{ \App\Support\Duration::humanShort($this->periods['day']['seconds']) }}</p>
+        </div>
+        <div class="surface rounded-xl p-4 text-center">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Esta semana') }}</p>
+            <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{{ \App\Support\Duration::humanShort($this->periods['week']['seconds']) }}</p>
+        </div>
+        <div class="surface rounded-xl p-4 text-center">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Este mes') }}</p>
+            <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{{ \App\Support\Duration::humanShort($this->periods['month']['seconds']) }}</p>
+        </div>
+        <div class="surface rounded-xl p-4 text-center">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Este año') }}</p>
+            <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{{ \App\Support\Duration::humanShort($this->periods['year']['seconds']) }}</p>
+        </div>
+    </div>
+
+    @if ($this->openShiftSeconds !== null)
+        <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
+            {{ __('Jornada de hoy en curso: :time (se sumará a los totales al fichar la salida).', ['time' => \App\Support\Duration::humanShort($this->openShiftSeconds)]) }}
+        </p>
+    @endif
+
     <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-lg font-medium text-slate-800 dark:text-slate-100">{{ __('Últimos 30 días') }}</h2>
         <div class="flex flex-wrap gap-2">

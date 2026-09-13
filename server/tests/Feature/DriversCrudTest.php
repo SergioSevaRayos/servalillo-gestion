@@ -54,6 +54,22 @@ test('se puede configurar una ubicación remota de fichaje para un chofer', func
     expect($driver->user->attendance_radius_meters)->toBe(200);
 });
 
+test('se puede marcar a un chofer como fichaje con huella externa en la base', function () {
+    config()->set('servalillo.attendance.enabled', true);
+    $driver = Driver::factory()->for(User::factory(), 'user')->create();
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('edit', $driver)
+        ->set('form.attendance_mode', 'external')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $driver->user->refresh();
+    expect($driver->user->attendance_mode)->toBe('external');
+    expect($driver->user->canPunchAttendance())->toBeFalse();
+});
+
 test('editar un chofer sin contraseña no la modifica', function () {
     $driver = Driver::factory()->for(User::factory(), 'user')->create();
     $originalHash = $driver->user->password;

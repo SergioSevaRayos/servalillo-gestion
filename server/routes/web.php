@@ -5,6 +5,7 @@ use App\Http\Controllers\RouteTerminalController;
 use App\Http\Controllers\ThemeController;
 use App\Livewire\Attendance\Index as AttendanceIndex;
 use App\Livewire\Attendance\Manage as AttendanceManage;
+use App\Livewire\Attendance\Totals as AttendanceTotals;
 use App\Livewire\Chofer\Today;
 use App\Livewire\Clients\Index as ClientsIndex;
 use App\Livewire\Clients\Show as ClientsShow;
@@ -108,6 +109,7 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
     // Gestión de fichajes (Bloque 18): va aquí, NO bajo /mantenimiento, porque ese prefijo es
     // exclusivo del rol mantenimiento y este panel lo usa también administrador.
     Route::get('fichajes/gestion', AttendanceManage::class)->middleware('permission:attendance.manage')->name('attendance.manage');
+    Route::get('fichajes/totales', AttendanceTotals::class)->middleware('permission:attendance.manage')->name('attendance.totals');
 });
 
 /*
