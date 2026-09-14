@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\RouteStopStatus;
 use App\Models\RouteStop;
 use App\Models\StopVisit;
 use App\Models\UnplannedStop;
@@ -453,6 +454,39 @@ it('no cuenta como no programada una parada cerca de una parada de la ruta', fun
 
     expect(UnplannedStop::where('route_id', $stop->route->id)->count())->toBe(0)
         ->and(StopVisit::where('route_stop_id', $stop->id)->exists())->toBeTrue();
+});
+
+it('detecta una parada no programada en el mismo sitio que una parada de la ruta ya CERRADA, después de cerrarse (bug real 2026-09-14)', function () {
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+
+    $stop = dwellDay($this->stopLat, $this->stopLng);
+    // La parada se cierra a las 10:10 — updated_at es la única marca de tiempo disponible
+    // (completed_at solo existe para "completed", no para failed/skipped).
+    RouteStop::where('id', $stop->id)->update([
+        'status' => RouteStopStatus::Completed,
+        'updated_at' => Carbon::parse('2026-03-02 10:10:00'),
+    ]);
+
+    // El camión vuelve a la misma zona bastante después de que la parada quedara cerrada.
+    $point = metersOffset($this->stopLat, $this->stopLng, 40, 0); // dentro del radio de la parada
+    gpsTrack($stop->route, denseRun($point, '14:00:00', '14:08:00'));
+
+    app(StopDwellService::class)->recomputeForRouteDay($stop->route);
+
+    $unplanned = UnplannedStop::where('route_id', $stop->route->id)->sole();
+    expect($unplanned->seconds)->toBe(450);
+});
+
+it('no cuenta como no programada una parada dentro del radio de una parada de la ruta todavía PENDIENTE, sea la hora que sea', function () {
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+
+    $stop = dwellDay($this->stopLat, $this->stopLng); // Pending por defecto, nunca se cierra
+    $point = metersOffset($this->stopLat, $this->stopLng, 40, 0);
+    gpsTrack($stop->route, denseRun($point, '14:00:00', '14:08:00'));
+
+    app(StopDwellService::class)->recomputeForRouteDay($stop->route);
+
+    expect(UnplannedStop::where('route_id', $stop->route->id)->count())->toBe(0);
 });
 
 it('no cuenta como no programada una parada cerca de la base', function () {

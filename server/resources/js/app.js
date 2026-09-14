@@ -625,13 +625,18 @@ document.addEventListener('alpine:init', () => {
             if (v && typeof v.lat === 'number' && typeof v.lng === 'number') {
                 const vpos = [v.lat, v.lng];
                 const speedBit = typeof v.speed_kmh === 'number' ? ` · ${v.speed_kmh} km/h` : '';
-                this.vehicleNote = `🚚 Camión: ${v.age || 'última señal'}${speedBit}`;
+                this.vehicleNote = v.at_base
+                    ? `🚚 Camión: en la base (${v.age || 'última señal'})`
+                    : `🚚 Camión: ${v.age || 'última señal'}${speedBit}`;
 
-                // Trazado "cómo llegar" del camión a la primera parada (línea ámbar discontinua).
-                const approach = v.approach || null;
+                // Dentro del radio de la base no tiene sentido pintar "cómo llegar a la
+                // siguiente parada" — el camión está aparcado en la nave, no en ruta (ver
+                // RouteGeometry::vehicleFor(), que ya no calcula `approach`/`next_stop` en
+                // ese caso).
+                const approach = v.at_base ? null : (v.approach || null);
                 const approachLine = approach && Array.isArray(approach.line) && approach.line.length > 1
                     ? approach.line
-                    : (v.next_stop ? [vpos, [stops.find((s) => s.n === v.next_stop.n)?.lat, stops.find((s) => s.n === v.next_stop.n)?.lng]] : null);
+                    : (! v.at_base && v.next_stop ? [vpos, [stops.find((s) => s.n === v.next_stop.n)?.lat, stops.find((s) => s.n === v.next_stop.n)?.lng]] : null);
 
                 if (approachLine && approachLine.every((p) => Array.isArray(p) && typeof p[0] === 'number')) {
                     L.polyline(approachLine, { color: '#f59e0b', weight: 4, opacity: 0.9, dashArray: '2 8', lineCap: 'round' }).addTo(this.layer);
@@ -640,7 +645,7 @@ document.addEventListener('alpine:init', () => {
 
                 if (approach && approach.distance_m) {
                     this.approachNote = `Del camión a la parada ${v.next_stop ? v.next_stop.n : 1}: ~${(approach.distance_m / 1000).toFixed(1)} km · ~${Math.round((approach.duration_s || 0) / 60)} min`;
-                } else if (v.next_stop) {
+                } else if (! v.at_base && v.next_stop) {
                     this.approachNote = `El camión va hacia la parada ${v.next_stop.n} (${v.next_stop.name}).`;
                 }
 

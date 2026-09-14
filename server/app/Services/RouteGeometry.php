@@ -6,6 +6,7 @@ use App\Models\GpsPosition;
 use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Models\UnplannedStop;
+use App\Support\Haversine;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
@@ -113,7 +114,7 @@ class RouteGeometry
      * ("cómo llegar"). Sin límite de antigüedad — se muestra "hace X".
      *
      * @param  Collection<int, array{n: int, name: string, lat: float, lng: float, status: string}>  $located
-     * @return array{lat: float, lng: float, recorded_at: string, age: string, accuracy_m: ?float, speed_kmh: ?int, approach: array|null, next_stop: array{n: int, name: string}|null}|null
+     * @return array{lat: float, lng: float, recorded_at: string, age: string, accuracy_m: ?float, speed_kmh: ?int, at_base: bool, approach: array|null, next_stop: array{n: int, name: string}|null}|null
      */
     private function vehicleFor(RouteDay $route, $located): ?array
     {
@@ -133,9 +134,18 @@ class RouteGeometry
         $lat = (float) $position->latitude;
         $lng = (float) $position->longitude;
 
+        // Si el camión está dentro del radio de la base (mismo radio que StopDwellService usa
+        // para excluir esos fixes de las visitas/paradas no programadas — configurable desde
+        // /mantenimiento/ajustes), no tiene sentido calcular ni mostrar un trazado "hacia la
+        // siguiente parada": el camión está aparcado en la nave, no en ruta.
+        $atBase = Haversine::meters(
+            $lat, $lng,
+            (float) config('servalillo.base.latitude'), (float) config('servalillo.base.longitude'),
+        ) <= (float) config('servalillo.dwell.exclude_base_radius_meters');
+
         // Primera parada a la que va el camión: la primera pendiente con coordenadas
         // (si ya no queda ninguna, la primera de la lista).
-        $target = $located->firstWhere('status', 'pending') ?? $located->first();
+        $target = ! $atBase ? ($located->firstWhere('status', 'pending') ?? $located->first()) : null;
 
         $approach = $target
             ? $this->for([[$lat, $lng], [$target['lat'], $target['lng']]])
@@ -150,6 +160,7 @@ class RouteGeometry
             // Velocidad instantánea del último fix (la manda el propio dispositivo), en km/h —
             // mismo cálculo que Maintenance\Devices::locate() para su mapa de "Localizar".
             'speed_kmh' => $position->speed_mps !== null ? (int) round((float) $position->speed_mps * 3.6) : null,
+            'at_base' => $atBase,
             'approach' => $approach,
             'next_stop' => $target ? ['n' => $target['n'], 'name' => $target['name']] : null,
         ];

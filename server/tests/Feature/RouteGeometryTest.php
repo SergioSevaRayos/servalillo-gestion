@@ -157,6 +157,29 @@ it('el camión se ve en el mapa aunque la posición GPS sea de otro día distint
         ->and($payload['vehicle']['lat'])->toBe(28.35);
 });
 
+it('marca el camión como "en la base" y no calcula trazado hacia la parada si está dentro del radio de la base (bug real 2026-09-14)', function () {
+    config()->set('servalillo.routing.enabled', true);
+    config()->set('servalillo.base.latitude', 36.8);
+    config()->set('servalillo.base.longitude', -2.4);
+    config()->set('servalillo.dwell.exclude_base_radius_meters', 150);
+    Http::fake(['*/route/*' => Http::response(osrmRouteOk())]);
+
+    $route = makeRoute('2026-09-10');
+    RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'customer_name' => 'Primera', 'latitude' => 28.40, 'longitude' => -16.40]);
+
+    $device = Device::factory()->create();
+    GpsPosition::insert([
+        // 40 m al norte de la base configurada, bien dentro del radio de exclusión.
+        ['device_id' => $device->id, 'route_id' => $route->id, 'driver_id' => $route->driver_id, 'latitude' => 36.80036, 'longitude' => -2.4, 'accuracy_m' => 10.0, 'recorded_at' => now(), 'created_at' => now()],
+    ]);
+
+    $payload = app(RouteGeometry::class)->payloadFor($route);
+
+    expect($payload['vehicle']['at_base'])->toBeTrue()
+        ->and($payload['vehicle']['approach'])->toBeNull()
+        ->and($payload['vehicle']['next_stop'])->toBeNull();
+});
+
 it('el trazado del camión apunta a la primera parada PENDIENTE, no a una ya cerrada', function () {
     config()->set('servalillo.routing.enabled', true);
     Http::fake(['*/route/*' => Http::response(osrmRouteOk())]);

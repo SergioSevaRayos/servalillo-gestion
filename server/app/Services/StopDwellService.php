@@ -140,7 +140,7 @@ class StopDwellService
         $stops = $day->stops()
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->get(['id', 'latitude', 'longitude']);
+            ->get(['id', 'latitude', 'longitude', 'status', 'updated_at']);
 
         $cfg = config('servalillo.dwell');
         $positions = $this->filterPositions($day, $this->positionsFor($day), $cfg);
@@ -291,6 +291,25 @@ class StopDwellService
      * (`>= servalillo.dwell.moving_speed_min_mps`, mismo umbral que ya usa `transitLegs()` para
      * "velocidad mientras circulaba") nunca es candidato a parada, directamente.
      *
+     * **Segundo bug real de producción corregido (2026-09-14): una parada no programada que
+     * ocurría en el mismo sitio que una parada de la ruta YA CERRADA (completada/cancelada/
+     * fallida), en otro momento del día, no se detectaba.** La primera versión excluía
+     * cualquier fix que cayera dentro del radio de CUALQUIER parada de la ruta, sin mirar la
+     * hora ni el estado — la geocerca de una parada "protegía" ese punto durante TODO el día,
+     * aunque el camión la hubiera visitado y cerrado horas antes. Si luego el camión volvía a
+     * esa misma zona por otro motivo (repostar, un desvío…), ese tramo quedaba invisible para
+     * la detección de no programadas. **Fix**: una parada CERRADA (`RouteStopStatus::isClosed()`
+     * — completada/cancelada/fallida) solo protege su geocerca hasta el momento en que se
+     * cerró (aproximado con `updated_at`, la única marca de tiempo disponible para los 3
+     * estados — `completed_at` solo existe para `completed`); pasado ese instante, un fix
+     * dentro de su radio vuelve a ser candidato a "no programada". Una parada `Pending` sigue
+     * protegiendo su geocerca sin límite de hora (todavía puede visitarse en cualquier momento
+     * del día). **`buildVisits()` no se toca**: sigue atribuyendo cualquier fix cercano a la
+     * parada más próxima sin mirar la hora — si el camión vuelve horas después a la geocerca de
+     * una parada ya cerrada, esa segunda visita se seguirá contando en sus estadísticas de
+     * permanencia (dato útil, no se pierde) Y, con este fix, TAMBIÉN puede aparecer como una
+     * parada no programada — mejor visibilizar la anomalía dos veces que ocultarla del todo.
+     *
      * @param  Collection<int, RouteStop>  $stops
      * @param  Collection<int, GpsPosition>  $positions  ya filtradas (precisión, base, horario)
      * @return Collection<int, array<string, mixed>> filas listas para UnplannedStop::insert()
@@ -303,14 +322,19 @@ class StopDwellService
 
         $movingSpeedMin = (float) config('servalillo.dwell.moving_speed_min_mps');
 
-        // Descarta lo que ya cuenta como parada de la ruta y lo que es claramente circulación
-        // (velocidad real por encima del umbral) — ninguno de los dos puede ser "no programada".
+        // Descarta lo que ya cuenta como parada de la ruta (mientras siga protegiendo ese
+        // punto — ver el comentario de arriba) y lo que es claramente circulación (velocidad
+        // real por encima del umbral) — ninguno de los dos puede ser "no programada".
         $remaining = $positions->reject(function (GpsPosition $p) use ($stops, $cfg, $movingSpeedMin) {
             if ($p->speed_mps !== null && (float) $p->speed_mps >= $movingSpeedMin) {
                 return true;
             }
 
             foreach ($stops as $stop) {
+                if ($stop->status->isClosed() && $p->recorded_at->gt($stop->updated_at)) {
+                    continue; // cerrada antes de este fix: ya no protege este punto
+                }
+
                 $distance = Haversine::meters(
                     (float) $p->latitude, (float) $p->longitude,
                     (float) $stop->latitude, (float) $stop->longitude,

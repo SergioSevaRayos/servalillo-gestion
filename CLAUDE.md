@@ -1294,19 +1294,52 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `history.blade.php` ("Ver detalle") salen listadas con hora de entrada/salida, duración y un
   enlace a Google Maps (`App\Support\GoogleMaps::pointUrl()`). El umbral de minutos es configurable
   desde `/mantenimiento/ajustes` (ver más abajo, "Ajustes generales").
+  **Segundo bug real de producción corregido (2026-09-14): una parada no programada en el mismo
+  sitio que una parada de la ruta ya CERRADA (completada/cancelada/fallida) no se detectaba.**
+  `buildUnplannedStops()` excluía cualquier fix dentro del radio de CUALQUIER parada de la ruta
+  sin mirar la hora — la geocerca de una parada "protegía" ese punto todo el día, aunque el
+  camión la hubiera visitado y cerrado horas antes; si volvía a esa zona más tarde por otro
+  motivo (repostar, un desvío…), ese tramo quedaba invisible. **Fix**: una parada `Pending` sigue
+  protegiendo su geocerca sin límite de hora (todavía puede visitarse en cualquier momento), pero
+  una parada CERRADA (`RouteStopStatus::isClosed()`) solo la protege **hasta el momento en que se
+  cerró** — aproximado con `updated_at` (única marca de tiempo común a los 3 estados terminales;
+  `completed_at` solo existe para `completed`). Pasado ese instante, un fix dentro de su radio
+  vuelve a ser candidato a "no programada". **`buildVisits()` no se toca a propósito**: sigue
+  atribuyendo cualquier fix cercano a la parada más próxima sin mirar la hora, así que una
+  segunda visita tardía a una parada ya cerrada se sigue sumando a sus estadísticas de
+  permanencia (dato útil) Y, con este fix, también puede aparecer como no programada — mejor
+  visibilizar la anomalía dos veces que ocultarla del todo.
+- **Camión "en la base" en el mapa "Ver recorrido" (2026-09-14)**: antes, si el camión estaba
+  parado dentro del radio de la base, el mapa igualmente calculaba y pintaba un trazado "cómo
+  llegar a la parada 1" (línea ámbar + "Del camión a la parada X: ~Y km") como si estuviera en
+  ruta — confuso, parecía que iba de camino cuando en realidad seguía en la nave.
+  `RouteGeometry::vehicleFor()` calcula ahora `at_base` (mismo `Haversine::meters()` +
+  `config('servalillo.dwell.exclude_base_radius_meters')` que usa `StopDwellService::
+  filterPositions()` para excluir esos mismos fixes de las visitas/no programadas — una sola
+  fuente de verdad para "está en la base") y, si es `true`, **no calcula `approach`/`next_stop`
+  en absoluto** (ni pide nada a OSRM para ese trazado). `Alpine.data('routeMap')` (`app.js`)
+  pinta `vehicleNote` como "🚚 Camión: en la base (hace X)" en vez de la nota de velocidad/ruta,
+  y omite la línea/nota de aproximación. **Nota**: si en producción el camión aparece "en curso"
+  como parada no programada estando realmente aparcado en la nave, la causa más probable es que
+  el punto/radio configurados en `/mantenimiento/ajustes` no cubran del todo la zona real de
+  aparcamiento — ese ajuste (sin desplegar) es la vía normal para calibrarlo, no un bug de este
+  código: `filterPositions()` ya excluye de raíz cualquier fix dentro del radio configurado, así
+  que un aviso real ahí significa que ese fix cayó FUERA del radio actual.
 - **Fuera de alcance** (posible fase posterior): detección de entrada/salida en tiempo real en la
   ingesta; interpolación del cruce exacto del radio; media por chofer en `FleetStatsService`;
   aviso "parada completada pero el camión nunca entró en su radio"; orientar el marcador del
   camión con `heading_deg` (se captura y guarda, pero no se usa en ningún
   sitio todavía).
-- Tests: `StopDwellServiceTest` (27 casos: conteo, drive-by, split, geocercas solapadas, base,
+- Tests: `StopDwellServiceTest` (29 casos: conteo, drive-by, split, geocercas solapadas, base,
   precisión, re-entrada, visita abierta, idempotencia, lote desordenado, sin coords,
   clamp_to_shift, puente de hueco de señal GPS, corte por encima del umbral, límite exacto, lote de
   recuperación tras sin cobertura, y desde 2026-09-13 la detección de paradas no programadas — con
   umbral, radio, exclusión por parada/base, varias distintas, abierta e idempotencia, circulación
-  despacio entre paradas [bug del 2026-09-14] y exclusión por velocidad real),
-  `TransitLegsTest`, `RecomputeStopDwellCommandTest`, `StopDwellOnViewTest`,
-  `RouteStopDwellAccessorsTest`, y las nuevas aserciones de `RouteGeometryTest`/`RoutesBoardTest`/
+  despacio entre paradas [bug del 2026-09-14], exclusión por velocidad real, no programada tras
+  cerrarse una parada [2º bug del 2026-09-14] y protección sin límite de hora de una parada
+  todavía pendiente), `TransitLegsTest`, `RecomputeStopDwellCommandTest`, `StopDwellOnViewTest`,
+  `RouteStopDwellAccessorsTest`, y las nuevas aserciones de `RouteGeometryTest` (incl. "camión en
+  la base")/`RoutesBoardTest`/
   `RouteHistoryTest`/`ChoferTodayTest` sobre la visibilidad de `unplanned_stops`. Helpers en
   `tests/Pest.php`: `metersOffset()`, `gpsTrack()`.
 
