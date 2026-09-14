@@ -32,7 +32,9 @@
         @if ($stop->deliveryType)
             <x-ui.badge variant="primary">{{ $stop->deliveryType->name }}</x-ui.badge>
         @endif
-        @if ($stop->planned_quantity)
+        @if ($stop->status === \App\Enums\RouteStopStatus::Completed && $stop->delivered_quantity !== null)
+            <span class="text-xs text-emerald-600 dark:text-emerald-400">{{ number_format($stop->delivered_quantity, 0, ',', '.') }} L</span>
+        @elseif ($stop->planned_quantity)
             <span class="text-xs text-slate-500 dark:text-slate-400">{{ number_format($stop->planned_quantity, 0, ',', '.') }}</span>
         @endif
         <x-stop-dwell :stop="$stop" variant="badge" />

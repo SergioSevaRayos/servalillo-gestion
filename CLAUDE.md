@@ -242,6 +242,13 @@ Backed enums con `->label()` en español; casteados en los modelos.
   ahora sobre la ruta *permanente* — ver "Route permanente / RouteDay").
 - `route_stops.route_id` es **nullable** desde la migración `2026_09_06_090000_...` (antes era
   obligatorio) y su FK es `nullOnDelete()` (antes `cascadeOnDelete()`); apunta a `route_days`.
+- **Bug real de producción corregido (2026-09-14): la tarjeta de una parada completada mostraba
+  los litros PREVISTOS (`planned_quantity`), no los realmente servidos.** `<x-routes.stop-card>`
+  pintaba siempre `planned_quantity` sin mirar el estado — para una parada `Completed` mostraba
+  el pedido, no la entrega real (podían no coincidir). Fix: igual que `<x-chofer.stop-card>` ya
+  hacía, si la parada está `Completed` y tiene `delivered_quantity`, se muestra ese valor (en
+  verde, con sufijo " L"); en cualquier otro caso (pendiente, sin completar todavía) sigue
+  mostrando `planned_quantity` como antes.
 - **Buscar cliente y meterlo en "Sin asignar" (2026-09-11)**: la columna "Sin asignar" tiene un
   botón **"Buscar cliente"** (además del "+ Añadir parada manual") → modal `client-search` con
   buscador incremental (`Board::clientMatches`, `Client::customers()->active()->kind($this->kind)

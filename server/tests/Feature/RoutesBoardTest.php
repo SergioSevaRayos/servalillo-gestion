@@ -31,6 +31,30 @@ test('el tablero muestra una columna por ruta del día y la columna sin asignar'
         ->assertSee('Cliente Backlog');
 });
 
+test('la tarjeta de una parada completada muestra los litros entregados, no los previstos (bug real 2026-09-14)', function () {
+    $route = makeRoute('2026-09-10');
+    RouteStop::factory()->for($route, 'route')->create([
+        'customer_name' => 'Air Fit', 'status' => RouteStopStatus::Completed,
+        'planned_quantity' => 220, 'delivered_quantity' => 180,
+    ]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->assertSee('180 L')
+        ->assertDontSee('220');
+});
+
+test('la tarjeta de una parada pendiente sigue mostrando los litros previstos', function () {
+    $route = makeRoute('2026-09-10');
+    RouteStop::factory()->for($route, 'route')->create([
+        'customer_name' => 'Air Fit', 'status' => RouteStopStatus::Pending, 'planned_quantity' => 220,
+    ]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->assertSee('220');
+});
+
 test('crear una parada la deja en la columna correcta', function () {
     $route = makeRoute('2026-09-10');
 
