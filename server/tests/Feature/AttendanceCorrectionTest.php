@@ -3,6 +3,7 @@
 use App\Livewire\Attendance\Manage;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
+use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -112,6 +113,12 @@ it('exige un motivo para dar de alta un fichaje olvidado', function () {
 });
 
 it('cerrar ahora prefija la salida a la hora actual pero sigue exigiendo motivo', function () {
+    // La factory deja `in_at` a las 08:00 de hoy — sin fijar "ahora", este test es sensible a
+    // la hora real: entre las 00:00 y las 08:00 (huso del contenedor), `now()` sería anterior a
+    // ese `in_at` y la validación `after:correct_in_at` de `correct_out_at` (= "ahora") fallaría
+    // sin que tenga nada que ver con lo que se está probando. Se fija a mediodía.
+    Carbon::setTestNow(today()->setTime(12, 0));
+
     $target = makeUser('chofer');
     $attendance = Attendance::factory()->for($target)->create(); // in_at 08:00, sin out_at
 
@@ -131,6 +138,8 @@ it('cerrar ahora prefija la salida a la hora actual pero sigue exigiendo motivo'
 
     $attendance->refresh();
     expect($attendance->out_at)->not->toBeNull();
+
+    Carbon::setTestNow();
 });
 
 it('reabrir vacía la salida de un fichaje ya cerrado y exige motivo', function () {
