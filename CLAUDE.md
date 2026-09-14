@@ -905,6 +905,11 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `runOptimize('base')`, con `wire:confirm`) para cuando el camión tiene que volver a la nave a
   rellenar. Un toque = reordena las pendientes saliendo de la base **sin** pasar por el modal; las
   completadas se quedan en su sitio. Visible si `operable() && ! finished && pendingCount > 1`.
+- **Chofer — "Ir a la base" (2026-09-14, distinto del anterior)**: enlace simple a Google Maps
+  (`Today::baseNavUrl()` → `GoogleMaps::pointUrl(config('servalillo.base.*'))`) **siempre visible**
+  en `/chofer/ruta` — sin condicionarlo a `operable()`/`finished`/`pendingCount` ni a que haya
+  ruta hoy (se pinta antes del `@if (! $route)`). No reordena nada, solo navega; el de arriba
+  sigue siendo el que reordena las pendientes.
 - **`App\Services\RouteOptimizer` es el único punto.** `optimize(RouteDay, ?array $origin = null): array`
   + `toast(array): array` + `baseOrigin(): array`.
   - Motor: **OSRM `/table`** (`?annotations=distance`) → matriz N×N de distancias reales por carretera.
@@ -1518,8 +1523,17 @@ Backed enums con `->label()` en español; casteados en los modelos.
   (`AttendanceExportController::json()`, permiso `attendance.manage`) — un endpoint de exportación
   genérico, **explícitamente NO una integración real con la ITSS** (no existe spec todavía): mismo
   contenido enriquecido que el XML/PDF, en JSON, listo para adaptar cuando exista el reglamento.
-
-## Convenciones
+- **Horas de hoy/semana/mes/año "en directo" en `/fichar` (2026-09-14)**: antes, con una jornada
+  abierta, las 4 tarjetas se quedaban congeladas mostrando el total sin esa jornada (p. ej. "Hoy:
+  0 min" recién fichada la entrada) hasta recargar la página — parecía roto. Ahora, mientras hay
+  jornada abierta, se le suma en vivo el tiempo transcurrido con un contador Alpine (`tick()` cada
+  15 s desde `startedAt`, sin petición al servidor). **No cambia el cálculo de nómina**: la base
+  (cerrada) sigue siendo exactamente `AttendanceStatsService` — esto es solo una capa visual sobre
+  el propio `/fichar` del trabajador; `/fichajes/totales` (administración) no se toca.
+  `wire:ignore` en el bloque (el mismo gotcha que el carrusel de días: cambiar el string `x-data`
+  en cada commit de Livewire reiniciaría el contador), así que `Index::punchIn()`/`punchOut()`
+  avisan del cambio con un evento explícito (`attendance-times-updated`, con los segundos base de
+  cada periodo + `startedAt` o `null`) en vez de dejar que el morph lo actualice solo.
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
 - Regla de negocio: **1 camión = 1 ruta permanente vigente a la vez** (`Route::overlaps()`, sin fechas
   solapadas del mismo `truck_id` ni del mismo `driver_id`); cada ruta permanente genera como mucho

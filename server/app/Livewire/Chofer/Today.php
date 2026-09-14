@@ -474,6 +474,20 @@ class Today extends Component
         return $points === [] ? null : GoogleMaps::directionsUrl($points);
     }
 
+    /**
+     * Enlace a Google Maps para volver a la base — siempre disponible (petición del usuario,
+     * 2026-09-14), sin condicionarlo a que haya ruta hoy ni a paradas pendientes: distinto de
+     * "Ir a la base a repostar" (`optimizeFromBase()`, que además reordena las pendientes).
+     */
+    #[Computed]
+    public function baseNavUrl(): string
+    {
+        return GoogleMaps::pointUrl(
+            (float) config('servalillo.base.latitude'),
+            (float) config('servalillo.base.longitude'),
+        );
+    }
+
     public function openStartDay(): void
     {
         $this->authorizeRoute();

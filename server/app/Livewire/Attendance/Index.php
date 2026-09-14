@@ -61,6 +61,7 @@ class Index extends Component
         app(AttendanceService::class)->punchIn(auth()->user(), $lat, $lng);
 
         unset($this->today, $this->history, $this->periods, $this->openShiftSeconds);
+        $this->dispatchTimesUpdated();
         $this->dispatch('toast', message: 'Entrada fichada.', variant: 'success');
     }
 
@@ -69,7 +70,29 @@ class Index extends Component
         app(AttendanceService::class)->punchOut(auth()->user(), $lat, $lng);
 
         unset($this->today, $this->history, $this->periods, $this->openShiftSeconds);
+        $this->dispatchTimesUpdated();
         $this->dispatch('toast', message: 'Salida fichada.', variant: 'success');
+    }
+
+    /**
+     * Las tarjetas Hoy/Semana/Mes/Año (2026-09-14, petición del usuario) se muestran "en
+     * directo" con un contador Alpine que suma el tiempo transcurrido de la jornada abierta
+     * sobre esta base — de ahí `wire:ignore` en el bloque y este evento, en vez de dejar que
+     * Livewire las re-renderice: cambiar el string `x-data` en cada commit reiniciaría el
+     * contador (mismo gotcha que el carrusel de días, ver CLAUDE.md). No cambia NADA de lo que
+     * cuenta para nómina — sigue siendo `AttendanceStatsService`, solo cierra tras fichar salida.
+     */
+    private function dispatchTimesUpdated(): void
+    {
+        $today = $this->today;
+
+        $this->dispatch('attendance-times-updated',
+            day: $this->periods['day']['seconds'],
+            week: $this->periods['week']['seconds'],
+            month: $this->periods['month']['seconds'],
+            year: $this->periods['year']['seconds'],
+            startedAt: ($today && $today->in_at && ! $today->out_at) ? $today->in_at->toIso8601String() : null,
+        );
     }
 
     /** Exporta TODO el histórico propio, no solo los últimos 30 días que se muestran. */

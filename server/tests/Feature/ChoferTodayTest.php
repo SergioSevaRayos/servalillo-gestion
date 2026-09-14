@@ -70,6 +70,28 @@ it('un chofer sin ruta hoy ve el estado vacío', function () {
         ->assertSee('No tienes ninguna ruta asignada para hoy');
 });
 
+it('el botón "Ir a la base" está siempre visible, aunque no haya ruta hoy', function () {
+    config()->set('servalillo.base.latitude', 36.876880);
+    config()->set('servalillo.base.longitude', -2.443087);
+
+    $user = makeUser('chofer');
+    Driver::factory()->create(['user_id' => $user->id]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->assertSee('Ir a la base')
+        ->assertSee('36.87688'); // GoogleMaps::pointUrl() redondea a 6 decimales, sin ceros finales
+});
+
+it('"Ir a la base" también está visible con una ruta en curso', function () {
+    config()->set('servalillo.base.latitude', 36.876880);
+    config()->set('servalillo.base.longitude', -2.443087);
+
+    [$user] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->assertSee('Ir a la base');
+});
+
 it('el chofer navega a otros días y ve la ruta de ese día', function () {
     [$user, $driver] = chofer();
     $ayer = today()->subDay();
@@ -678,9 +700,10 @@ it('no muestra "Seguir ruta" si ninguna parada tiene coordenadas', function () {
     [$user, $driver, $route] = chofer(stops: 2);
     $route->stops()->update(['latitude' => null, 'longitude' => null]);
 
+    // "maps/dir/?api=1" ya no basta para comprobar esto: "Ir a la base" (2026-09-14, siempre
+    // visible) usa la misma base de URL de GoogleMaps para cualquier destino.
     Livewire::actingAs($user)->test(Today::class)
-        ->assertDontSee('Seguir ruta en Google Maps')
-        ->assertDontSee('maps/dir/?api=1');
+        ->assertDontSee('Seguir ruta en Google Maps');
 });
 
 it('cada parada pendiente con coordenadas tiene un enlace de navegación a Google Maps', function () {

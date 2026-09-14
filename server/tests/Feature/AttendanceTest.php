@@ -34,6 +34,25 @@ it('no deja fichar a un chofer que ficha con huella externa en la base', functio
     expect($chofer->canPunchAttendance())->toBeFalse();
 });
 
+it('fichar entrada dispara el evento de horas en directo con la jornada abierta', function () {
+    $user = makeUser('administrador');
+
+    Livewire::actingAs($user)->test(Index::class)
+        ->call('punchIn', 36.876880, -2.443087)
+        ->assertDispatched('attendance-times-updated', fn ($event, $params) => $params['day'] === 0
+            && $params['startedAt'] !== null);
+});
+
+it('fichar salida dispara el evento de horas en directo ya sin jornada abierta', function () {
+    $user = makeUser('administrador');
+
+    Livewire::actingAs($user)->test(Index::class)->call('punchIn', 36.876880, -2.443087);
+
+    Livewire::actingAs($user)->test(Index::class)
+        ->call('punchOut', 36.876880, -2.443087)
+        ->assertDispatched('attendance-times-updated', fn ($event, $params) => $params['startedAt'] === null);
+});
+
 it('ficha entrada y salida en la ubicación de la base', function () {
     $user = makeUser('administrador');
 

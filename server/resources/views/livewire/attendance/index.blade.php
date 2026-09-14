@@ -59,34 +59,67 @@
         </div>
     </x-ui.card>
 
-    {{-- Horas trabajadas por periodo: mismo cálculo que ve administración de esta persona
-         (App\Services\AttendanceStatsService, único punto de cálculo). .surface, nunca
-         .glass — esta página también la usa el chofer. Una jornada abierta no está
-         incluida aquí (solo cuenta al cerrarse), se avisa aparte debajo. --}}
-    <div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div class="surface rounded-xl p-4 text-center">
-            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Hoy') }}</p>
-            <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{{ \App\Support\Duration::humanShort($this->periods['day']['seconds']) }}</p>
+    {{-- Horas trabajadas por periodo: la base (cerrada) es la misma que ve administración
+         (App\Services\AttendanceStatsService, único punto de cálculo para nómina — esto NO
+         cambia nada de eso). Si hay una jornada abierta, se suma en directo con un contador
+         Alpine (`wire:ignore`: cambiar el string `x-data` en cada commit de Livewire reiniciaría
+         el contador — mismo gotcha que el carrusel de días del chofer, ver CLAUDE.md). El
+         evento `attendance-times-updated` (Index::dispatchTimesUpdated()) lo dispara fichar
+         entrada/salida con los valores frescos. --}}
+    <div
+        wire:ignore
+        x-data="{
+            base: {
+                day: {{ (int) $this->periods['day']['seconds'] }},
+                week: {{ (int) $this->periods['week']['seconds'] }},
+                month: {{ (int) $this->periods['month']['seconds'] }},
+                year: {{ (int) $this->periods['year']['seconds'] }},
+            },
+            startedAt: @js($working ? $today->in_at->toIso8601String() : null),
+            elapsed: 0,
+            tick() {
+                this.elapsed = this.startedAt
+                    ? Math.max(0, Math.floor((Date.now() - new Date(this.startedAt).getTime()) / 1000))
+                    : 0;
+            },
+            humanShort(totalSeconds) {
+                const minutes = Math.round(Math.max(0, totalSeconds) / 60);
+                if (minutes < 60) return minutes + ' min';
+                const hours = Math.floor(minutes / 60);
+                const rest = minutes % 60;
+                return rest === 0 ? hours + ' h' : hours + ' h ' + String(rest).padStart(2, '0') + ' min';
+            },
+        }"
+        x-init="tick(); setInterval(() => tick(), 15000)"
+        x-on:attendance-times-updated.window="
+            base = { day: $event.detail.day, week: $event.detail.week, month: $event.detail.month, year: $event.detail.year };
+            startedAt = $event.detail.startedAt;
+            tick();
+        "
+    >
+        <div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div class="surface rounded-xl p-4 text-center">
+                <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Hoy') }}</p>
+                <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white" x-text="humanShort(base.day + elapsed)"></p>
+            </div>
+            <div class="surface rounded-xl p-4 text-center">
+                <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Esta semana') }}</p>
+                <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white" x-text="humanShort(base.week + elapsed)"></p>
+            </div>
+            <div class="surface rounded-xl p-4 text-center">
+                <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Este mes') }}</p>
+                <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white" x-text="humanShort(base.month + elapsed)"></p>
+            </div>
+            <div class="surface rounded-xl p-4 text-center">
+                <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Este año') }}</p>
+                <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white" x-text="humanShort(base.year + elapsed)"></p>
+            </div>
         </div>
-        <div class="surface rounded-xl p-4 text-center">
-            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Esta semana') }}</p>
-            <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{{ \App\Support\Duration::humanShort($this->periods['week']['seconds']) }}</p>
-        </div>
-        <div class="surface rounded-xl p-4 text-center">
-            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Este mes') }}</p>
-            <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{{ \App\Support\Duration::humanShort($this->periods['month']['seconds']) }}</p>
-        </div>
-        <div class="surface rounded-xl p-4 text-center">
-            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ __('Este año') }}</p>
-            <p class="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{{ \App\Support\Duration::humanShort($this->periods['year']['seconds']) }}</p>
-        </div>
-    </div>
 
-    @if ($this->openShiftSeconds !== null)
-        <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
-            {{ __('Jornada de hoy en curso: :time (se sumará a los totales al fichar la salida).', ['time' => \App\Support\Duration::humanShort($this->openShiftSeconds)]) }}
+        <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400" x-show="startedAt" x-cloak>
+            {{ __('Incluye la jornada de hoy en curso, en directo — quedará fijada al fichar la salida.') }}
         </p>
-    @endif
+    </div>
 
     <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-lg font-medium text-slate-800 dark:text-slate-100">{{ __('Últimos 30 días') }}</h2>
