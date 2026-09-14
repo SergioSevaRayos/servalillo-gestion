@@ -7,11 +7,14 @@ use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Models\StopVisit;
 use App\Models\UnplannedStop;
+use App\Models\User;
+use App\Notifications\UnplannedStopDetected;
 use App\Support\Haversine;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * Tiempo de permanencia del camión en cada parada, a partir de las posiciones GPS y una
@@ -149,7 +152,7 @@ class StopDwellService
             ? collect()
             : $this->buildVisits($day, $stops, $positions, $cfg);
 
-        $unplanned = $this->buildUnplannedStops($day, $stops, $positions, $cfg);
+        $unplanned = $this->carryOverNotifications($day, $this->buildUnplannedStops($day, $stops, $positions, $cfg));
 
         DB::transaction(function () use ($day, $visits, $unplanned) {
             StopVisit::where('route_id', $day->id)->delete();
@@ -163,9 +166,64 @@ class StopDwellService
             }
         });
 
+        $this->notifyNewUnplannedStops($day);
+
         $day->forceFill(['dwell_recalculated_at' => now()])->saveQuietly();
 
         return $visits->count();
+    }
+
+    /**
+     * Conserva `notified_at` entre recálculos, emparejando por `entered_at` — identidad
+     * estable de una parada no programada concreta (no cambia aunque su `left_at`/`seconds`
+     * sí lo hagan mientras sigue abierta). `run()` borra y reinserta esta tabla entera cada
+     * vez (cron nocturno, poll del tablero/chofer/historial); sin este emparejamiento,
+     * cada recálculo "olvidaría" que ya se avisó a administración y volvería a notificar la
+     * misma parada una y otra vez.
+     *
+     * @param  Collection<int, array<string, mixed>>  $unplanned
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function carryOverNotifications(RouteDay $day, Collection $unplanned): Collection
+    {
+        if ($unplanned->isEmpty()) {
+            return $unplanned;
+        }
+
+        $previouslyNotified = UnplannedStop::where('route_id', $day->id)
+            ->whereNotNull('notified_at')
+            ->get(['entered_at', 'notified_at'])
+            ->keyBy(fn (UnplannedStop $u) => $u->entered_at->toDateTimeString());
+
+        return $unplanned->map(function (array $row) use ($previouslyNotified) {
+            $row['notified_at'] = $previouslyNotified->get($row['entered_at']->toDateTimeString())?->notified_at;
+
+            return $row;
+        });
+    }
+
+    /**
+     * Avisa a administración (rol `administrador`, mismo destinatario que
+     * `RouteChangeNotifier`) de las paradas no programadas recién descubiertas en este
+     * recálculo — `notified_at` sigue `null` tras `carryOverNotifications()` solo para las
+     * que son nuevas de verdad. Una notificación por parada.
+     */
+    private function notifyNewUnplannedStops(RouteDay $day): void
+    {
+        $fresh = UnplannedStop::where('route_id', $day->id)->whereNull('notified_at')->get();
+
+        if ($fresh->isEmpty()) {
+            return;
+        }
+
+        $driverName = $day->driver?->user?->name ?? 'Un chofer';
+        $recipients = User::role('administrador')->where('is_active', true)->get();
+
+        foreach ($fresh as $stop) {
+            Notification::send($recipients, new UnplannedStopDetected($driverName, $day->route_date->toDateString(), $stop->seconds));
+        }
+
+        UnplannedStop::whereIn('id', $fresh->pluck('id'))->update(['notified_at' => now()]);
     }
 
     /**

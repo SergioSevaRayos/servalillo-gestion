@@ -868,8 +868,8 @@ Backed enums con `->label()` en español; casteados en los modelos.
   editada: `data` es **`jsonb`**, PK `uuid` **intacta** — `Illuminate\Notifications\DatabaseNotification`
   la exige, no crear modelo propio). Canal **`database` únicamente** (sin mail, sin broadcast), envío
   **síncrono** (las clases usan `Queueable` pero **no** `ShouldQueue`). `User` ya tiene `Notifiable`.
-- **4 clases en `app/Notifications/`** (`ChoferRouteChanged`, `SupportTicketOpened`,
-  `SupportTicketReplied`, `SupportTicketStatusChanged`). Todas devuelven en `toArray()` el **mismo
+- **5 clases en `app/Notifications/`** (`ChoferRouteChanged`, `SupportTicketOpened`,
+  `SupportTicketReplied`, `SupportTicketStatusChanged`, `UnplannedStopDetected`). Todas devuelven en `toArray()` el **mismo
   esquema** para que la campana pinte cualquiera: `type`, `title`, `body`, `url`, `icon`
   (`route|wrench|chat|flag` → `<svg>` inline en `bell.blade.php`). El deep link de soporte lo resuelve
   el trait `Concerns\LinksToTicket` según el rol del `$notifiable` (admin → `/soporte`, resto →
@@ -901,6 +901,27 @@ Backed enums con `->label()` en español; casteados en los modelos.
   **Entrega completada normal y empezar/terminar jornada sin incidencia NO notifican.**
   `StopActionForm::apply()` recibe ahora un 3er argumento `RouteChangeNotifier` (el único llamador,
   `Today::saveStop`, lo pasa a mano con `app(...)`).
+- **Notificación sistémica: parada no programada detectada → administración (2026-09-14).**
+  Tercer patrón de disparo, distinto de los dos anteriores (observer para oficina→chofer,
+  dispatch explícito para chofer→oficina): aquí no hay ni un usuario "actuando" ni un evento
+  Eloquent — es el propio `StopDwellService::run()` el que, tras reconstruir `unplanned_stops`
+  del día (borra + reinserta, ver Bloque 15), envía `App\Notifications\UnplannedStopDetected`
+  a `User::role('administrador')->where('is_active', true)->get()` (mismos destinatarios que
+  `RouteChangeNotifier::recipients()`) por cada parada no programada nueva. **El problema
+  específico de este patrón**: `run()` se llama constantemente (cron nocturno + recálculo
+  perezoso en cada vista de Board/Today/History) y siempre borra+reinserta la tabla entera, así
+  que sin más no habría forma de distinguir "parada ya avisada" de "parada nueva" — notificaría
+  la misma parada en cada poll. Se resolvió con una columna `notified_at` en `unplanned_stops`
+  que `StopDwellService::carryOverNotifications()` **conserva entre recálculos emparejando por
+  `entered_at`** (identidad estable de una parada no programada concreta — no cambia aunque
+  `left_at`/`seconds` sí lo hagan mientras sigue abierta): las filas nuevas heredan el
+  `notified_at` de la fila anterior con el mismo `entered_at` si existía, y solo las que
+  siguen `null` tras el emparejamiento son "de verdad nuevas" — `notifyNewUnplannedStops()`
+  las notifica y les pone `notified_at = now()` justo después de insertarlas. Una notificación
+  por parada (no una por recálculo), incluida una que sigue abierta (se avisa igual, con
+  "todavía en curso" en el cuerpo) — no se vuelve a avisar cuando se cierra más tarde, porque
+  `entered_at` no cambió. `url` → `routes.board` con la fecha de esa ruta (mismo patrón que
+  `ChoferRouteChanged`).
 - **Canal de soporte** = tickets con hilo. `support_tickets` (asunto + `category` enum `SupportCategory`
   fallo/necesidad/consulta + `status` enum `SupportStatus` abierto→en_curso→resuelto + `body` +
   `last_reply_at`, softDeletes) + `support_ticket_replies` (cascade). `SupportTicket` **NO es
@@ -1300,7 +1321,10 @@ Backed enums con `->label()` en español; casteados en los modelos.
   "⚠️ 12 min"), mismo patrón de píldora que las paradas cerradas (`.route-map-pin--pill`); en
   `history.blade.php` ("Ver detalle") salen listadas con hora de entrada/salida, duración y un
   enlace a Google Maps (`App\Support\GoogleMaps::pointUrl()`). El umbral de minutos es configurable
-  desde `/mantenimiento/ajustes` (ver más abajo, "Ajustes generales").
+  desde `/mantenimiento/ajustes` (ver más abajo, "Ajustes generales"). **Notifica a
+  administración por la campana** al detectarse (`App\Notifications\UnplannedStopDetected`,
+  una vez por parada real, no por recálculo — ver el detalle completo en "Notificaciones y
+  canal de soporte", Bloque 12).
   **Segundo bug real de producción corregido (2026-09-14): una parada no programada en el mismo
   sitio que una parada de la ruta ya CERRADA (completada/cancelada/fallida) no se detectaba.**
   `buildUnplannedStops()` excluía cualquier fix dentro del radio de CUALQUIER parada de la ruta
@@ -1337,14 +1361,17 @@ Backed enums con `->label()` en español; casteados en los modelos.
   aviso "parada completada pero el camión nunca entró en su radio"; orientar el marcador del
   camión con `heading_deg` (se captura y guarda, pero no se usa en ningún
   sitio todavía).
-- Tests: `StopDwellServiceTest` (29 casos: conteo, drive-by, split, geocercas solapadas, base,
+- Tests: `StopDwellServiceTest` (34 casos: conteo, drive-by, split, geocercas solapadas, base,
   precisión, re-entrada, visita abierta, idempotencia, lote desordenado, sin coords,
   clamp_to_shift, puente de hueco de señal GPS, corte por encima del umbral, límite exacto, lote de
   recuperación tras sin cobertura, y desde 2026-09-13 la detección de paradas no programadas — con
   umbral, radio, exclusión por parada/base, varias distintas, abierta e idempotencia, circulación
   despacio entre paradas [bug del 2026-09-14], exclusión por velocidad real, no programada tras
-  cerrarse una parada [2º bug del 2026-09-14] y protección sin límite de hora de una parada
-  todavía pendiente), `TransitLegsTest`, `RecomputeStopDwellCommandTest`, `StopDwellOnViewTest`,
+  cerrarse una parada [2º bug del 2026-09-14], protección sin límite de hora de una parada
+  todavía pendiente, y desde 2026-09-14 la notificación a administración — detecta y avisa, no
+  repite tras recalcular, dos paradas distintas avisan dos veces, una visita normal no notifica,
+  un chofer no la recibe), `TransitLegsTest`,
+  `RecomputeStopDwellCommandTest`, `StopDwellOnViewTest`,
   `RouteStopDwellAccessorsTest`, y las nuevas aserciones de `RouteGeometryTest` (incl. "camión en
   la base")/`RoutesBoardTest`/
   `RouteHistoryTest`/`ChoferTodayTest` sobre la visibilidad de `unplanned_stops`. Helpers en

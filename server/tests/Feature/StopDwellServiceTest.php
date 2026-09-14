@@ -4,9 +4,11 @@ use App\Enums\RouteStopStatus;
 use App\Models\RouteStop;
 use App\Models\StopVisit;
 use App\Models\UnplannedStop;
+use App\Notifications\UnplannedStopDetected;
 use App\Services\StopDwellService;
 use App\Support\Haversine;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Notification;
 
 /*
 | Tiempo de permanencia del camión en cada parada (geocerca por GPS). El track se construye con
@@ -548,4 +550,93 @@ it('paradas no programadas: es idempotente', function () {
     $svc->recomputeForRouteDay($day->fresh());
 
     expect(UnplannedStop::where('route_id', $day->id)->count())->toBe(1);
+});
+
+/*
+| Notificar a administración por la campana al detectar una parada no programada
+| (petición del usuario, 2026-09-14) — App\Notifications\UnplannedStopDetected, disparada
+| desde StopDwellService::run(). `notified_at` (columna nueva en unplanned_stops) se
+| empareja entre recálculos por `entered_at` para no repetir el aviso de la misma parada.
+*/
+
+it('notifica a administración al detectar una parada no programada', function () {
+    Notification::fake();
+    $admin = makeUser('administrador');
+
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+
+    $day = makeRoute('2026-03-02');
+    $point = metersOffset($this->stopLat, $this->stopLng, 1000, 0);
+    gpsTrack($day, denseRun($point, '10:00:00', '10:08:00')); // 450 s
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    Notification::assertSentTo($admin, UnplannedStopDetected::class,
+        fn ($n) => $n->seconds === 450 && $n->routeDate === '2026-03-02' && $n->driverName === $day->driver->user->name);
+});
+
+it('no vuelve a notificar la misma parada no programada tras recalcular', function () {
+    Notification::fake();
+    $admin = makeUser('administrador');
+
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+
+    $day = makeRoute('2026-03-02');
+    $point = metersOffset($this->stopLat, $this->stopLng, 1000, 0);
+    gpsTrack($day, denseRun($point, '10:00:00', '10:08:00'));
+
+    $svc = app(StopDwellService::class);
+    $svc->recomputeForRouteDay($day);
+    $svc->recomputeForRouteDay($day->fresh());
+    $svc->recomputeForRouteDay($day->fresh());
+
+    Notification::assertSentToTimes($admin, UnplannedStopDetected::class, 1);
+});
+
+it('detecta dos paradas no programadas distintas y avisa de las dos por separado', function () {
+    Notification::fake();
+    $admin = makeUser('administrador');
+
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+
+    $day = makeRoute('2026-03-02');
+    $pointA = metersOffset($this->stopLat, $this->stopLng, 1000, 0);
+    $pointB = metersOffset($this->stopLat, $this->stopLng, 1000, 1000);
+
+    gpsTrack($day, array_merge(
+        denseRun($pointA, '10:00:00', '10:08:00'),
+        denseRun($pointB, '11:00:00', '11:08:00'),
+    ));
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    Notification::assertSentToTimes($admin, UnplannedStopDetected::class, 2);
+});
+
+it('una visita normal a una parada de la ruta no notifica nada', function () {
+    Notification::fake();
+    $admin = makeUser('administrador');
+
+    $stop = dwellDay($this->stopLat, $this->stopLng);
+    $point = metersOffset($this->stopLat, $this->stopLng, 40, 0);
+    gpsTrack($stop->route, denseRun($point, '10:00:00', '10:08:00'));
+
+    app(StopDwellService::class)->recomputeForRouteDay($stop->route);
+
+    Notification::assertNothingSentTo($admin);
+});
+
+it('un chofer no recibe la notificación de parada no programada', function () {
+    Notification::fake();
+    $chofer = makeUser('chofer');
+
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+
+    $day = makeRoute('2026-03-02');
+    $point = metersOffset($this->stopLat, $this->stopLng, 1000, 0);
+    gpsTrack($day, denseRun($point, '10:00:00', '10:08:00'));
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    Notification::assertNothingSentTo($chofer);
 });

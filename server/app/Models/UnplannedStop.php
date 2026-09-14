@@ -13,11 +13,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * salvo que se pida explícitamente (`includeUnplannedStops: true`), y el chofer nunca lo pide.
  *
  * `left_at` / `seconds` null = sigue abierta (el camión seguía ahí en la última posición conocida).
+ *
+ * `notified_at`: cuándo se avisó a administración por la campana (`App\Notifications\
+ * UnplannedStopDetected`). Se conserva entre recálculos (StopDwellService::run() la
+ * empareja con la fila anterior por `entered_at`, identidad estable de la parada) para no
+ * volver a notificar la misma parada en cada recálculo — null = todavía sin avisar.
  */
 class UnplannedStop extends Model
 {
     protected $fillable = [
-        'route_id', 'latitude', 'longitude', 'entered_at', 'left_at', 'seconds',
+        'route_id', 'latitude', 'longitude', 'entered_at', 'left_at', 'seconds', 'notified_at',
     ];
 
     protected function casts(): array
@@ -28,6 +33,7 @@ class UnplannedStop extends Model
             'entered_at' => 'datetime',
             'left_at' => 'datetime',
             'seconds' => 'integer',
+            'notified_at' => 'datetime',
         ];
     }
 
