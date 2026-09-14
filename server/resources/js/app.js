@@ -855,7 +855,7 @@ document.addEventListener('alpine:init', () => {
     | Solo escribe en Livewire (`$wire.set`) al soltar el arrastre o al hacer clic en el mapa,
     | nunca en cada frame de `drag` (evitaría una petición por cada píxel movido).
     */
-    Alpine.data('geofenceMap', ({ lat, lng, radius, latPath, lngPath, radiusPath, searchMethod, showRadius }) => ({
+    Alpine.data('geofenceMap', ({ lat, lng, radius, latPath, lngPath, radiusPath, searchMethod }) => ({
         map: null,
         centerMarker: null,
         handleMarker: null,
@@ -863,7 +863,6 @@ document.addEventListener('alpine:init', () => {
         lat,
         lng,
         radius,
-        showRadius: showRadius !== false,
         query: '',
         results: [],
         searching: false,
@@ -920,15 +919,13 @@ document.addEventListener('alpine:init', () => {
                 attribution: 'Tiles &copy; Esri',
             }).addTo(this.map);
 
-            if (this.showRadius) {
-                this.circle = L.circle([this.lat, this.lng], {
-                    radius: this.radius,
-                    color: '#0d9488',
-                    weight: 1.5,
-                    fillColor: '#0d9488',
-                    fillOpacity: 0.12,
-                }).addTo(this.map);
-            }
+            this.circle = L.circle([this.lat, this.lng], {
+                radius: this.radius,
+                color: '#0d9488',
+                weight: 1.5,
+                fillColor: '#0d9488',
+                fillOpacity: 0.12,
+            }).addTo(this.map);
 
             this.centerMarker = L.marker([this.lat, this.lng], {
                 draggable: true,
@@ -940,24 +937,21 @@ document.addEventListener('alpine:init', () => {
                 }),
             }).addTo(this.map);
 
-            if (this.showRadius) {
-                const handlePos = this._destinationPoint(this.lat, this.lng, this.radius, 90);
-                this.handleMarker = L.marker(handlePos, {
-                    draggable: true,
-                    icon: L.divIcon({
-                        className: '',
-                        html: '<span class="geofence-map-handle"></span>',
-                        iconSize: [16, 16],
-                        iconAnchor: [8, 8],
-                    }),
-                }).addTo(this.map);
-
-                this.handleMarker.on('drag', (e) => this._moveHandle(e.target.getLatLng(), false));
-                this.handleMarker.on('dragend', (e) => this._moveHandle(e.target.getLatLng(), true));
-            }
+            const handlePos = this._destinationPoint(this.lat, this.lng, this.radius, 90);
+            this.handleMarker = L.marker(handlePos, {
+                draggable: true,
+                icon: L.divIcon({
+                    className: '',
+                    html: '<span class="geofence-map-handle"></span>',
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8],
+                }),
+            }).addTo(this.map);
 
             this.centerMarker.on('drag', (e) => this._moveCenter(e.target.getLatLng(), false));
             this.centerMarker.on('dragend', (e) => this._moveCenter(e.target.getLatLng(), true));
+            this.handleMarker.on('drag', (e) => this._moveHandle(e.target.getLatLng(), false));
+            this.handleMarker.on('dragend', (e) => this._moveHandle(e.target.getLatLng(), true));
             this.map.on('click', (e) => this._moveCenter(e.latlng, true));
 
             this.map.setView([this.lat, this.lng], 15);
@@ -969,19 +963,15 @@ document.addEventListener('alpine:init', () => {
             // "obligatorio" fallaría pese a que visualmente ya hay un punto fijado.
             this.$wire.set(latPath, Number(this.lat.toFixed(7)));
             this.$wire.set(lngPath, Number(this.lng.toFixed(7)));
-            if (this.showRadius) {
-                this.$wire.set(radiusPath, this.radius);
-            }
+            this.$wire.set(radiusPath, this.radius);
         },
 
         _moveCenter(latlng, commit) {
             this.lat = latlng.lat;
             this.lng = latlng.lng;
             this.centerMarker.setLatLng(latlng);
-            if (this.showRadius) {
-                this.circle.setLatLng(latlng);
-                this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
-            }
+            this.circle.setLatLng(latlng);
+            this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
 
             if (commit) {
                 this.$wire.set(latPath, Number(this.lat.toFixed(7)));
@@ -1022,10 +1012,8 @@ document.addEventListener('alpine:init', () => {
 
             const pos = [this.lat, this.lng];
             this.centerMarker.setLatLng(pos);
-            if (this.showRadius) {
-                this.circle.setLatLng(pos);
-                this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
-            }
+            this.circle.setLatLng(pos);
+            this.handleMarker.setLatLng(this._destinationPoint(this.lat, this.lng, this.radius, 90));
             this.map.panTo(pos);
 
             this.$wire.set(latPath, Number(this.lat.toFixed(7)));

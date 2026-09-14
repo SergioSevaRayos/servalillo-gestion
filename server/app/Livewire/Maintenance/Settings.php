@@ -22,6 +22,8 @@ class Settings extends Component
 
     public string $base_longitude = '';
 
+    public string $base_radius_meters = '';
+
     public string $unplanned_stop_minutes = '';
 
     public function mount(): void
@@ -37,6 +39,10 @@ class Settings extends Component
         $this->base_longitude = $setting->base_longitude !== null
             ? (string) $setting->base_longitude
             : (string) config('servalillo.base.longitude');
+
+        $this->base_radius_meters = $setting->base_radius_meters !== null
+            ? (string) $setting->base_radius_meters
+            : (string) config('servalillo.dwell.exclude_base_radius_meters');
 
         $this->unplanned_stop_minutes = $setting->unplanned_stop_minutes !== null
             ? (string) $setting->unplanned_stop_minutes
@@ -54,6 +60,7 @@ class Settings extends Component
         $validated = $this->validate([
             'base_latitude' => ['required', 'numeric', 'between:-90,90'],
             'base_longitude' => ['required', 'numeric', 'between:-180,180'],
+            'base_radius_meters' => ['required', 'integer', 'min:10', 'max:2000'],
             'unplanned_stop_minutes' => ['required', 'integer', 'min:1', 'max:120'],
         ]);
 
@@ -63,6 +70,7 @@ class Settings extends Component
         config([
             'servalillo.base.latitude' => (float) $validated['base_latitude'],
             'servalillo.base.longitude' => (float) $validated['base_longitude'],
+            'servalillo.dwell.exclude_base_radius_meters' => (int) $validated['base_radius_meters'],
             'servalillo.dwell.unplanned_stop_min_seconds' => (int) $validated['unplanned_stop_minutes'] * 60,
         ]);
 

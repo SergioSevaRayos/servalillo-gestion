@@ -53,16 +53,6 @@
             class="day-carousel__arrow">›</button>
     </div>
 
-    {{-- Ir a la base: siempre visible, sin depender de si hay ruta hoy ni de paradas pendientes
-         (distinto de "Ir a la base a repostar", que además reordena las pendientes). --}}
-    <a href="{{ $this->baseNavUrl }}" target="_blank" rel="noopener"
-        class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500">
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
-        </svg>
-        {{ __('Ir a la base') }}
-    </a>
-
     @if (! $route)
         <x-ui.card class="mt-6">
             <x-ui.empty-state
@@ -83,7 +73,19 @@
                     <p class="text-lg font-semibold text-slate-900 dark:text-white">{{ $route->truck->code }}</p>
                     <p class="text-sm text-slate-500 dark:text-slate-400">{{ $route->truck->plate }} · {{ $route->name }}</p>
                 </div>
-                <x-ui.badge :variant="$route->status->badgeVariant()">{{ $route->status->label() }}</x-ui.badge>
+                <div class="flex flex-col items-end gap-1.5">
+                    <x-ui.badge :variant="$route->status->badgeVariant()">{{ $route->status->label() }}</x-ui.badge>
+                    {{-- Subtil a propósito (2026-09-14): no es un botón que se use a menudo, el
+                         sistema ya detecta solo cuándo el camión está en la base (geovalla de
+                         exclusión de StopDwellService) y no la marca como parada no programada. --}}
+                    <a href="{{ $this->baseNavUrl }}" target="_blank" rel="noopener"
+                        class="inline-flex items-center gap-1 text-xs text-slate-400 transition-colors hover:text-primary-600 dark:text-slate-500 dark:hover:text-primary-400">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
+                        </svg>
+                        {{ __('Ir a la base') }}
+                    </a>
+                </div>
             </div>
 
             <div class="mt-4">
@@ -194,23 +196,6 @@
                 </button>
             @endif
         </div>
-
-        {{-- Ir a la base a repostar: reordena las pendientes saliendo de la base (las completadas no se tocan) --}}
-        @if ($this->operable() && ! $this->finished && $this->pendingCount > 1)
-            <button type="button" wire:click="optimizeFromBase" wire:target="optimizeFromBase"
-                wire:loading.attr="disabled"
-                wire:confirm="{{ __('Vas a repostar en la base: se reordenan las paradas pendientes por el camino más corto saliendo de la base. ¿Continuar?') }}"
-                class="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500">
-                <svg wire:loading.remove wire:target="optimizeFromBase" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-                </svg>
-                <svg wire:loading wire:target="optimizeFromBase" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-                </svg>
-                {{ __('Ir a la base a repostar') }}
-            </button>
-        @endif
 
         {{-- Paradas --}}
         @php $pendingIds = $route->stops->where('status', \App\Enums\RouteStopStatus::Pending)->pluck('id')->values(); @endphp

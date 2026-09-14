@@ -56,10 +56,13 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Ajustes editables desde /mantenimiento/ajustes (Bloque 18, 2026-09-13) que pisan el
-     * .env sin necesidad de desplegar: ubicación de la base y umbral de parada no
-     * programada. Envuelto en try/catch en vez de `Schema::hasTable()` (una consulta
-     * extra por petición) — solo falla si `company_settings` todavía no existe (antes de
-     * correr las migraciones por primera vez), caso en el que simplemente se deja el .env.
+     * .env sin necesidad de desplegar: ubicación de la base, el radio en el que se considera
+     * "está en la base" (para no marcar paradas ahí como no programadas — petición del
+     * usuario, 2026-09-14: "el sistema tiene que ser inteligente para detectar si está en la
+     * base") y el umbral de parada no programada. Envuelto en try/catch en vez de
+     * `Schema::hasTable()` (una consulta extra por petición) — solo falla si
+     * `company_settings` todavía no existe (antes de correr las migraciones por primera vez),
+     * caso en el que simplemente se deja el .env.
      */
     private function applyCompanySettings(): void
     {
@@ -78,6 +81,10 @@ class AppServiceProvider extends ServiceProvider
                 'servalillo.base.latitude' => (float) $setting->base_latitude,
                 'servalillo.base.longitude' => (float) $setting->base_longitude,
             ]);
+        }
+
+        if ($setting->base_radius_meters !== null) {
+            config(['servalillo.dwell.exclude_base_radius_meters' => $setting->base_radius_meters]);
         }
 
         if ($setting->unplanned_stop_minutes !== null) {

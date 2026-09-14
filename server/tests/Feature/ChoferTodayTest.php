@@ -70,26 +70,23 @@ it('un chofer sin ruta hoy ve el estado vacío', function () {
         ->assertSee('No tienes ninguna ruta asignada para hoy');
 });
 
-it('el botón "Ir a la base" está siempre visible, aunque no haya ruta hoy', function () {
-    config()->set('servalillo.base.latitude', 36.876880);
-    config()->set('servalillo.base.longitude', -2.443087);
-
+it('sin ruta hoy no se ve el enlace "Ir a la base" (vive en la tarjeta de la ruta)', function () {
     $user = makeUser('chofer');
     Driver::factory()->create(['user_id' => $user->id]);
 
     Livewire::actingAs($user)->test(Today::class)
-        ->assertSee('Ir a la base')
-        ->assertSee('36.87688'); // GoogleMaps::pointUrl() redondea a 6 decimales, sin ceros finales
+        ->assertDontSee('Ir a la base');
 });
 
-it('"Ir a la base" también está visible con una ruta en curso', function () {
+it('"Ir a la base" se ve, pequeño, en la tarjeta de una ruta en curso', function () {
     config()->set('servalillo.base.latitude', 36.876880);
     config()->set('servalillo.base.longitude', -2.443087);
 
     [$user] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
 
     Livewire::actingAs($user)->test(Today::class)
-        ->assertSee('Ir a la base');
+        ->assertSee('Ir a la base')
+        ->assertSee('36.87688'); // GoogleMaps::pointUrl() redondea a 6 decimales, sin ceros finales
 });
 
 it('el chofer navega a otros días y ve la ruta de ese día', function () {
@@ -582,27 +579,6 @@ it('el chofer organiza su ruta desde la base', function () {
     expect($route->stops()->pluck('id')->all())->toBe([$a->id, $near->id, $far->id]);
 });
 
-it('"Ir a la base a repostar" reordena las pendientes desde la base sin tocar las completadas', function () {
-    config()->set('servalillo.routing.enabled', false);
-    config()->set('servalillo.base', ['latitude' => 28.39, 'longitude' => -16.39]);
-
-    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
-    // El camión ya hizo la parada 1 (lejos de la base).
-    $done = RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'status' => RouteStopStatus::Completed, 'latitude' => 28.50, 'longitude' => -16.50, 'planned_quantity' => 1000]);
-    $far = RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'latitude' => 28.46, 'longitude' => -16.46, 'planned_quantity' => 1000]);
-    $near = RouteStop::factory()->for($route, 'route')->create(['position' => 3, 'latitude' => 28.41, 'longitude' => -16.41, 'planned_quantity' => 1000]);
-    $mid = RouteStop::factory()->for($route, 'route')->create(['position' => 4, 'latitude' => 28.44, 'longitude' => -16.44, 'planned_quantity' => 1000]);
-
-    Livewire::actingAs($user)->test(Today::class)
-        ->call('optimizeFromBase')
-        ->assertDispatched('toast');
-
-    // La completada se queda la primera; las pendientes salen desde la base: cerca -> media -> lejos.
-    expect($route->stops()->pluck('id')->all())->toBe([$done->id, $near->id, $mid->id, $far->id])
-        ->and($done->fresh()->position)->toBe(1)
-        ->and($done->fresh()->status)->toBe(RouteStopStatus::Completed);
-});
-
 it('el chofer sube y baja una parada pendiente a mano', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
     $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1]);
@@ -651,14 +627,6 @@ it('el chofer no puede mover una parada completada', function () {
         ->assertStatus(422);
 });
 
-it('no se puede ir a la base a repostar con la jornada terminada', function () {
-    [$user, $driver, $route] = chofer(['status' => RouteStatus::Completed, 'started_at' => now(), 'completed_at' => now()], stops: 3);
-
-    Livewire::actingAs($user)->test(Today::class)
-        ->call('optimizeFromBase')
-        ->assertStatus(403);
-});
-
 it('no se puede organizar una ruta ya terminada', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::Completed, 'started_at' => now(), 'completed_at' => now()], stops: 3);
 
@@ -700,8 +668,8 @@ it('no muestra "Seguir ruta" si ninguna parada tiene coordenadas', function () {
     [$user, $driver, $route] = chofer(stops: 2);
     $route->stops()->update(['latitude' => null, 'longitude' => null]);
 
-    // "maps/dir/?api=1" ya no basta para comprobar esto: "Ir a la base" (2026-09-14, siempre
-    // visible) usa la misma base de URL de GoogleMaps para cualquier destino.
+    // "maps/dir/?api=1" ya no basta para comprobar esto: "Ir a la base" (en la tarjeta de la
+    // ruta, ver el test de arriba) usa la misma base de URL de GoogleMaps para cualquier destino.
     Livewire::actingAs($user)->test(Today::class)
         ->assertDontSee('Seguir ruta en Google Maps');
 });

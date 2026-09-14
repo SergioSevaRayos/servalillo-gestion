@@ -525,18 +525,27 @@ Backed enums con `->label()` en español; casteados en los modelos.
   de unos cuantos `ErrorLog` de ejemplo.
 - **`/mantenimiento/ajustes` (`App\Livewire\Maintenance\Settings`, 2026-09-13)** — ajustes generales
   editables sin tocar el `.env` ni desplegar, exclusivo de `mantenimiento` (sin permiso nuevo,
-  `abort_unless(auth()->user()->isMaintenance())` en `mount()`, igual que la ruta). Hoy dos:
-  **ubicación de la base** (empresa) y **minutos mínimos de una parada no programada** (ver Bloque
-  15). `App\Models\CompanySetting` — fila única (`current()` = `firstOrCreate([])`), `Auditable`.
-  `App\Providers\AppServiceProvider::applyCompanySettings()` (llamado desde `boot()`) pisa
-  `config('servalillo.base.*')`/`config('servalillo.dwell.unplanned_stop_min_seconds')` con estos
-  valores en cada petición si no son `null`; si la tabla no existe todavía (antes de la primera
-  migración) se traga el `QueryException` y se queda con el `.env`. Pensado para las pruebas
-  iniciales del fichaje/paradas no programadas: fijar la base en un domicilio particular y
-  cambiarla luego sin desplegar. El mapa reutiliza `<x-ui.geofence-map :show-radius="false">`
-  (prop nueva, 2026-09-13: oculta el círculo/asa de radio y su input — un simple selector de punto,
-  sin `radiusPath` — ver `Alpine.data('geofenceMap')` en `app.js`, guardas `if (this.showRadius)`
-  en cada sitio que toca el círculo/asa).
+  `abort_unless(auth()->user()->isMaintenance())` en `mount()`, igual que la ruta). Hoy tres:
+  **ubicación de la base** (empresa), **su radio de detección** (2026-09-14: petición del usuario
+  — "el sistema tiene que ser inteligente para detectar si está en la base", ver Bloque 15) y
+  **minutos mínimos de una parada no programada**. `App\Models\CompanySetting` — fila única
+  (`current()` = `firstOrCreate([])`), `Auditable`. `App\Providers\AppServiceProvider::
+  applyCompanySettings()` (llamado desde `boot()`) pisa `config('servalillo.base.*')`/
+  `config('servalillo.dwell.exclude_base_radius_meters')`/`config('servalillo.dwell.
+  unplanned_stop_min_seconds')` con estos valores en cada petición si no son `null`; si la tabla
+  no existe todavía (antes de la primera migración) se traga el `QueryException` y se queda con
+  el `.env`. Pensado para las pruebas iniciales del fichaje/paradas no programadas: fijar la base
+  en un domicilio particular (con un radio generoso, ya que un domicilio no tiene el pin tan
+  exacto como la nave real) y cambiarla luego sin desplegar. El mapa usa
+  `<x-ui.geofence-map>` normal, con círculo/asa de radio — arrastrar el ámbar ajusta
+  directamente `base_radius_meters`, más intuitivo que un input numérico suelto para "la zona en
+  la que se considera que está en la base". **Historia corta (2026-09-13 → 2026-09-14):** este
+  componente llegó a tener una prop `showRadius`/`:show-radius="false"` (un modo "solo el punto,
+  sin círculo") porque al principio esta pantalla no necesitaba radio — un día después SÍ pasó a
+  necesitarlo (este mismo campo) y esa prop se quedó sin ningún otro sitio que la usara, así que
+  se revirtió por completo (Blade + `Alpine.data('geofenceMap')` en `app.js`) en vez de dejarla
+  como código muerto. Si en el futuro hace falta un selector de solo-punto en algún otro sitio,
+  reintroducirla es sencillo, pero no antes de que haya un caso de uso real.
 - **Pendiente conocido (no es del Bloque 6):** la paginación de los listados Livewire sale en inglés
   ("Showing X to Y of Z results"). Livewire usa su propia vista `livewire::tailwind`, no la
   `resources/views/vendor/pagination/tailwind.blade.php` ya restilizada. Afecta también a los
@@ -901,15 +910,13 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `runOptimize('base'|<stopId>)`, que resuelve el `$origin` `[lat, lon]` y llama a `optimize()`.
   Los dos componentes exponen `runOptimize(string $from)` con la misma firma para que el modal sirva
   para ambos.
-- **Chofer — "Ir a la base a repostar"**: botón aparte (`Today::optimizeFromBase()`, atajo de
-  `runOptimize('base')`, con `wire:confirm`) para cuando el camión tiene que volver a la nave a
-  rellenar. Un toque = reordena las pendientes saliendo de la base **sin** pasar por el modal; las
-  completadas se quedan en su sitio. Visible si `operable() && ! finished && pendingCount > 1`.
-- **Chofer — "Ir a la base" (2026-09-14, distinto del anterior)**: enlace simple a Google Maps
-  (`Today::baseNavUrl()` → `GoogleMaps::pointUrl(config('servalillo.base.*'))`) **siempre visible**
-  en `/chofer/ruta` — sin condicionarlo a `operable()`/`finished`/`pendingCount` ni a que haya
-  ruta hoy (se pinta antes del `@if (! $route)`). No reordena nada, solo navega; el de arriba
-  sigue siendo el que reordena las pendientes.
+- **Chofer — "Ir a la base"**: enlace simple a Google Maps (`Today::baseNavUrl()` →
+  `GoogleMaps::pointUrl(config('servalillo.base.*'))`), pequeño y discreto a propósito (no es de
+  uso frecuente) en la cabecera de la tarjeta de la ruta, junto al badge de estado — solo
+  visible si hay ruta hoy. **`Today::optimizeFromBase()` ("Ir a la base a repostar", que
+  reordenaba las pendientes con un solo toque) se quitó del todo (2026-09-14)** — redundante con
+  "Organizar mi ruta" → "¿Desde dónde sale el camión?" → "Desde la base" (mismo modal de arriba),
+  que sigue intacto para quien quiera esa reordenación explícita.
 - **`App\Services\RouteOptimizer` es el único punto.** `optimize(RouteDay, ?array $origin = null): array`
   + `toast(array): array` + `baseOrigin(): array`.
   - Motor: **OSRM `/table`** (`?annotations=distance`) → matriz N×N de distancias reales por carretera.
@@ -1160,9 +1167,12 @@ Backed enums con `->label()` en español; casteados en los modelos.
   debajo no cuenta como parada — "pasaba por la calle"), `merge_gap_seconds` **600** (10 min —
   subido de 180 tras pruebas de campo, ver el apartado de cobertura justo abajo),
   `accuracy_reject_meters` 150 (se ignoran fixes con mala precisión; `accuracy_m` null se acepta),
-  `exclude_base_radius_meters` 150 (se ignoran fixes junto a la nave), `clamp_to_shift` true (se
-  ignora lo de fuera del horario de jornada ±30 min). Cada posición se atribuye a la parada **más
-  cercana dentro del radio** (dos geocercas solapadas no cuentan doble).
+  `exclude_base_radius_meters` 150 (se ignoran fixes junto a la nave — **editable desde
+  `/mantenimiento/ajustes`**, ver "Ajustes generales" más abajo: es el radio en el que el sistema
+  considera "está en la base", así una parada ahí nunca se cuenta como no programada aunque el
+  camión esté un buen rato), `clamp_to_shift` true (se ignora lo de fuera del horario de jornada
+  ±30 min). Cada posición se atribuye a la parada **más cercana dentro del radio** (dos geocercas
+  solapadas no cuentan doble).
 - **"Sin cobertura" durante una parada — verificado y documentado (2026-09-11).** El usuario pidió
   comprobar que una pérdida de señal del chofer durante una parada no rompe el conteo. Hay dos
   cosas distintas bajo ese nombre:

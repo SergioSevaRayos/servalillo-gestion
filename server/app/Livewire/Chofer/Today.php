@@ -388,15 +388,6 @@ class Today extends Component
     }
 
     /**
-     * "Ir a la base a repostar": atajo de un toque que reordena las paradas pendientes por el
-     * camino más corto saliendo de la base (las completadas no se tocan). Sin modal.
-     */
-    public function optimizeFromBase(): void
-    {
-        $this->runOptimize('base');
-    }
-
-    /**
      * Sube o baja una parada PENDIENTE una posición (el chofer necesita cambiar el orden a mano).
      * Las paradas cerradas conservan su hueco; solo se intercambian dos pendientes contiguas.
      */
@@ -475,9 +466,12 @@ class Today extends Component
     }
 
     /**
-     * Enlace a Google Maps para volver a la base — siempre disponible (petición del usuario,
-     * 2026-09-14), sin condicionarlo a que haya ruta hoy ni a paradas pendientes: distinto de
-     * "Ir a la base a repostar" (`optimizeFromBase()`, que además reordena las pendientes).
+     * Enlace a Google Maps para volver a la base (2026-09-14). Sencillo y discreto a propósito
+     * — se pinta pequeño en la tarjeta de la ruta, no es un botón de uso frecuente; el "Ir a la
+     * base a repostar" que reordenaba las pendientes se quitó (redundante con "Organizar mi
+     * ruta" → "Desde la base"). El sistema ya detecta solo, por GPS, cuándo el camión está en
+     * la base y no lo cuenta como parada no programada — ver `StopDwellService::filterPositions()`
+     * (`exclude_base_radius_meters`, configurable desde `/mantenimiento/ajustes`).
      */
     #[Computed]
     public function baseNavUrl(): string
