@@ -1255,10 +1255,21 @@ Backed enums con `->label()` en español; casteados en los modelos.
   avería — queda anotado. `App\Models\UnplannedStop` (tabla `unplanned_stops`, mismo criterio de
   dato derivado que `stop_visits`: `StopDwellService::run()` la reconstruye entera por día, borra +
   reinserta). `StopDwellService::buildUnplannedStops()` agrupa los fixes que sobran tras descartar
-  los de cualquier parada de la ruta (la exclusión de la base ya la hace `filterPositions()`):
-  a diferencia de `buildVisits()` (geocerca fija conocida), aquí se agrupan fixes consecutivos
-  cercanos ENTRE SÍ (`unplanned_stop_radius_meters`, 100 m por defecto) — no hay un punto fijo de
-  referencia. Mismo puente de huecos de señal GPS que las visitas normales (`merge_gap_seconds`).
+  los de cualquier parada de la ruta (la exclusión de la base ya la hace `filterPositions()`) y
+  los que traen velocidad real de circulación (`speed_mps >= dwell.moving_speed_min_mps`, mismo
+  umbral que `transitLegs()`): a diferencia de `buildVisits()` (geocerca fija conocida), aquí se
+  agrupan fixes consecutivos cercanos al ANCLA del grupo (`unplanned_stop_radius_meters`, 100 m
+  por defecto) — no hay un punto fijo de referencia previo, así que el primer fix del grupo hace
+  de ancla. Mismo puente de huecos de señal GPS que las visitas normales (`merge_gap_seconds`).
+  **Bug real de producción corregido (2026-09-14): circular despacio entre dos paradas (tráfico,
+  calles estrechas, muchos giros) se marcaba como parada no programada.** La primera versión
+  comparaba cada fix con el ANTERIOR del grupo, no con el ancla: con el camión avanzando poco a
+  poco, dos fixes consecutivos (~45 s aparte) pueden quedar a menos del radio de agrupación el
+  uno del otro sin que el camión dejara de moverse ni un instante — la cadena de saltos cortos
+  nunca superaba el radio fix a fix, aunque el recorrido acumulado sí. Doble fix: (1) la
+  distancia se mide siempre contra el ancla (primer fix del grupo), que si el camión sigue
+  avanzando acaba quedando fuera del radio tarde o temprano; (2) un fix con velocidad real de
+  circulación queda excluido de entrada, sin ni siquiera entrar en el cálculo de distancia.
   **Visible SOLO para administración/mantenimiento**: `RouteGeometry::payloadFor(RouteDay,
   $includeUnplannedStops = false)` las omite por defecto; solo `Routes\Board::showRouteMap()` y
   `Routes\History::showDayMap()` piden `true` — `Chofer\Today::showRouteMap()` nunca lo pasa, así
@@ -1269,15 +1280,16 @@ Backed enums con `->label()` en español; casteados en los modelos.
   enlace a Google Maps (`App\Support\GoogleMaps::pointUrl()`). El umbral de minutos es configurable
   desde `/mantenimiento/ajustes` (ver más abajo, "Ajustes generales").
 - **Fuera de alcance** (posible fase posterior): detección de entrada/salida en tiempo real en la
-  ingesta; interpolación del cruce exacto del radio; `speed_mps ≈ 0` como filtro extra; media por
-  chofer en `FleetStatsService`; aviso "parada completada pero el camión nunca entró en su radio";
-  orientar el marcador del camión con `heading_deg` (se captura y guarda, pero no se usa en ningún
+  ingesta; interpolación del cruce exacto del radio; media por chofer en `FleetStatsService`;
+  aviso "parada completada pero el camión nunca entró en su radio"; orientar el marcador del
+  camión con `heading_deg` (se captura y guarda, pero no se usa en ningún
   sitio todavía).
-- Tests: `StopDwellServiceTest` (26 casos: conteo, drive-by, split, geocercas solapadas, base,
+- Tests: `StopDwellServiceTest` (27 casos: conteo, drive-by, split, geocercas solapadas, base,
   precisión, re-entrada, visita abierta, idempotencia, lote desordenado, sin coords,
   clamp_to_shift, puente de hueco de señal GPS, corte por encima del umbral, límite exacto, lote de
   recuperación tras sin cobertura, y desde 2026-09-13 la detección de paradas no programadas — con
-  umbral, radio, exclusión por parada/base, varias distintas, abierta e idempotencia),
+  umbral, radio, exclusión por parada/base, varias distintas, abierta e idempotencia, circulación
+  despacio entre paradas [bug del 2026-09-14] y exclusión por velocidad real),
   `TransitLegsTest`, `RecomputeStopDwellCommandTest`, `StopDwellOnViewTest`,
   `RouteStopDwellAccessorsTest`, y las nuevas aserciones de `RouteGeometryTest`/`RoutesBoardTest`/
   `RouteHistoryTest`/`ChoferTodayTest` sobre la visibilidad de `unplanned_stops`. Helpers en

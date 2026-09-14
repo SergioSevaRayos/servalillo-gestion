@@ -274,9 +274,22 @@ class StopDwellService
      * `includeUnplannedStops: true`) — el chofer nunca lo ve.
      *
      * Mismo criterio de "puentear huecos de señal" que `buildVisits()` (`merge_gap_seconds`),
-     * pero el radio de agrupación es más ajustado (`unplanned_stop_radius_meters`) y se mide
-     * fix a fix (el anterior del grupo, no un punto fijo): aquí no hay una geocerca ya
-     * definida, así que se agrupan fixes consecutivos cercanos ENTRE SÍ.
+     * pero el radio de agrupación es más ajustado (`unplanned_stop_radius_meters`): aquí no hay
+     * una geocerca ya definida, así que se agrupan fixes consecutivos cercanos al ANCLA del
+     * grupo (su primer fix) — nunca al fix anterior.
+     *
+     * **Bug real de producción corregido (2026-09-14): se marcaban como "no programadas" tramos
+     * en los que el camión simplemente circulaba despacio entre dos paradas** (tráfico, calles
+     * estrechas, muchos giros). La primera versión comparaba cada fix con el ANTERIOR del grupo:
+     * con el camión circulando a poca velocidad, dos fixes consecutivos (~45 s de separación)
+     * pueden quedar a menos de `unplanned_stop_radius_meters` el uno del otro sin que el camión
+     * haya dejado de moverse ni un segundo — la cadena de saltos cortos nunca superaba el radio
+     * fix a fix, aunque el recorrido acumulado sí fuera largo. Doble fix: (1) la distancia se
+     * mide siempre contra el ANCLA (primer fix del grupo), no contra el último — un tramo en
+     * circulación se va alejando del ancla y el grupo se cierra en cuanto el camión se aleja de
+     * verdad, por poco a poco que sea; (2) un fix con `speed_mps` real de circulación
+     * (`>= servalillo.dwell.moving_speed_min_mps`, mismo umbral que ya usa `transitLegs()` para
+     * "velocidad mientras circulaba") nunca es candidato a parada, directamente.
      *
      * @param  Collection<int, RouteStop>  $stops
      * @param  Collection<int, GpsPosition>  $positions  ya filtradas (precisión, base, horario)
@@ -288,9 +301,15 @@ class StopDwellService
             return collect();
         }
 
-        // Cualquier posición cerca de una parada de la ruta ya se cuenta ahí (visita normal
-        // o simple paso) — no puede ser también "no programada".
-        $remaining = $positions->reject(function (GpsPosition $p) use ($stops, $cfg) {
+        $movingSpeedMin = (float) config('servalillo.dwell.moving_speed_min_mps');
+
+        // Descarta lo que ya cuenta como parada de la ruta y lo que es claramente circulación
+        // (velocidad real por encima del umbral) — ninguno de los dos puede ser "no programada".
+        $remaining = $positions->reject(function (GpsPosition $p) use ($stops, $cfg, $movingSpeedMin) {
+            if ($p->speed_mps !== null && (float) $p->speed_mps >= $movingSpeedMin) {
+                return true;
+            }
+
             foreach ($stops as $stop) {
                 $distance = Haversine::meters(
                     (float) $p->latitude, (float) $p->longitude,
@@ -316,7 +335,8 @@ class StopDwellService
         $stale = $lastFixOverall->diffInSeconds($now) > $cfg['merge_gap_seconds'];
 
         $rows = collect();
-        $cluster = [$remaining->first()];
+        $anchor = $remaining->first();
+        $cluster = [$anchor];
 
         for ($i = 1, $n = $remaining->count(); $i < $n; $i++) {
             $point = $remaining[$i];
@@ -325,7 +345,7 @@ class StopDwellService
             $gap = $point->recorded_at->getTimestamp() - $last->recorded_at->getTimestamp();
             $distance = Haversine::meters(
                 (float) $point->latitude, (float) $point->longitude,
-                (float) $last->latitude, (float) $last->longitude,
+                (float) $anchor->latitude, (float) $anchor->longitude,
             );
 
             if ($distance <= $radius && $gap <= $cfg['merge_gap_seconds']) {
@@ -336,6 +356,7 @@ class StopDwellService
 
             $this->pushUnplannedCluster($rows, $day, $cluster, $minSeconds, $stale, $lastFixOverall, $now);
             $cluster = [$point];
+            $anchor = $point;
         }
 
         $this->pushUnplannedCluster($rows, $day, $cluster, $minSeconds, $stale, $lastFixOverall, $now);

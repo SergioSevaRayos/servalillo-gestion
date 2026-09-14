@@ -398,6 +398,50 @@ it('no cuenta un paso corto por debajo del umbral como parada no programada', fu
     expect(UnplannedStop::where('route_id', $day->id)->count())->toBe(0);
 });
 
+it('no marca como no programado un tramo en el que el camión circula despacio entre dos paradas (bug real 2026-09-14)', function () {
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+    config()->set('servalillo.dwell.unplanned_stop_radius_meters', 100);
+
+    $day = makeRoute('2026-03-02');
+
+    // Circulando muy despacio (tráfico, calles estrechas, giros): 40 m cada 45 s (~3,2 km/h),
+    // sin parar en ningún momento durante 7,5 min — cada salto queda muy por debajo del radio
+    // de agrupación (100 m), pero el recorrido total (~400 m) lo supera de sobra. Antes del
+    // fix, comparar cada fix con el ANTERIOR (no con el ancla del grupo) dejaba que esta cadena
+    // de saltos cortos se contara entera como una única parada no programada.
+    $fixes = [];
+    for ($i = 0; $i < 11; $i++) {
+        [$lat, $lng] = metersOffset($this->stopLat, $this->stopLng, $i * 40, 0);
+        $fixes[] = [$lat, $lng, Carbon::parse('2026-03-02 10:00:00')->addSeconds(45 * $i)->format('Y-m-d H:i:s')];
+    }
+    gpsTrack($day, $fixes);
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    expect(UnplannedStop::where('route_id', $day->id)->count())->toBe(0);
+});
+
+it('un fix con velocidad real de circulación nunca es candidato a parada no programada', function () {
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 60);
+    config()->set('servalillo.dwell.moving_speed_min_mps', 1.0);
+
+    $day = makeRoute('2026-03-02');
+    $point = metersOffset($this->stopLat, $this->stopLng, 1000, 0);
+
+    // Mismo punto, mismo intervalo que un caso que SÍ se detectaría (ver arriba) — pero aquí
+    // cada fix trae una velocidad real de circulación (5 m/s), así que ninguno debe contar
+    // como candidato a parada, por juntos que estén entre sí.
+    $fixes = [];
+    for ($i = 0; $i < 5; $i++) {
+        $fixes[] = [$point[0], $point[1], Carbon::parse('2026-03-02 10:00:00')->addSeconds(45 * $i)->format('Y-m-d H:i:s'), 10, 5.0];
+    }
+    gpsTrack($day, $fixes);
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    expect(UnplannedStop::where('route_id', $day->id)->count())->toBe(0);
+});
+
 it('no cuenta como no programada una parada cerca de una parada de la ruta', function () {
     config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
 
