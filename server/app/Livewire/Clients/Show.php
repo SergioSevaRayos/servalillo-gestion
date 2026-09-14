@@ -10,6 +10,7 @@ use App\Models\Client;
 use App\Models\DeliveryType;
 use App\Models\Route;
 use App\Models\RouteStop;
+use App\Services\ClientDeliverySuspender;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -110,6 +111,33 @@ class Show extends Component
             message: $created > 0 ? "{$created} paradas planificadas." : 'No se ha creado ninguna parada nueva (ya existían para esas fechas).',
             variant: $created > 0 ? 'success' : 'warning',
         );
+    }
+
+    /**
+     * Apaga el calendario recurrente del cliente y cancela de golpe todas sus paradas
+     * pendientes (hoy incluido) — ver App\Services\ClientDeliverySuspender.
+     */
+    public function suspendAllDeliveries(): void
+    {
+        $this->authorize('update', $this->client);
+        abort_unless(auth()->user()->can('routes.update'), 403);
+
+        $cancelled = app(ClientDeliverySuspender::class)->suspend($this->client);
+        $this->client->refresh();
+        unset($this->pendingStopsCount);
+
+        $this->dispatch('toast',
+            message: $cancelled > 0
+                ? "Repartos suspendidos: {$cancelled} paradas pendientes canceladas y calendario desactivado."
+                : 'Calendario de reparto desactivado (no había paradas pendientes).',
+            variant: 'success',
+        );
+    }
+
+    #[Computed]
+    public function pendingStopsCount(): int
+    {
+        return app(ClientDeliverySuspender::class)->pendingStopsCount($this->client);
     }
 
     /** Rutas permanentes candidatas: mismo tipo de servicio que el cliente. */

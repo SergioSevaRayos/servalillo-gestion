@@ -82,6 +82,57 @@ it('planificar reparto sin ruta elegida deja las paradas en "Sin asignar"', func
         ->and($stop->scheduled_for->toDateString())->toBe('2026-09-14');
 });
 
+it('suspender repartos cancela las paradas pendientes emparejadas y desactiva el calendario', function () {
+    $this->actingAs(makeUser('administrador'));
+    $client = Client::factory()->create([
+        'name' => 'Comunidad Vista Alegre',
+        'tax_id' => 'H11223344',
+        'delivery_weekdays' => [1, 3, 5],
+        'schedule_starts_on' => today(),
+        'schedule_ends_on' => today()->addYear(),
+        'frequency_days' => null,
+    ]);
+
+    $today = RouteDay::factory()->create(['route_date' => today()]);
+    $future = RouteDay::factory()->create(['route_date' => today()->addWeek()]);
+
+    $pendingToday = RouteStop::factory()->for($today, 'route')->create([
+        'customer_name' => 'Otro nombre', 'customer_tax_id' => 'H11223344', 'status' => RouteStopStatus::Pending,
+    ]);
+    $pendingFuture = RouteStop::factory()->for($future, 'route')->create([
+        'customer_tax_id' => 'H11223344', 'status' => RouteStopStatus::Pending,
+    ]);
+    $completed = RouteStop::factory()->for($today, 'route')->create([
+        'customer_tax_id' => 'H11223344', 'status' => RouteStopStatus::Completed,
+    ]);
+    $otherClient = RouteStop::factory()->for($future, 'route')->create([
+        'customer_tax_id' => 'OTRO-CIF', 'status' => RouteStopStatus::Pending,
+    ]);
+
+    Livewire::test(Show::class, ['client' => $client])
+        ->assertSet('pendingStopsCount', 2)
+        ->call('suspendAllDeliveries')
+        ->assertDispatched('toast');
+
+    expect(RouteStop::find($pendingToday->id))->toBeNull()
+        ->and(RouteStop::find($pendingFuture->id))->toBeNull()
+        ->and(RouteStop::find($completed->id))->not->toBeNull()
+        ->and(RouteStop::find($otherClient->id))->not->toBeNull();
+
+    $client->refresh();
+    expect($client->delivery_weekdays)->toBeNull()
+        ->and($client->schedule_starts_on)->toBeNull()
+        ->and($client->schedule_ends_on)->toBeNull();
+});
+
+it('el botón de suspender repartos solo aparece si hay calendario o paradas pendientes', function () {
+    $this->actingAs(makeUser('administrador'));
+    $client = Client::factory()->create(['name' => 'Sin Calendario SL', 'delivery_weekdays' => null, 'frequency_days' => null]);
+
+    Livewire::test(Show::class, ['client' => $client])
+        ->assertDontSee('Suspender repartos');
+});
+
 it('un chofer no ve la ficha de cliente', function () {
     $chofer = makeUser('chofer');
     Driver::factory()->create(['user_id' => $chofer->id]);

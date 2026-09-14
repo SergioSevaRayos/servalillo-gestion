@@ -40,6 +40,11 @@
                 @can('update', $client)
                     @if (auth()->user()->can('routes.update'))
                         <x-ui.button variant="secondary" size="sm" wire:click="openPlanDelivery">{{ __('Planificar :kind', ['kind' => \Illuminate\Support\Str::lower($client->service_kind->label())]) }}</x-ui.button>
+                        @if ($client->hasWeekdaySchedule() || $client->frequency_days || $this->pendingStopsCount > 0)
+                            <x-ui.button variant="secondary" size="sm" wire:click="suspendAllDeliveries"
+                                wire:confirm="{{ __('¿Suspender todos los repartos de :name? Se cancelarán :n paradas pendientes y se desactivará su calendario recurrente. Esta acción no se puede deshacer.', ['name' => $client->name, 'n' => $this->pendingStopsCount]) }}"
+                                class="!text-rose-600 hover:!bg-rose-50 dark:!text-rose-400 dark:hover:!bg-rose-500/10">{{ __('Suspender repartos') }}</x-ui.button>
+                        @endif
                     @endif
                     <x-ui.button size="sm" wire:click="edit">{{ __('Editar') }}</x-ui.button>
                 @endcan

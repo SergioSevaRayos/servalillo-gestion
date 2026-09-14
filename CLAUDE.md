@@ -775,6 +775,21 @@ Backed enums con `->label()` en español; casteados en los modelos.
   (una notificación por parada creada) — no se silencia, a diferencia del generador nocturno.
   Requiere `clients.update` **y** `routes.update`. Formulario compartido `App\Livewire\Forms\
   ClientPlanForm` entre `Clients\Index`/`Clients\Show` (mismo patrón que `ClientForm`).
+- **"Suspender repartos" (2026-09-14)**: botón en la ficha del cliente (`Clients\Show`, junto a
+  "Editar" — solo ahí, no en la fila de `/clientes`), visible si el cliente tiene calendario
+  activo (`hasWeekdaySchedule()`/`frequency_days`) o alguna parada `Pending` emparejada. Pensado
+  para cuando un cliente con reparto planificado por meses/un año ya no quiere el servicio: antes
+  había que borrar cada `RouteStop` pendiente una a una y el calendario seguía generando paradas
+  nuevas cada noche. `App\Services\ClientDeliverySuspender::suspend()` hace las dos cosas de una
+  vez — apaga el calendario (`delivery_weekdays`/`frequency_days`/`schedule_starts_on`/
+  `schedule_ends_on` a `null`) y cancela **todas** las `RouteStop` en estado `Pending` emparejadas
+  por CIF/nombre (mismo criterio que `Client::pastStops()`), **incluidas las de hoy** (decisión
+  explícita del usuario — si el cliente ya no quiere el servicio, tampoco la de hoy). Las
+  completadas/falladas/canceladas son historial y no se tocan. Cancela con un `->delete()` por
+  modelo (no un `whereIn(...)->delete()` de query builder) para que `RouteStopObserver` dispare
+  igual que al borrar una parada a mano desde el tablero. Requiere `clients.update` **y**
+  `routes.update`, mismo gate que "Planificar reparto". `wire:confirm` muestra el nº de paradas
+  que se van a cancelar (`Show::pendingStopsCount`, computed).
 - **El producto siempre es agua**: se eliminó `clients.default_delivery_type_id`. `DeliveryType::waterId()`
   (slug `agua`) es el que usan `planDelivery`, `Chofer\Today::addClientStop` y el generador.
 - **Import Access = comando, una sola vez** (decisión del usuario, NO subida por UI):
