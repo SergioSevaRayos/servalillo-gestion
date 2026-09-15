@@ -21,6 +21,7 @@
 | 16 | Terminal vinculado a una ruta (chofer sustituto) | ✅ Hecho |
 | 17 | Depósitos SGRA (integración externa, visual 3D) | ✅ Hecho |
 | 18 | Sistema de fichaje (entrada/salida) | 📝 Planificado — ver `docs/05-fichaje.md` |
+| 19 | Nóminas | 🔍 Solo estudiado, sin empezar — ver `docs/06-nominas-estudio.md` |
 
 > Los Bloques 12 y 13 se construyeron por delante de 10/11 a petición del usuario (igual que el 9).
 > Los Bloques 14-18 no estaban en el `docs/01` original: son funciones pedidas sobre la marcha una vez
