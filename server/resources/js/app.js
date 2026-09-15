@@ -1613,8 +1613,13 @@ window.tank3d = function (initial) {
             // volumen de agua se note, sin alterar el % de llenado real.
             const DEPTH_EXAGGERATION = 1.7;
             const PERSON_HEIGHT_CM = 170;
-            const BUOY_DIAMETER_CM = 60; // diámetro real típico de un flotador salvavidas
-            const BUOY_EXAGGERATION = 2.5;
+            // El flotador es decorativo (sin función informativa): su tamaño se fija como
+            // proporción del propio depósito (no como un diámetro real fijo escalado), para
+            // que quede igual de "pequeño y discreto" en un depósito grande que en uno
+            // pequeño. Antes usaba un diámetro real típico (60 cm) multiplicado por la misma
+            // escala que el depósito — en un depósito con poca superficie (ancho/diámetro
+            // pequeño en cm) esa escala lo dejaba casi tan grande como el propio depósito.
+            const BUOY_RELATIVE_DIAMETER = 0.22; // fracción del lado menor del depósito (ya escalado)
             const LIFE_RING_SEGMENTS = 8;
             // Vista elevada en 3/4 (ni de perfil puro ni cenital pura).
             const ELEVATION = Math.PI / 4.3;
@@ -1668,8 +1673,8 @@ window.tank3d = function (initial) {
             // Flotador salvavidas clásico flotando plano sobre la superficie del agua —
             // detalle decorativo, sin función informativa. El bobbing se anima en
             // updateBuoy() (animate()).
-            function buildBuoy(scale, waterSurfaceY, offsetX, offsetZ) {
-                const outerR = (BUOY_DIAMETER_CM * BUOY_EXAGGERATION / 2) * scale;
+            function buildBuoy(tankW, tankD, waterSurfaceY, offsetX, offsetZ) {
+                const outerR = Math.min(tankW, tankD) * BUOY_RELATIVE_DIAMETER / 2;
                 const tubeR = outerR * 0.18;
                 const ringR = outerR - tubeR;
                 const arcAngle = (Math.PI * 2) / LIFE_RING_SEGMENTS;
@@ -1761,7 +1766,7 @@ window.tank3d = function (initial) {
                 if (pct > 3) {
                     const offsetX = W * 0.16;
                     const offsetZ = D * 0.12;
-                    buoyGroup = buildBuoy(scale, waterSurfaceY, offsetX, offsetZ);
+                    buoyGroup = buildBuoy(W, D, waterSurfaceY, offsetX, offsetZ);
                     tankGroup.add(buoyGroup);
                 }
 
