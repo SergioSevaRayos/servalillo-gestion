@@ -622,6 +622,14 @@ Backed enums con `->label()` en español; casteados en los modelos.
     tarjeta **"Reprogramadas para este día"** (`Today::rescheduledForDay`, solo lectura: `route_id
     IS NULL` + `scheduled_for` + `rescheduled_by = auth`) sigue existiendo para ese caso residual,
     pero en el flujo normal la parada reprogramada ya aparece como una pendiente más de la ruta.
+    **Indicador "↻ Reprogramada" en la tarjeta del día de destino (2026-09-16)**: en el flujo
+    normal, la nueva parada pendiente se veía en la columna del día al que se movió igual que
+    cualquier otra parada nueva — no había forma de distinguir, a simple vista, que venía de un
+    fallo/cancelación de otro día. `RouteStop::wasRescheduled()` (`rescheduled_by !== null`) +
+    badge ámbar en `<x-routes.stop-card>` (tablero) y `<x-chofer.stop-card>` (web del chofer), justo
+    debajo del nombre/estado. La tarjeta **"Reprogramadas para este día"** de arriba no lo necesita
+    (su propia cabecera ya lo deja claro) — el indicador es solo para cuando la parada ya está
+    colocada en la columna de una ruta, que es el caso normal desde la decisión de 2026-09-10.
 - **Sincronización admin ↔ chofer = `wire:poll`** (no websockets): la web del chofer refresca cada
   **15 s** (`wire:poll.15s` en la raíz de `livewire.chofer.today`), el tablero cada **45 s**
   (`wire:poll.45s` en `livewire.routes.board`). Así lo que cambia oficina le aparece al chofer solo y

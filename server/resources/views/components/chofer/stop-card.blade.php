@@ -31,6 +31,10 @@
                 <x-ui.badge :variant="$stop->status->badgeVariant()" class="shrink-0">{{ $stop->status->label() }}</x-ui.badge>
             </div>
 
+            @if ($stop->wasRescheduled())
+                <x-ui.badge variant="warning" class="mt-1">↻ {{ __('Reprogramada') }}</x-ui.badge>
+            @endif
+
             @if ($stop->address)
                 <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{{ $stop->address }}</p>
             @endif

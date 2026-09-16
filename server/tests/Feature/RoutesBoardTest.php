@@ -55,6 +55,26 @@ test('la tarjeta de una parada pendiente sigue mostrando los litros previstos', 
         ->assertSee('220');
 });
 
+test('la tarjeta de una parada reprogramada a este día muestra el indicador "Reprogramada" (2026-09-16)', function () {
+    $route = makeRoute('2026-09-10');
+    $chofer = makeUser('chofer');
+    RouteStop::factory()->for($route, 'route')->create([
+        'customer_name' => 'Colegio', 'status' => RouteStopStatus::Pending, 'rescheduled_by' => $chofer->id,
+    ]);
+    RouteStop::factory()->for($route, 'route')->create([
+        'customer_name' => 'Farmacia', 'status' => RouteStopStatus::Pending, 'rescheduled_by' => null,
+    ]);
+
+    $html = Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        ->assertSee('Colegio')->assertSee('Farmacia')
+        ->assertSee('Reprogramada')
+        ->html();
+
+    // "Reprogramada" solo aparece una vez (la de Colegio), no en la tarjeta de Farmacia.
+    expect(substr_count($html, 'Reprogramada'))->toBe(1);
+});
+
 test('crear una parada la deja en la columna correcta', function () {
     $route = makeRoute('2026-09-10');
 

@@ -395,10 +395,12 @@ it('el chofer reprograma una parada fallida para otro día', function () {
         ->and($nueva->rescheduled_by)->toBe($user->id)
         ->and((float) $nueva->planned_quantity)->toBe(700.0);
 
-    // y le aparece al chofer ese día, ya en su ruta (no en un backlog aparte)
+    // y le aparece al chofer ese día, ya en su ruta (no en un backlog aparte), marcada como
+    // reprogramada para que no parezca una parada nueva sin más.
     Livewire::actingAs($user)->test(Today::class)
         ->set('date', $manana)
-        ->assertSee('Bar Central');
+        ->assertSee('Bar Central')
+        ->assertSee('Reprogramada');
 });
 
 it('reprogramar reutiliza el RouteDay de esa fecha si ya existe, sin duplicarlo', function () {

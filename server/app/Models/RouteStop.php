@@ -64,6 +64,16 @@ class RouteStop extends Model implements Auditable
         return $this->belongsTo(User::class, 'rescheduled_by');
     }
 
+    /**
+     * true si esta parada nació de reprogramar una fallida/cancelada de otro día
+     * (`StopActionForm::rescheduleStop()`, que rellena `rescheduled_by`) — para que la tarjeta,
+     * en el día al que se desplazó, lo muestre en vez de parecer una parada nueva sin más.
+     */
+    public function wasRescheduled(): bool
+    {
+        return $this->rescheduled_by !== null;
+    }
+
     public function deliveryNote(): HasOne
     {
         return $this->hasOne(DeliveryNote::class);
