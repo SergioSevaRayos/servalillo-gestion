@@ -54,6 +54,49 @@ it('valida el código externo único', function () {
         ->assertHasErrors('form.external_ref');
 });
 
+it('varios clientes con el código externo en blanco no colisionan (2026-09-23)', function () {
+    $this->actingAs(makeUser('administrador'));
+    Client::factory()->create(['name' => 'Uno', 'external_ref' => null]);
+
+    Livewire::test(Index::class)
+        ->call('create')
+        ->set('form.name', 'Dos')
+        ->set('form.external_ref', '')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Client::where('name', 'Dos')->value('external_ref'))->toBeNull();
+});
+
+it('unas coordenadas con espacios sueltos no revientan al guardar (2026-09-23)', function () {
+    $this->actingAs(makeUser('administrador'));
+
+    Livewire::test(Index::class)
+        ->call('create')
+        ->set('form.name', 'Con Espacios')
+        ->set('form.latitude', ' 28.4682 ')
+        ->set('form.longitude', '-16.2546 ')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $client = Client::firstWhere('name', 'Con Espacios');
+    expect((float) $client->latitude)->toBe(28.4682)
+        ->and((float) $client->longitude)->toBe(-16.2546);
+});
+
+it('un código externo con solo espacios se guarda como null', function () {
+    $this->actingAs(makeUser('administrador'));
+
+    Livewire::test(Index::class)
+        ->call('create')
+        ->set('form.name', 'Espacios En Ref')
+        ->set('form.external_ref', '   ')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Client::firstWhere('name', 'Espacios En Ref')->external_ref)->toBeNull();
+});
+
 it('busca y filtra', function () {
     $this->actingAs(makeUser('administrador'));
     Client::factory()->create(['name' => 'Finca Los Almendros', 'client_type' => ClientType::Agricola, 'is_active' => true]);

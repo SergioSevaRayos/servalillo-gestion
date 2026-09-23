@@ -177,6 +177,14 @@ class ClientForm extends Form
 
     public function save(): Client
     {
+        // Espacios sueltos (copiar/pegar coordenadas, autocompletar) pasan la validación
+        // `numeric` de PHP pero rompen el cast a decimal de Eloquent (BigDecimal no los admite),
+        // y un external_ref en blanco como '' colisiona en el índice único de BD (a diferencia
+        // de NULL) si dos clientes se guardan así — normalizamos antes de validar.
+        $this->latitude = $this->normalizeBlank($this->latitude);
+        $this->longitude = $this->normalizeBlank($this->longitude);
+        $this->external_ref = $this->normalizeBlank($this->external_ref);
+
         $validated = $this->validate();
 
         // La cantidad se captura como número + unidad, pero en BD va siempre en litros.
@@ -210,6 +218,18 @@ class ClientForm extends Form
         $this->reset();
 
         return $client;
+    }
+
+    /** Recorta espacios y convierte una cadena vacía en null. */
+    private function normalizeBlank(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     /** Marca/desmarca un día de reparto (1 = lunes … 7 = domingo). */

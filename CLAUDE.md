@@ -852,6 +852,23 @@ Backed enums con `->label()` en español; casteados en los modelos.
   del historial** a esos clientes (por `customer_name`/`customer_tax_id`) para que las fichas tengan
   histórico. Idempotente (`if (Client::query()->exists()) return`).
 - `Audits::MODELS` incluye `'Cliente' => Client::class`.
+- **Bug real de producción corregido (2026-09-23): `MathException`/`UniqueConstraintViolationException`
+  al guardar un cliente.** Dos causas distintas en `ClientForm::save()`, ambas por no normalizar el
+  input antes de validar: (1) `latitude`/`longitude` con espacios sueltos (copiar/pegar desde Google
+  Maps, autocompletado) pasaban la regla `numeric` de Laravel (PHP `is_numeric()` admite espacios al
+  principio/final desde PHP 8) pero reventaban el cast `decimal` de Eloquent al guardar —
+  `BigDecimal::of()` (brick/math, motor real del cast) usa una regex estricta `^...\z` que NO admite
+  ningún espacio, así que `save()`/`isDirty()` lanzaba `MathException` a mitad de un `update()` ya
+  autorizado y validado, un 500 real sin ningún error de validación visible antes. (2) `external_ref`
+  en blanco se guardaba como `''`, no `null` — mismo riesgo latente ya documentado arriba
+  (`clients.external_ref` es `unique()` normal, no parcial como `users.email`): Postgres SÍ considera
+  `''` un valor colisionable (a diferencia de `NULL`, del que admite varios), así que dos clientes
+  guardados sin código a la vez rompían el índice único con un `UniqueConstraintViolationException`
+  crudo. **Fix**: `ClientForm::save()` normaliza los tres campos (`trim()` + `'' → null`) *antes* de
+  `$this->validate()`, así un valor con espacios de sobra se limpia solo (sin ida y vuelta de error)
+  y un código externo en blanco pasa a `null` de verdad, evitando la colisión de raíz en vez de
+  depender de que `Rule::unique` la detecte a tiempo (no lo hacía: no hay lock, dos guardados casi
+  simultáneos podían pasar ambos la validación antes de que ninguno hubiera insertado todavía).
 
 ### Pre-clientes / valoración (`App\Enums\ClientStatus`)
 - Administración apunta por teléfono un posible cliente → queda como **"Pendiente valoración"**
