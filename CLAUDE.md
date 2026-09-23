@@ -825,6 +825,22 @@ Backed enums con `->label()` en español; casteados en los modelos.
   que se van a cancelar (`Show::pendingStopsCount`, computed).
 - **El producto siempre es agua**: se eliminó `clients.default_delivery_type_id`. `DeliveryType::waterId()`
   (slug `agua`) es el que usan `planDelivery`, `Chofer\Today::addClientStop` y el generador.
+- **Mapa de solo lectura en la ficha (2026-09-23)**: `Clients\Show` — petición del usuario, "un
+  pequeño mapa para que el administrador pueda verificar fácilmente" la ubicación guardada. Un
+  pin fijo (sin arrastre, para eso ya existe `<x-ui.geofence-map>` en el formulario de edición),
+  `Alpine.data('clientLocationMap')` (`app.js`), mismos tiles ArcGIS que el resto de mapas de la
+  app (`routeMap`/`deviceMap`/`attendanceLocationMap`). Se pinta en la tarjeta "Contacto y
+  ubicación" debajo de las coordenadas, solo si el cliente las tiene (si no, un aviso invita a
+  añadirlas desde "Editar"). `wire:ignore`, igual que el resto de mapas Leaflet de la app —
+  **efecto secundario aceptado**: si se edita la dirección/coordenadas del cliente, el mapa se
+  queda con el punto viejo hasta recargar/volver a entrar (no hay listener de actualización en
+  caliente, a diferencia de `tank3d`'s `tanks-updated` — no se ha pedido y añadía complejidad
+  para un caso de uso raro: editar coordenadas y querer verlas al instante en la misma carga).
+  De paso se añadió el único campo capturado en el alta que no se mostraba en ningún sitio de la
+  ficha: `last_served_on` ("Último reparto (dato manual)" en la tarjeta "Reparto habitual") —
+  todos los demás ya estaban cubiertos, algunos combinados en helpers del modelo
+  (`quantityLabel()`, `priceLabel()`, `frequencyLabel()`) y otros en la cabecera (tipo de
+  cliente, CIF, código externo, activo/inactivo).
 - **Import Access = comando, una sola vez** (decisión del usuario, NO subida por UI):
   `php artisan clientes:importar <archivo.csv> [--dry-run]`, archivo en la raíz del proyecto o ruta
   absoluta. `App\Services\ClientImporter` + `league/csv` (^9.0). Upsert por `external_ref` (con

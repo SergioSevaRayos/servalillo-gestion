@@ -29,6 +29,33 @@ it('muestra la ficha del cliente con su histórico emparejado por CIF', function
         ->assertDontSeeHtml('OTRO-CIF');
 });
 
+it('muestra un mapa de solo lectura cuando el cliente tiene coordenadas (2026-09-23)', function () {
+    $this->actingAs(makeUser('administrador'));
+    $client = Client::factory()->create(['name' => 'Con Coordenadas', 'latitude' => 28.46, 'longitude' => -16.25]);
+
+    Livewire::test(Show::class, ['client' => $client])
+        ->assertSeeHtml('clientLocationMap(28.46, -16.25)')
+        ->assertDontSee('Sin coordenadas guardadas');
+});
+
+it('sin coordenadas, muestra un aviso en vez del mapa', function () {
+    $this->actingAs(makeUser('administrador'));
+    $client = Client::factory()->create(['name' => 'Sin Coordenadas', 'latitude' => null, 'longitude' => null]);
+
+    Livewire::test(Show::class, ['client' => $client])
+        ->assertDontSeeHtml('clientLocationMap(')
+        ->assertSee('Sin coordenadas guardadas');
+});
+
+it('muestra el último reparto registrado a mano, distinto del calculado por el histórico', function () {
+    $this->actingAs(makeUser('administrador'));
+    $client = Client::factory()->create(['name' => 'Fecha Manual', 'last_served_on' => '2026-08-01']);
+
+    Livewire::test(Show::class, ['client' => $client])
+        ->assertSee('Último reparto (dato manual)')
+        ->assertSee('01/08/2026');
+});
+
 it('planificar reparto abre el modal con las rutas candidatas de su tipo de servicio', function () {
     $this->actingAs(makeUser('administrador'));
     $client = Client::factory()->create(['name' => 'Taller Pérez', 'typical_quantity' => 500, 'latitude' => 28.46, 'longitude' => -16.25]);

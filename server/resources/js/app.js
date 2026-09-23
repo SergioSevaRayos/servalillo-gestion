@@ -1148,6 +1148,41 @@ document.addEventListener('alpine:init', () => {
     }));
 
     /*
+    | Mapa de solo lectura, SIEMPRE visible (no modal), en la ficha del cliente (Clients\Show,
+    | 2026-09-23 — petición del usuario: "un pequeño mapa para que el administrador pueda
+    | verificar fácilmente" la ubicación guardada). Un único pin fijo, sin arrastre — para editar
+    | la ubicación ya existe <x-ui.geofence-map> en el propio formulario. Mismos tiles ArcGIS que
+    | el resto de mapas de la app (routeMap/deviceMap/attendanceLocationMap): ni OSM ni CARTO
+    | sirven en producción, ver el comentario largo en routeMap más arriba en este fichero.
+    | `scrollWheelZoom` desactivado a propósito — es un mapa pequeño incrustado en una tarjeta,
+    | no una pantalla dedicada, y no debe "atrapar" el scroll de la página.
+    */
+    Alpine.data('clientLocationMap', (lat, lng) => ({
+        init() {
+            this.$nextTick(() => {
+                const map = L.map(this.$refs.map, { scrollWheelZoom: false });
+                map.attributionControl.setPrefix(false);
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 19,
+                    attribution: 'Tiles &copy; Esri',
+                }).addTo(map);
+
+                L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<span class="route-map-pin" style="background:#0d9488">•</span>',
+                        iconSize: [26, 26],
+                        iconAnchor: [13, 13],
+                    }),
+                }).addTo(map);
+
+                map.setView([lat, lng], 16);
+                map.invalidateSize();
+            });
+        },
+    }));
+
+    /*
     | Resumen para copiar y mandar por WhatsApp al registrar un pre-cliente (pendiente de
     | valoración). El componente Livewire (Clients\Index) emite `open-prospect-summary` con
     | { text }.

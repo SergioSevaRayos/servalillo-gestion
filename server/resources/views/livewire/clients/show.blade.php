@@ -94,6 +94,15 @@
                         </div>
                     @endif
                 </dl>
+
+                {{-- Mapa de solo lectura para verificar la ubicación de un vistazo (2026-09-23) --}}
+                @if ($client->latitude && $client->longitude)
+                    <div wire:ignore x-data="clientLocationMap({{ (float) $client->latitude }}, {{ (float) $client->longitude }})" class="mt-4">
+                        <div x-ref="map" class="h-48 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700"></div>
+                    </div>
+                @else
+                    <p class="mt-4 text-xs text-slate-400">{{ __('Sin coordenadas guardadas — añádelas en "Editar" para poder verificar la ubicación en el mapa.') }}</p>
+                @endif
             </x-ui.card>
 
             <x-ui.card>
@@ -125,6 +134,7 @@
                     <dl class="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
                         @foreach ([
                             __('Calendario') => $client->frequencyLabel(),
+                            __('Último reparto (dato manual)') => $client->last_served_on?->format('d/m/Y'),
                             __('Próximo estimado') => $client->nextDeliveryOn()?->format('d/m/Y'),
                             __('Capacidad del depósito') => $client->tank_capacity_liters ? number_format($client->tank_capacity_liters, 0, ',', '.').' L' : null,
                             __('Canal de albarán') => $client->preferred_channel ? ($client->preferred_channel === 'email' ? __('Email') : __('Entrega en mano')) : null,
