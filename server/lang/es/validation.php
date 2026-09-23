@@ -119,5 +119,8 @@ return [
         'driver_id' => 'chofer',
         'status' => 'estado',
         'notes' => 'notas',
+        'latitude' => 'latitud',
+        'longitude' => 'longitud',
+        'address' => 'dirección',
     ],
 ];

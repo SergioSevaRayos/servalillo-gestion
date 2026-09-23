@@ -1060,6 +1060,46 @@ document.addEventListener('alpine:init', () => {
     }));
 
     /*
+    | Ficha de cliente (2026-09-23): sugerencias de dirección mientras se escribe en el campo
+    | "Dirección" — versión ligera de geofenceMap sin mapa ni radio (el cliente es un punto, no
+    | una geovalla). Al elegir una sugerencia rellena address + latitude + longitude a la vez, así
+    | el administrador no tiene que teclear las coordenadas a mano (la causa original del bug de
+    | formato). `searchMethod` es el nombre del método del componente Livewire padre
+    | (`Clients\Index::searchAddress()` / `Clients\Show::searchAddress()`), mismo proxy a
+    | Nominatim que geofenceMap — nunca se llama a la API externa directo desde aquí.
+    */
+    Alpine.data('addressAutocomplete', ({ searchMethod }) => ({
+        results: [],
+        searching: false,
+
+        async search(query) {
+            const q = (query || '').trim();
+            // Menos de 5 caracteres da resultados demasiado ruidosos y machaca la API externa
+            // en cada tecla — mismo umbral razonable que un autocompletado típico de direcciones.
+            if (q.length < 5) {
+                this.results = [];
+                return;
+            }
+
+            this.searching = true;
+            try {
+                this.results = await this.$wire.call(searchMethod, q);
+            } catch {
+                this.results = [];
+            } finally {
+                this.searching = false;
+            }
+        },
+
+        selectResult(result) {
+            this.results = [];
+            this.$wire.set('form.address', result.label);
+            this.$wire.set('form.latitude', Number(result.lat.toFixed(7)));
+            this.$wire.set('form.longitude', Number(result.lng.toFixed(7)));
+        },
+    }));
+
+    /*
     | Fichaje (Bloque 18) — "desde dónde han fichado": mapa de SOLO LECTURA (nada arrastrable,
     | a diferencia de geofenceMap) con los puntos de entrada/salida de un fichaje concreto y la
     | geovalla de esa persona de fondo, para que administración vea de un vistazo si el punto

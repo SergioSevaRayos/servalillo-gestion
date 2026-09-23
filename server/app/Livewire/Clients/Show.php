@@ -11,6 +11,7 @@ use App\Models\DeliveryType;
 use App\Models\Route;
 use App\Models\RouteStop;
 use App\Services\ClientDeliverySuspender;
+use App\Services\GeocodingService;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -45,6 +46,12 @@ class Show extends Component
         if (in_array($name, ['form.latitude', 'form.longitude'], true)) {
             $this->validateOnly($name);
         }
+    }
+
+    /** Sugerencias de dirección mientras se escribe (mismo patrón que Users/Drivers/Maintenance\Settings). */
+    public function searchAddress(string $query): array
+    {
+        return app(GeocodingService::class)->search($query);
     }
 
     /** Marca/desmarca un día de reparto fijo en el formulario. */

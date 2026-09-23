@@ -5,6 +5,7 @@ use App\Enums\ServiceKind;
 use App\Livewire\Clients\Index;
 use App\Models\Client;
 use App\Models\Driver;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
 it('el listado de clientes es solo para gestión', function () {
@@ -85,6 +86,25 @@ it('avisa al momento de un formato de coordenada inválido al salir del campo (2
     expect($test->html())->toContain('La latitud no tiene un formato válido');
 
     $test->set('form.latitude', '28.4682')->assertHasNoErrors('form.latitude');
+});
+
+it('sugiere direcciones al escribir y rellena dirección+coordenadas al elegir una (2026-09-23)', function () {
+    $this->actingAs(makeUser('administrador'));
+    Http::fake([
+        'nominatim.openstreetmap.org/*' => Http::response([
+            ['display_name' => 'Ronda de la Estación 4, San Isidro, Alicante', 'lat' => '38.1697232', 'lon' => '-0.8411556'],
+        ]),
+    ]);
+
+    $suggestions = Livewire::test(Index::class)
+        ->call('create')
+        ->instance()
+        ->searchAddress('Ronda de la Estación 4');
+
+    expect($suggestions)->toHaveCount(1)
+        ->and($suggestions[0]['label'])->toBe('Ronda de la Estación 4, San Isidro, Alicante')
+        ->and($suggestions[0]['lat'])->toBe(38.1697232)
+        ->and($suggestions[0]['lng'])->toBe(-0.8411556);
 });
 
 it('unas coordenadas con espacios sueltos no revientan al guardar (2026-09-23)', function () {

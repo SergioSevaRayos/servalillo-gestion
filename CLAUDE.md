@@ -907,7 +907,24 @@ Backed enums con `->label()` en español; casteados en los modelos.
   valor a medio escribir como "-16." fallaría el regex y parpadearía en rojo mientras el usuario
   sigue tecleando. El `normalizeBlank()`/`trim()` de `save()` (ver el punto de arriba) sigue
   intacto como red de seguridad — un espacio de sobra que el usuario no llegó a corregir se limpia
-  solo al guardar, el aviso en el campo es un adelanto, no un bloqueo duro.
+  solo al guardar, el aviso en el campo es un adelanto, no un bloqueo duro. De paso,
+  `lang/es/validation.php` gana `attributes.latitude`/`.longitude`/`.address` ("latitud" /
+  "longitud" / "dirección") — sin ellos el mensaje por defecto de `numeric`/`between` mostraba el
+  nombre de columna en crudo ("El campo longitude debe ser un número.").
+- **Sugerencias de dirección al escribir en la ficha de cliente (2026-09-23)**: mismo
+  `App\Services\GeocodingService` (Nominatim) que ya usaba `<x-ui.geofence-map>` (fichaje/base),
+  pero en una versión ligera sin mapa ni radio — el cliente es un punto, no una geovalla, y el
+  campo "Dirección" ya es el dato real que se guarda (no una caja de búsqueda aparte como en
+  geofence-map). `Clients\Index::searchAddress()` / `Clients\Show::searchAddress()` (mismo patrón
+  que `Users`/`Drivers`/`Maintenance\Settings`, sin permiso nuevo — proxy de solo lectura) +
+  `Alpine.data('addressAutocomplete')` (`app.js`, hermano ligero de `geofenceMap`): al escribir en
+  "Dirección" (`x-on:input.debounce.400ms`, mínimo 5 caracteres para no machacar la API externa en
+  cada tecla) aparece un desplegable de sugerencias bajo el campo; al elegir una, rellena a la vez
+  `form.address` (con el `display_name` completo de Nominatim), `form.latitude` y `form.longitude`
+  — así la vía normal para fijar la ubicación de un cliente pasa a ser "escribir la dirección y
+  elegir una sugerencia", no teclear las coordenadas a mano (la causa original del bug de formato
+  de arriba). El campo sigue admitiendo edición manual de lat/lng por si la dirección no aparece
+  en Nominatim o el pin necesita un ajuste fino.
 
 ### Pre-clientes / valoración (`App\Enums\ClientStatus`)
 - Administración apunta por teléfono un posible cliente → queda como **"Pendiente valoración"**

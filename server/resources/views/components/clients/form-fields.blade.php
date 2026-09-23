@@ -59,7 +59,22 @@
     <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('Ubicación') }}</p>
         <div class="mt-1.5 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div class="sm:col-span-2 lg:col-span-3"><x-ui.input name="address" label="{{ __('Dirección') }}" wire:model="form.address" /></div>
+            <div class="relative sm:col-span-2 lg:col-span-3" x-data="addressAutocomplete({ searchMethod: 'searchAddress' })">
+                <x-ui.input name="address" label="{{ __('Dirección') }}" wire:model="form.address"
+                    autocomplete="off" x-on:input.debounce.400ms="search($event.target.value)" />
+
+                <ul
+                    x-show="results.length > 0" x-cloak
+                    class="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto themed-scrollbar rounded-lg border border-slate-200 bg-white text-sm shadow-soft dark:border-slate-700 dark:bg-slate-800"
+                >
+                    <template x-for="(result, index) in results" :key="index">
+                        <li
+                            x-on:click="selectResult(result)" x-text="result.label"
+                            class="cursor-pointer px-3 py-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+                        ></li>
+                    </template>
+                </ul>
+            </div>
             @unless ($prospect)
                 <x-ui.input name="postal_code" label="{{ __('Código postal') }}" wire:model="form.postal_code" />
                 <x-ui.input name="city" label="{{ __('Población') }}" wire:model="form.city" />
