@@ -66,8 +66,8 @@
                 <x-ui.input name="province" label="{{ __('Provincia') }}" wire:model="form.province" />
             @endunless
             <div class="grid grid-cols-2 gap-3">
-                <x-ui.input name="latitude" label="{{ __('Latitud') }}" wire:model="form.latitude" inputmode="decimal" />
-                <x-ui.input name="longitude" label="{{ __('Longitud') }}" wire:model="form.longitude" inputmode="decimal" />
+                <x-ui.input name="latitude" label="{{ __('Latitud') }}" wire:model.blur="form.latitude" inputmode="decimal" />
+                <x-ui.input name="longitude" label="{{ __('Longitud') }}" wire:model.blur="form.longitude" inputmode="decimal" />
             </div>
         </div>
     </div>

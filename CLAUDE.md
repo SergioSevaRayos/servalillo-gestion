@@ -869,6 +869,20 @@ Backed enums con `->label()` en español; casteados en los modelos.
   y un código externo en blanco pasa a `null` de verdad, evitando la colisión de raíz en vez de
   depender de que `Rule::unique` la detecte a tiempo (no lo hacía: no hay lock, dos guardados casi
   simultáneos podían pasar ambos la validación antes de que ninguno hubiera insertado todavía).
+- **Aviso en el propio campo si el formato de latitud/longitud no es válido (2026-09-23)**:
+  petición explícita del usuario tras el bug de arriba — quería el aviso al momento, no solo que
+  `save()` se lo trague en silencio. `ClientForm::rules()` añade `regex:/^-?\d+(\.\d+)?$/` a los
+  dos campos (más estricto que `numeric`: rechaza espacios, notación científica, coma decimal,
+  cualquier texto — el mismo hueco que causaba el `MathException`) + mensajes en español
+  (`latitude.regex`/`longitude.regex`). Los inputs pasan de `wire:model` (diferido) a
+  **`wire:model.blur`** y `Clients\Index`/`Clients\Show` ganan un `updated($name)` que llama a
+  `$this->validateOnly($name)` solo para `form.latitude`/`form.longitude` — el error aparece bajo
+  el campo (`<x-ui.input>` ya lo pinta solo, lee `$errors->first($name)`) en cuanto el usuario sale
+  del campo, sin esperar a "Guardar". `.blur` en vez de `.live` a propósito: con cada tecla, un
+  valor a medio escribir como "-16." fallaría el regex y parpadearía en rojo mientras el usuario
+  sigue tecleando. El `normalizeBlank()`/`trim()` de `save()` (ver el punto de arriba) sigue
+  intacto como red de seguridad — un espacio de sobra que el usuario no llegó a corregir se limpia
+  solo al guardar, el aviso en el campo es un adelanto, no un bloqueo duro.
 
 ### Pre-clientes / valoración (`App\Enums\ClientStatus`)
 - Administración apunta por teléfono un posible cliente → queda como **"Pendiente valoración"**

@@ -68,6 +68,19 @@ it('varios clientes con el código externo en blanco no colisionan (2026-09-23)'
     expect(Client::where('name', 'Dos')->value('external_ref'))->toBeNull();
 });
 
+it('avisa al momento de un formato de coordenada inválido al salir del campo (2026-09-23)', function () {
+    $this->actingAs(makeUser('administrador'));
+
+    Livewire::test(Index::class)
+        ->call('create')
+        ->set('form.latitude', '36,876880') // coma en vez de punto decimal
+        ->assertHasErrors('form.latitude')
+        ->set('form.longitude', '1e5') // notación científica
+        ->assertHasErrors('form.longitude')
+        ->set('form.latitude', '28.4682')
+        ->assertHasNoErrors('form.latitude');
+});
+
 it('unas coordenadas con espacios sueltos no revientan al guardar (2026-09-23)', function () {
     $this->actingAs(makeUser('administrador'));
 

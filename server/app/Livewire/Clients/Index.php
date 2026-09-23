@@ -62,6 +62,14 @@ class Index extends Component
         }
     }
 
+    /** Avisa al momento (al salir del campo, wire:model.blur) si la coordenada no tiene un formato válido. */
+    public function updated($name): void
+    {
+        if (in_array($name, ['form.latitude', 'form.longitude'], true)) {
+            $this->validateOnly($name);
+        }
+    }
+
     public function resetFilters(): void
     {
         $this->reset('search', 'status', 'type', 'kind', 'schedule');

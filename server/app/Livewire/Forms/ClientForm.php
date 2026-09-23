@@ -112,8 +112,11 @@ class ClientForm extends Form
             'postal_code' => ['nullable', 'string', 'max:10'],
             'city' => ['nullable', 'string', 'max:120'],
             'province' => ['nullable', 'string', 'max:120'],
-            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            // El regex es más estricto que "numeric": PHP admite espacios/notación científica que
+            // el is_numeric()-based `numeric` deja pasar pero que luego revientan el cast decimal
+            // de Eloquent al guardar (ver ClientForm::normalizeBlank() y CLAUDE.md, Bloque 9).
+            'latitude' => ['nullable', 'numeric', 'between:-90,90', 'regex:/^-?\d+(\.\d+)?$/'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180', 'regex:/^-?\d+(\.\d+)?$/'],
             'water_type' => ['nullable', Rule::enum(WaterType::class)],
             'quantity_input' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'quantity_unit' => ['required', 'in:L,m3'],
@@ -140,6 +143,8 @@ class ClientForm extends Form
     {
         return [
             'external_ref.unique' => 'Ya hay un cliente con ese código.',
+            'latitude.regex' => 'La latitud no tiene un formato válido: usa un número decimal con punto, sin espacios ni texto (p. ej. 28.4682).',
+            'longitude.regex' => 'La longitud no tiene un formato válido: usa un número decimal con punto, sin espacios ni texto (p. ej. -16.2546).',
         ];
     }
 

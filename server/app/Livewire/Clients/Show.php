@@ -39,6 +39,14 @@ class Show extends Component
         $this->dispatch('open-modal', 'client-form');
     }
 
+    /** Avisa al momento (al salir del campo, wire:model.blur) si la coordenada no tiene un formato válido. */
+    public function updated($name): void
+    {
+        if (in_array($name, ['form.latitude', 'form.longitude'], true)) {
+            $this->validateOnly($name);
+        }
+    }
+
     /** Marca/desmarca un día de reparto fijo en el formulario. */
     public function toggleWeekday(int $day): void
     {
