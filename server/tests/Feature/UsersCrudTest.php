@@ -29,6 +29,24 @@ test('el administrador crea una cuenta de mantenimiento', function () {
     expect($user->hasRole('mantenimiento'))->toBeTrue();
 });
 
+test('un error de validación se pinta de verdad bajo el campo, no solo en el error bag (2026-09-23)', function () {
+    // Bug real: Livewire\Form guarda los errores como "form.email", pero <x-ui.input
+    // name="email"> buscaba $errors->first('email') (sin el prefijo "form.") y nunca
+    // encontraba nada — el campo nunca se pintaba de rojo ni mostraba el mensaje, en
+    // NINGÚN formulario de la app (Clientes, Usuarios, Chofers, Camiones...), aunque
+    // assertHasErrors() diera positivo. Ver components/ui/input.blade.php.
+    $test = Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->set('form.name', 'Sin Email')
+        ->set('form.email', '') // required
+        ->call('save');
+
+    $test->assertHasErrors('form.email');
+    expect($test->html())
+        ->toContain('obligatorio')
+        ->toContain('border-rose-400');
+});
+
 test('un chofer no puede acceder al listado de usuarios', function () {
     $this->actingAs(makeUser('chofer'))->get('/usuarios')->assertForbidden();
 });

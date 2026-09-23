@@ -127,6 +127,30 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `drop-menu`, `date-input`, `digit-wheel`, `signature-pad`). Los primitivos de Breeze
   (`x-text-input`, `x-primary-button`, `x-dropdown`, `x-modal`, etc., namespace raíz sin `ui.`) están
   restilizados in-place y los siguen usando las páginas de auth.
+- **Bug real de producción corregido (2026-09-23), sistémico: ningún campo de ningún formulario
+  Livewire de la app pintaba de verdad su error de validación (ni el borde rojo ni el mensaje).**
+  Descubierto al pedir el usuario el aviso de formato de coordenadas (ver Bloque 9) y comprobar
+  que, pese a que `assertHasErrors()` daba positivo en los tests, el HTML renderizado nunca
+  contenía el mensaje (confirmado con un test que inspecciona `$test->html()`, no solo el error
+  bag). Causa: `Livewire\Form::validate()` guarda cada error con el **nombre completo de la
+  propiedad** (`"form.latitude"`, `"form.email"`…, prefijado con el nombre de la propiedad del
+  Form en el componente — `Arr::prependKeysWith($raw, $this->getPropertyName().'.')`), pero
+  `components/ui/{input,select,textarea,password-input,date-input}.blade.php` buscaban
+  `$errors->first($name)` con el **`name` plano del campo** (`"latitude"`, `"email"`…, el prop que
+  fija el atributo HTML `name=`/`id=`) — `MessageBag::get()` hace comparación exacta de clave, así
+  que nunca encontraba nada y `$errorMsg` quedaba siempre `null`. Afectaba a **todos** los
+  formularios Livewire con `Form` object del panel (clientes, usuarios, chofers, camiones, rutas…)
+  desde que existen — invisible porque cada test de validación solo comprobaba
+  `assertHasErrors('form.campo')` (el error bag), nunca si el HTML lo mostraba. **Fix**: cada uno
+  de los 5 componentes calcula ahora la clave real a partir del atributo `wire:model`/`wire:model
+  .blur`/`.live` recibido (macro `$attributes->wire('model')->value()`, ya provista por Livewire —
+  `date-input` ya la usaba para su lógica interna pero no para el error; los otros 4 no la usaban
+  en absoluto), con `$name` como fallback solo si no hay ningún `wire:model*` (p. ej. los inputs de
+  demostración de `/style-guide`, sin binding real). Regresión cubierta con tests que además de
+  `assertHasErrors()` comprueban que el HTML contiene el mensaje traducido y `border-rose-400`
+  (`ClientsCrudTest`, `UsersCrudTest`). **Si se crea un componente de campo nuevo (`ui/*`), replica
+  este patrón desde el principio** — es fácil volver a introducir el mismo bug copiando
+  `$errors->first($name)` sin pensarlo.
 - **`<x-ui.date-input>`** sustituye a **todo** `<input type="date">` (el calendario nativo del
   navegador no se puede estilar). `Alpine.data('datePicker')` (`app.js`): botón con la fecha
   formateada + popover con rejilla de mes, tokens del sistema, claro/oscuro, `min`/`max`, "Borrar"
@@ -877,8 +901,9 @@ Backed enums con `->label()` en español; casteados en los modelos.
   (`latitude.regex`/`longitude.regex`). Los inputs pasan de `wire:model` (diferido) a
   **`wire:model.blur`** y `Clients\Index`/`Clients\Show` ganan un `updated($name)` que llama a
   `$this->validateOnly($name)` solo para `form.latitude`/`form.longitude` — el error aparece bajo
-  el campo (`<x-ui.input>` ya lo pinta solo, lee `$errors->first($name)`) en cuanto el usuario sale
-  del campo, sin esperar a "Guardar". `.blur` en vez de `.live` a propósito: con cada tecla, un
+  el campo en cuanto el usuario sale de él, sin esperar a "Guardar" (ver el bug de
+  `<x-ui.input>` corregido el mismo día en la sección "Sistema de diseño" — sin ese fix, esta
+  función habría seguido sin verse nunca). `.blur` en vez de `.live` a propósito: con cada tecla, un
   valor a medio escribir como "-16." fallaría el regex y parpadearía en rojo mientras el usuario
   sigue tecleando. El `normalizeBlank()`/`trim()` de `save()` (ver el punto de arriba) sigue
   intacto como red de seguridad — un espacio de sobra que el usuario no llegó a corregir se limpia

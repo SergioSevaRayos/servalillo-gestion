@@ -13,7 +13,9 @@
     $model = $wire->value();
     $live = $wire->hasModifier('live');
     $id = $attributes->get('id', $name);
-    $errorMsg = $error ?? ($errors->first($name) ?: null);
+    // Ver el mismo comentario en components/ui/input.blade.php: el error va bajo la ruta de
+    // wire:model ("form.campo"), no bajo $name a secas. $model ya es esa ruta (calculada arriba).
+    $errorMsg = $error ?? ($errors->first($model ?: $name) ?: null);
 @endphp
 
 {{-- Selector de fecha con el estilo del sistema (el calendario nativo del navegador no se puede

@@ -71,14 +71,20 @@ it('varios clientes con el código externo en blanco no colisionan (2026-09-23)'
 it('avisa al momento de un formato de coordenada inválido al salir del campo (2026-09-23)', function () {
     $this->actingAs(makeUser('administrador'));
 
-    Livewire::test(Index::class)
+    $test = Livewire::test(Index::class)
         ->call('create')
         ->set('form.latitude', '36,876880') // coma en vez de punto decimal
         ->assertHasErrors('form.latitude')
-        ->set('form.longitude', '1e5') // notación científica
+        ->set('form.longitude', '1e5') // notación científica (además se sale de rango, entre esa y "numeric" ganan al regex)
         ->assertHasErrors('form.longitude')
-        ->set('form.latitude', '28.4682')
-        ->assertHasNoErrors('form.latitude');
+        ->set('form.latitude', '+28.4682') // "+" inicial: numeric y between lo aceptan, solo falla el formato
+        ->assertHasErrors('form.latitude');
+
+    // No basta con que el error exista en el error bag: tiene que pintarse de verdad bajo
+    // el campo (bug real, ver components/ui/input.blade.php).
+    expect($test->html())->toContain('La latitud no tiene un formato válido');
+
+    $test->set('form.latitude', '28.4682')->assertHasNoErrors('form.latitude');
 });
 
 it('unas coordenadas con espacios sueltos no revientan al guardar (2026-09-23)', function () {

@@ -2,7 +2,11 @@
 
 @php
 $id = $attributes->get('id', $name);
-$errorMsg = $error ?? ($errors->first($name) ?: null);
+// Livewire\Form guarda los errores con el nombre de la propiedad completo ("form.latitude"),
+// no el $name plano que se usa para el atributo HTML — hay que buscar por el path de wire:model,
+// si lo hay, para que el mensaje/borde rojo lleguen a pintarse de verdad.
+$errorKey = $attributes->whereStartsWith('wire:model')->isNotEmpty() ? $attributes->wire('model')->value() : $name;
+$errorMsg = $error ?? ($errors->first($errorKey) ?: null);
 $isRequired = (bool) $attributes->get('required');
 @endphp
 
