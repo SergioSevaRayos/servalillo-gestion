@@ -76,6 +76,13 @@ return [
     'not_in' => 'El :attribute seleccionado no es válido.',
     'numeric' => 'El campo :attribute debe ser un número.',
     'nullable' => '',
+    'password' => [
+        'letters' => 'El campo :attribute debe contener al menos una letra.',
+        'mixed' => 'El campo :attribute debe contener al menos una mayúscula y una minúscula.',
+        'numbers' => 'El campo :attribute debe contener al menos un número.',
+        'symbols' => 'El campo :attribute debe contener al menos un símbolo.',
+        'uncompromised' => 'La :attribute indicada ha aparecido en una filtración de datos conocida. Elige una :attribute distinta.',
+    ],
     'present' => 'El campo :attribute debe estar presente.',
     'regex' => 'El formato del campo :attribute no es válido.',
     'required' => 'El campo :attribute es obligatorio.',

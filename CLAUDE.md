@@ -188,6 +188,24 @@ Backed enums con `->label()` en español; casteados en los modelos.
   visual antes de tocar nada del sistema de diseño.
 - `lang/es/{auth,passwords,validation,pagination}.php`: la app no traía ningún lang propio; sin esto los
   mensajes de validación y de sistema salían en inglés pese a `APP_LOCALE=es`.
+  **Bug real de producción corregido (2026-09-23): "no puedo crear un usuario".** `lang/es/
+  validation.php` traducía `attributes.password` ("contraseña", el NOMBRE del campo) pero le
+  faltaba el array `password` de nivel superior (`letters`/`mixed`/`numbers`/`symbols`/
+  `uncompromised` — los mensajes de las propias reglas del `Password` rule, una clave
+  totalmente distinta). `AppServiceProvider::boot()` aplica `Password::defaults()->
+  uncompromised()` **solo en producción** — esa regla llama a la API de HaveIBeenPwned y
+  rechaza cualquier contraseña que haya aparecido en una filtración conocida (muy probable con
+  contraseñas de prueba tipo "Password123"). Con la clave sin traducir, Laravel muestra la
+  clave en crudo (`validation.password.uncompromised`) bajo el campo — indistinguible de "no
+  hace nada" para un administrador sin conocimientos técnicos: el formulario SÍ validaba (mal)
+  y SÍ mostraba un error, solo que ilegible. Consecuencia real: **0 usuarios nuevos creados
+  desde el alta inicial** (confirmado en producción — solo existían los 3 de la puesta en
+  marcha). Como el fallo no lanza ninguna excepción (es una validación que falla
+  correctamente), no dejaba rastro en `error_logs` ni en los logs de Laravel — se diagnosticó
+  comparando el conteo de usuarios/`created_at` en producción, no por logs. Fix: añadidas las
+  5 claves en español. Test de regresión:
+  `tests/Feature/PasswordValidationMessagesTest.php` (fuerza un `UncompromisedVerifier` falso
+  para no depender de red).
 - `resources/views/vendor/pagination/tailwind.blade.php`: vista de paginación por defecto de Laravel,
   publicada y restilizada con los tokens del proyecto (se detecta por convención, no requiere registro).
 
