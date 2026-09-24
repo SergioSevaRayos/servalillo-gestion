@@ -1575,6 +1575,20 @@ Backed enums con `->label()` en español; casteados en los modelos.
   no tiene coordenadas**, se las rellena también — así las próximas paradas de ese cliente
   (recurrentes o planificadas) ya nacen con ubicación. Si el cliente ya tenía coordenadas, no se
   tocan (nunca pisa un dato existente, solo rellena huecos).
+- **Dirección inversa (2026-09-24): `ClientForm::save()` rellena las paradas `Pending` ya
+  creadas cuando el CLIENTE recibe coordenadas después.** Bug real reportado: un cliente
+  planificado con meses de antelación (cientos de `RouteStop` ya creadas, foto fija de los
+  datos del cliente en ese momento) sin coordenadas — al añadírselas después al cliente (a
+  mano o con el buscador de direcciones), las paradas que ya existían se quedaban huérfanas de
+  ubicación para siempre y no aparecían en "Ver recorrido" ("N parada(s) sin ubicación no se
+  muestra(n)"), sin ningún mecanismo que las sincronizara hacia atrás.
+  `ClientForm::backfillPendingStopCoordinates()`, llamado tras guardar (alta y edición): mismo
+  emparejamiento CIF/nombre que `Client::pastStops()`/`ClientDeliverySuspender`, mismo gate
+  `whereNull('latitude')` que ya usa `captureStopCoordinates()` (nunca pisa una parada que ya
+  tenga su propia coordenada) — pero **solo sobre `Pending`** (las cerradas son historial, no
+  se tocan). Query builder a propósito, no Eloquent: no dispara `RouteStopObserver` (no debe
+  notificar al chofer "parada modificada por oficina" por cada parada tocada) ni auditoría —
+  mismo criterio que el generador nocturno de recurrentes ("es sistémica, no 'gestión'").
 
 ### Depósitos SGRA (2026-09-11)
 

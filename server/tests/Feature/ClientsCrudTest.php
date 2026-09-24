@@ -1,10 +1,13 @@
 <?php
 
 use App\Enums\ClientType;
+use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
 use App\Livewire\Clients\Index;
 use App\Models\Client;
 use App\Models\Driver;
+use App\Models\RouteDay;
+use App\Models\RouteStop;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
@@ -121,6 +124,39 @@ it('unas coordenadas con espacios sueltos no revientan al guardar (2026-09-23)',
     $client = Client::firstWhere('name', 'Con Espacios');
     expect((float) $client->latitude)->toBe(28.4682)
         ->and((float) $client->longitude)->toBe(-16.2546);
+});
+
+it('rellena la ubicación de paradas pendientes que se planificaron sin coordenadas (2026-09-24)', function () {
+    $this->actingAs(makeUser('administrador'));
+    $client = Client::factory()->create(['name' => 'Bar Millones', 'tax_id' => 'H55667788', 'latitude' => null, 'longitude' => null]);
+    $routeDay = RouteDay::factory()->create();
+
+    $sinUbicacion = RouteStop::factory()->for($routeDay, 'route')->create([
+        'customer_tax_id' => 'H55667788', 'status' => RouteStopStatus::Pending, 'latitude' => null, 'longitude' => null,
+    ]);
+    $otroCliente = RouteStop::factory()->for($routeDay, 'route')->create([
+        'customer_tax_id' => 'OTRO-CIF', 'status' => RouteStopStatus::Pending, 'latitude' => null, 'longitude' => null,
+    ]);
+    $yaCompletada = RouteStop::factory()->for($routeDay, 'route')->create([
+        'customer_tax_id' => 'H55667788', 'status' => RouteStopStatus::Completed, 'latitude' => null, 'longitude' => null,
+    ]);
+    $yaTeniaCoords = RouteStop::factory()->for($routeDay, 'route')->create([
+        'customer_tax_id' => 'H55667788', 'status' => RouteStopStatus::Pending, 'latitude' => 1.111111, 'longitude' => 2.222222,
+    ]);
+
+    Livewire::test(Index::class)
+        ->call('edit', $client->id)
+        ->set('form.latitude', '28.4682')
+        ->set('form.longitude', '-16.2546')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect((float) $sinUbicacion->fresh()->latitude)->toBe(28.4682)
+        ->and((float) $sinUbicacion->fresh()->longitude)->toBe(-16.2546)
+        ->and($otroCliente->fresh()->latitude)->toBeNull()
+        ->and($yaCompletada->fresh()->latitude)->toBeNull()
+        ->and((float) $yaTeniaCoords->fresh()->latitude)->toBe(1.111111)
+        ->and((float) $yaTeniaCoords->fresh()->longitude)->toBe(2.222222);
 });
 
 it('un código externo con solo espacios se guarda como null', function () {

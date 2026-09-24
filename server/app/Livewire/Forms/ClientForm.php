@@ -5,9 +5,11 @@ namespace App\Livewire\Forms;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
 use App\Enums\PriceType;
+use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
 use App\Enums\WaterType;
 use App\Models\Client;
+use App\Models\RouteStop;
 use Illuminate\Validation\Rule;
 use Livewire\Form;
 
@@ -220,9 +222,37 @@ class ClientForm extends Form
             ? tap($this->editing)->update($validated)
             : Client::create($validated);
 
+        $this->backfillPendingStopCoordinates($client);
+
         $this->reset();
 
         return $client;
+    }
+
+    /**
+     * Dirección inversa de Chofer\Today::captureStopCoordinates(): si el cliente recibe
+     * coordenadas (a mano, o por el buscador de direcciones) después de que ya existieran
+     * paradas Pendientes suyas sin ubicación propia (p. ej. planificadas con meses de
+     * antelación antes de fijar la dirección exacta), se las rellena. Nunca pisa una parada
+     * que ya tenga su propia coordenada. Query builder a propósito (no Eloquent) para no
+     * disparar RouteStopObserver ni auditoría — es un relleno silencioso de un hueco de
+     * datos, no una gestión activa de la parada.
+     */
+    private function backfillPendingStopCoordinates(Client $client): void
+    {
+        if ($client->latitude === null || $client->longitude === null) {
+            return;
+        }
+
+        RouteStop::query()
+            ->where('status', RouteStopStatus::Pending)
+            ->whereNull('latitude')
+            ->when(
+                $client->tax_id,
+                fn ($q) => $q->where('customer_tax_id', $client->tax_id),
+                fn ($q) => $q->where('customer_name', $client->name),
+            )
+            ->update(['latitude' => $client->latitude, 'longitude' => $client->longitude]);
     }
 
     /** Recorta espacios y convierte una cadena vacía en null. */
