@@ -73,10 +73,12 @@ class RouteChangeNotifier
         ));
     }
 
-    /** @return Collection<int, User> */
+    /** Mismos destinatarios que StopDwellService::notifyNewUnplannedStops() — administrador y
+     *  mantenimiento comparten el acceso completo de gestión (User::isManager()).
+     *  @return Collection<int, User> */
     private function recipients(): Collection
     {
-        return User::role('administrador')->where('is_active', true)->get();
+        return User::role(['administrador', 'mantenimiento'])->where('is_active', true)->get();
     }
 
     /**

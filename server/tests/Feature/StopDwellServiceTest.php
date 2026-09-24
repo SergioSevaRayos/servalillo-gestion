@@ -575,6 +575,21 @@ it('notifica a administración al detectar una parada no programada', function (
         fn ($n) => $n->seconds === 450 && $n->routeDate === '2026-03-02' && $n->driverName === $day->driver->user->name);
 });
 
+it('mantenimiento también recibe el aviso de parada no programada (2026-09-24)', function () {
+    Notification::fake();
+    $mantenimiento = makeUser('mantenimiento');
+
+    config()->set('servalillo.dwell.unplanned_stop_min_seconds', 300);
+
+    $day = makeRoute('2026-03-02');
+    $point = metersOffset($this->stopLat, $this->stopLng, 1000, 0);
+    gpsTrack($day, denseRun($point, '10:00:00', '10:08:00'));
+
+    app(StopDwellService::class)->recomputeForRouteDay($day);
+
+    Notification::assertSentTo($mantenimiento, UnplannedStopDetected::class);
+});
+
 it('no vuelve a notificar la misma parada no programada tras recalcular', function () {
     Notification::fake();
     $admin = makeUser('administrador');

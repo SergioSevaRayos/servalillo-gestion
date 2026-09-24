@@ -92,6 +92,17 @@ it('quitar una parada pendiente notifica (2026-09-24)', function () {
         fn ($n) => $n->kind === 'stop_removed' && $n->customerName === 'Bar Central');
 });
 
+it('mantenimiento recibe las notificaciones de ruta igual que administrador (2026-09-24)', function () {
+    $mantenimiento = makeUser('mantenimiento');
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 1);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('removeStop', $route->stops->first()->id);
+
+    Notification::assertSentTo($mantenimiento, ChoferRouteChanged::class,
+        fn ($n) => $n->kind === 'stop_removed');
+});
+
 it('cerrar la jornada con descuadre notifica; sin descuadre no', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 1);
     $route->stops->first()->update(['status' => RouteStopStatus::Completed, 'delivered_quantity' => 1000, 'completed_at' => now()]);

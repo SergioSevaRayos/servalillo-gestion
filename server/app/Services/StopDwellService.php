@@ -217,7 +217,9 @@ class StopDwellService
         }
 
         $driverName = $day->driver?->user?->name ?? 'Un chofer';
-        $recipients = User::role('administrador')->where('is_active', true)->get();
+        // Mismos destinatarios que RouteChangeNotifier::recipients() — administrador y
+        // mantenimiento comparten el acceso completo de gestión (User::isManager()).
+        $recipients = User::role(['administrador', 'mantenimiento'])->where('is_active', true)->get();
 
         foreach ($fresh as $stop) {
             Notification::send($recipients, new UnplannedStopDetected($driverName, $day->route_date->toDateString(), $stop->seconds));

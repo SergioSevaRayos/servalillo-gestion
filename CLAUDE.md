@@ -1048,22 +1048,33 @@ Backed enums con `->label()` en español; casteados en los modelos.
   automática de paradas recurrentes se silencia con `RouteStopObserver::muted(fn () => …)` en
   `RecurringStopService` (es sistémica, no "gestión"). No se puede probar en Pest que el `Audit` de
   ese cambio se cree (`console => false`), pero la notificación sí (usa `Notification::fake()`).
-- **Disparo de las notificaciones chofer → oficina = dispatch explícito, NUNCA observer.** Los 4 tipos
-  (`stop_failed`, `stop_skipped`, `stop_rescheduled`, `client_added`, `meter_discrepancy`) no se
+- **Disparo de las notificaciones chofer → oficina = dispatch explícito, NUNCA observer.** Los 6 tipos
+  (`stop_failed`, `stop_skipped`, `stop_rescheduled`, `client_added`, `meter_discrepancy`,
+  `stop_removed` — este último, 2026-09-24, ver "Quitar una parada equivocada" en el Bloque 7) no se
   distinguen de un `updated`/`created` genérico y un observer se dispararía también para el tablero de
   oficina. `App\Support\Notifications\RouteChangeNotifier` se llama desde `StopActionForm::apply()`
-  (rama failed/skipped, tras el `->update()`), `Today::addClientStop()` y `Today::endDay()` (solo rama
-  `$adjusted`). Guard: `! auth()->user()?->isDriver()` → seeders/comandos/tablero no disparan nada.
-  **Entrega completada normal y empezar/terminar jornada sin incidencia NO notifican.**
-  `StopActionForm::apply()` recibe ahora un 3er argumento `RouteChangeNotifier` (el único llamador,
-  `Today::saveStop`, lo pasa a mano con `app(...)`).
+  (rama failed/skipped, tras el `->update()`), `Today::addClientStop()`, `Today::endDay()` (solo rama
+  `$adjusted`) y `Today::removeStop()`. Guard: `! auth()->user()?->isDriver()` → seeders/comandos/
+  tablero no disparan nada. **Entrega completada normal y empezar/terminar jornada sin incidencia NO
+  notifican.** `StopActionForm::apply()` recibe ahora un 3er argumento `RouteChangeNotifier` (el único
+  llamador, `Today::saveStop`, lo pasa a mano con `app(...)`). Destinatarios:
+  `RouteChangeNotifier::recipients()` → `User::role(['administrador', 'mantenimiento'])` (ver el bug
+  corregido el 2026-09-24 justo debajo, en la nota de parada no programada).
 - **Notificación sistémica: parada no programada detectada → administración (2026-09-14).**
   Tercer patrón de disparo, distinto de los dos anteriores (observer para oficina→chofer,
   dispatch explícito para chofer→oficina): aquí no hay ni un usuario "actuando" ni un evento
   Eloquent — es el propio `StopDwellService::run()` el que, tras reconstruir `unplanned_stops`
   del día (borra + reinserta, ver Bloque 15), envía `App\Notifications\UnplannedStopDetected`
-  a `User::role('administrador')->where('is_active', true)->get()` (mismos destinatarios que
-  `RouteChangeNotifier::recipients()`) por cada parada no programada nueva. **El problema
+  a `User::role(['administrador', 'mantenimiento'])->where('is_active', true)->get()` (mismos
+  destinatarios que `RouteChangeNotifier::recipients()`) por cada parada no programada nueva.
+  **Bug real corregido (2026-09-24): mantenimiento no recibía NINGUNA de estas notificaciones**
+  (ni las de `RouteChangeNotifier` — fallo/omisión/reprogramación/cliente añadido/descuadre de
+  litros/parada quitada, ni esta de parada no programada) — ambos puntos usaban
+  `User::role('administrador')` a secas, sin `mantenimiento`, pese a que `User::isManager()`
+  (`hasAnyRole(['administrador', 'mantenimiento'])`) documenta explícitamente que **"mantenimiento
+  y administrador comparten el acceso completo de gestión"**. Detectado por el usuario al probar
+  "Quitar una parada" (arriba) con una cuenta de mantenimiento y no ver el aviso en la campana.
+  **El problema
   específico de este patrón**: `run()` se llama constantemente (cron nocturno + recálculo
   perezoso en cada vista de Board/Today/History) y siempre borra+reinserta la tabla entera, así
   que sin más no habría forma de distinguir "parada ya avisada" de "parada nueva" — notificaría
