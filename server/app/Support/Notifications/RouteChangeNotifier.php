@@ -38,6 +38,11 @@ class RouteChangeNotifier
         $this->sendForStop('client_added', $stop);
     }
 
+    public function stopRemoved(RouteStop $stop): void
+    {
+        $this->sendForStop('stop_removed', $stop);
+    }
+
     public function meterDiscrepancy(RouteDay $route, float $liters, ?string $note): void
     {
         if ($this->guarded()) {

@@ -14,7 +14,7 @@ class ChoferRouteChanged extends Notification
 {
     use Queueable;
 
-    /** @param  'stop_failed'|'stop_skipped'|'stop_rescheduled'|'client_added'|'meter_discrepancy'  $kind */
+    /** @param  'stop_failed'|'stop_skipped'|'stop_rescheduled'|'client_added'|'meter_discrepancy'|'stop_removed'  $kind */
     public function __construct(
         public string $kind,
         public string $driverName,
@@ -50,6 +50,7 @@ class ChoferRouteChanged extends Notification
             'stop_rescheduled' => 'Parada reprogramada',
             'client_added' => 'Cliente añadido a una ruta',
             'meter_discrepancy' => 'Contador de litros descuadrado',
+            'stop_removed' => 'Parada quitada de una ruta',
             default => 'Cambio en una ruta',
         };
     }
@@ -65,6 +66,7 @@ class ChoferRouteChanged extends Notification
             'stop_rescheduled' => "{$who} reprogramó la parada de {$cliente} para el {$this->detail}.",
             'client_added' => "{$who} añadió a {$cliente} a su ruta del {$this->routeDate}.",
             'meter_discrepancy' => "{$who} cerró la jornada del {$this->routeDate} con un descuadre: {$this->detail}.",
+            'stop_removed' => "{$who} quitó la parada de {$cliente} de su ruta.",
             default => "{$who} modificó su ruta del {$this->routeDate}.",
         };
     }

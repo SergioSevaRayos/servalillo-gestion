@@ -587,7 +587,7 @@ it('el chofer sube y baja una parada pendiente a mano', function () {
     $b = RouteStop::factory()->for($route, 'route')->create(['position' => 2]);
     $c = RouteStop::factory()->for($route, 'route')->create(['position' => 3]);
 
-    $t = Livewire::actingAs($user)->test(Today::class);
+    $t = Livewire::actingAs($user)->test(Today::class)->set('reorderLocked', false);
 
     $t->call('moveStop', $c->id, 'up');
     expect($route->stops()->pluck('id')->all())->toBe([$a->id, $c->id, $b->id]);
@@ -601,7 +601,7 @@ it('mover una parada en un extremo no hace nada', function () {
     $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1]);
     $b = RouteStop::factory()->for($route, 'route')->create(['position' => 2]);
 
-    Livewire::actingAs($user)->test(Today::class)->call('moveStop', $a->id, 'up');
+    Livewire::actingAs($user)->test(Today::class)->set('reorderLocked', false)->call('moveStop', $a->id, 'up');
 
     expect($route->stops()->pluck('id')->all())->toBe([$a->id, $b->id]);
 });
@@ -612,7 +612,7 @@ it('mover paradas pendientes no cambia el sitio de una completada', function () 
     $b = RouteStop::factory()->for($route, 'route')->create(['position' => 2]);
     $c = RouteStop::factory()->for($route, 'route')->create(['position' => 3]);
 
-    Livewire::actingAs($user)->test(Today::class)->call('moveStop', $c->id, 'up');
+    Livewire::actingAs($user)->test(Today::class)->set('reorderLocked', false)->call('moveStop', $c->id, 'up');
 
     // La completada sigue primera; se intercambian solo $b y $c.
     expect($route->stops()->pluck('id')->all())->toBe([$done->id, $c->id, $b->id])
@@ -625,8 +625,83 @@ it('el chofer no puede mover una parada completada', function () {
     RouteStop::factory()->for($route, 'route')->create(['position' => 2]);
 
     Livewire::actingAs($user)->test(Today::class)
+        ->set('reorderLocked', false)
         ->call('moveStop', $done->id, 'down')
         ->assertStatus(422);
+});
+
+it('el orden de las paradas está bloqueado por defecto', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1]);
+    RouteStop::factory()->for($route, 'route')->create(['position' => 2]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->assertSet('reorderLocked', true)
+        ->call('moveStop', $a->id, 'down')
+        ->assertStatus(403);
+
+    expect($route->stops()->pluck('id')->all())->not->toBe([]); // no se movió nada (sigue igual)
+});
+
+it('desbloquear el orden permite mover paradas otra vez', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1]);
+    $b = RouteStop::factory()->for($route, 'route')->create(['position' => 2]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->assertSet('reorderLocked', true)
+        ->call('toggleReorderLock')
+        ->assertSet('reorderLocked', false)
+        ->call('moveStop', $a->id, 'down');
+
+    expect($route->stops()->pluck('id')->all())->toBe([$b->id, $a->id]);
+});
+
+it('el chofer quita una parada pendiente añadida por error, incluso antes de empezar jornada (2026-09-24)', function () {
+    // Published = jornada sin empezar todavía — es exactamente el bug reportado: antes de esto
+    // no había forma de deshacer una parada añadida por error hasta pulsar "Empezar jornada".
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::Published], stops: 0);
+    $a = RouteStop::factory()->for($route, 'route')->create(['position' => 1, 'status' => RouteStopStatus::Pending]);
+    $b = RouteStop::factory()->for($route, 'route')->create(['position' => 2, 'status' => RouteStopStatus::Pending]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('removeStop', $a->id)
+        ->assertDispatched('toast');
+
+    expect(RouteStop::find($a->id))->toBeNull()
+        ->and(RouteStop::find($b->id))->not->toBeNull();
+});
+
+it('el chofer quita una parada pendiente con la jornada ya en curso', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 1);
+    $stop = $route->stops->first();
+
+    Livewire::actingAs($user)->test(Today::class)->call('removeStop', $stop->id);
+
+    expect(RouteStop::find($stop->id))->toBeNull();
+});
+
+it('no se puede quitar una parada ya completada', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    $done = RouteStop::factory()->for($route, 'route')->create(['status' => RouteStopStatus::Completed]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('removeStop', $done->id)
+        ->assertStatus(422);
+
+    expect(RouteStop::find($done->id))->not->toBeNull();
+});
+
+it('un chofer no puede quitar una parada de la ruta de otro', function () {
+    [$user] = chofer(['status' => RouteStatus::Published], stops: 0);
+    [, , $otraRuta] = chofer(['status' => RouteStatus::Published], stops: 1);
+    $ajena = $otraRuta->stops->first();
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('removeStop', $ajena->id)
+        ->assertStatus(404);
+
+    expect(RouteStop::find($ajena->id))->not->toBeNull();
 });
 
 it('no se puede organizar una ruta ya terminada', function () {

@@ -194,6 +194,20 @@
                     </svg>
                     {{ __('Organizar mi ruta') }}
                 </button>
+
+                {{-- Bloqueo de seguridad: por defecto las paradas quedan fijas, para no moverlas
+                     sin querer al tocar la pantalla — solo afecta a los botones ▲/▼ de abajo. --}}
+                <button type="button" wire:click="toggleReorderLock"
+                    aria-label="{{ $reorderLocked ? __('Desbloquear el orden de las paradas') : __('Bloquear el orden de las paradas') }}"
+                    class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-medium transition-colors disabled:opacity-50 {{ $reorderLocked ? 'border-slate-200 bg-white text-slate-600 hover:border-primary-400 hover:text-primary-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500' : 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300' }}">
+                    @if ($reorderLocked)
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                        {{ __('Orden bloqueado') }}
+                    @else
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                        {{ __('Orden desbloqueado') }}
+                    @endif
+                </button>
             @endif
         </div>
 
@@ -203,7 +217,8 @@
             @forelse ($route->stops as $stop)
                 @php
                     $rank = $pendingIds->search($stop->id);
-                    $canReorder = $rank !== false && $this->operable() && ! $this->finished && $pendingIds->count() > 1;
+                    $canReorder = $rank !== false && $this->operable() && ! $this->finished && $pendingIds->count() > 1 && ! $reorderLocked;
+                    $canRemove = $stop->status === \App\Enums\RouteStopStatus::Pending && $this->operable() && ! $this->finished;
                     $hasNav = $stop->status === \App\Enums\RouteStopStatus::Pending
                         && $stop->latitude !== null && $stop->longitude !== null;
                 @endphp
@@ -216,7 +231,7 @@
                         />
                     </div>
 
-                    @if ($canReorder || $hasNav)
+                    @if ($canReorder || $hasNav || $canRemove)
                         <div class="flex shrink-0 flex-col justify-center gap-1" wire:key="row-actions-{{ $stop->id }}">
                             @if ($hasNav)
                                 {{-- Navegar a esta parada con Google Maps --}}
@@ -239,6 +254,16 @@
                                 aria-label="{{ __('Bajar esta parada') }}"
                                 class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-primary-500">
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+                            </button>
+                            @endif
+                            @if ($canRemove)
+                            {{-- El chofer se equivocó al añadir/planificar esta parada — la quita de su ruta. --}}
+                            <button type="button" wire:click="removeStop({{ $stop->id }})"
+                                wire:confirm="{{ __('¿Quitar esta parada de tu ruta? Se avisará a oficina.') }}"
+                                wire:target="removeStop" wire:loading.attr="disabled"
+                                aria-label="{{ __('Quitar esta parada de la ruta') }}"
+                                class="grid h-9 w-9 place-items-center rounded-lg border border-rose-200 text-rose-500 transition-colors hover:border-rose-400 hover:bg-rose-50 disabled:opacity-30 dark:border-rose-500/40 dark:text-rose-400 dark:hover:bg-rose-500/10">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
                             </button>
                             @endif
                         </div>

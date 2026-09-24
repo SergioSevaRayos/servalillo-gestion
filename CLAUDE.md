@@ -707,6 +707,31 @@ Backed enums con `->label()` en español; casteados en los modelos.
   la posición de cada fila `[data-stop-row]` antes del commit y anima `translateY` de la vieja a la
   nueva tras la respuesta; respeta `prefers-reduced-motion`). La fila lleva `wire:key="stop-row-…"`
   para que el morph mueva el nodo en vez de recrearlo.
+  - **Bloqueo de seguridad (2026-09-24)**: `Today::$reorderLocked` (bool, `true` por defecto, sin
+    persistir — cada carga de página vuelve a bloqueado) + `toggleReorderLock()`. Petición
+    explícita del usuario: evitar mover una parada sin querer al tocar la pantalla del móvil. Los
+    botones ▲/▼ no se pintan mientras está bloqueado (`$canReorder` en el Blade añade
+    `&& ! $reorderLocked`) y `moveStop()` lo comprueba también en servidor (`abort_if`) — defensa
+    en profundidad, no solo ocultar el botón. Botón de candado junto a "Organizar mi ruta", misma
+    condición de visibilidad. Solo afecta a ▲/▼: no bloquea "Quitar parada" (de abajo, que ya
+    lleva su propia confirmación) ni "Organizar mi ruta" (auto-organizar, acción explícita aparte).
+- **Quitar una parada equivocada (2026-09-24)**: `Today::removeStop(RouteStop)`. **Bug real
+  corregido**: si el chofer añadía una parada por error (p. ej. con "Añadir cliente"), no tenía
+  ninguna forma de deshacerlo antes de pulsar "Empezar jornada" — no hay borrado en el chofer, y
+  reprogramar solo se dispara al CERRAR una parada (`StopActionForm`), que exige `guardStarted()`
+  (jornada en curso). `removeStop()` usa el mismo guard que `moveStop()`/`addClientStop()`
+  (`authorizeRoute()`, que solo exige `operable()` — **no** `guardStarted()` — así que funciona
+  antes y después de empezar la jornada) + comprobación manual de propiedad
+  (`$stop->route_id === $this->route->id`, sin policy nueva, mismo patrón exacto que `moveStop()`
+  en vez del `RouteStopPolicy::complete` que usan `openStop`/`captureStopCoordinates`). Alcance:
+  **cualquier parada `Pending` de su propia ruta**, no solo las que él añadió — `route_stops` no
+  tiene ninguna columna que distinga el origen de la parada, y no se ha creado una para esto.
+  Considerado seguro porque siempre avisa a oficina al momento (**6º tipo** de notificación
+  chofer→oficina, `RouteChangeNotifier::stopRemoved()` → `ChoferRouteChanged` kind
+  `stop_removed`, mismo patrón de dispatch explícito que los otros 5 — nunca observer), exige
+  `wire:confirm` explícito, y nunca toca paradas ya cerradas (historial intocable). Botón de
+  papelera (color `rose`, semántico de peligro) en la misma columna de acciones que ▲/▼ y el
+  enlace de navegación — independiente del bloqueo de reordenado de arriba.
 - **Añadir cliente sobre la marcha** (un cliente llama al chofer): botón "Añadir cliente (ha llamado)"
   **al final de la lista de paradas** (visible si `operable()`, es decir hoy o ruta `InProgress`) →
   modal `add-stop` con buscador (`clientMatches`, `Client::scopeSearch`, mín. 2 caracteres) →

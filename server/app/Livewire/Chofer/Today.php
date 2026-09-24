@@ -52,6 +52,12 @@ class Today extends Component
     /** Búsqueda de cliente para añadirlo a la ruta (llamada de un cliente sobre la marcha). */
     public string $clientSearch = '';
 
+    /**
+     * Por defecto las paradas pendientes quedan fijas — evita moverlas sin querer al tocar la
+     * pantalla. Sin persistir a propósito: cada carga de página vuelve a "bloqueado".
+     */
+    public bool $reorderLocked = true;
+
     public function mount(): void
     {
         abort_unless(auth()->user()?->can('routes.view.own'), 403);
@@ -395,6 +401,7 @@ class Today extends Component
     {
         $this->authorizeRoute();
         abort_if($this->finished, 403, 'La jornada ya está cerrada.');
+        abort_if($this->reorderLocked, 403, 'Desbloquea el orden de las paradas primero.');
         abort_unless($stop->route_id === $this->route->id, 404);
         abort_unless($stop->status === RouteStopStatus::Pending, 422, 'Solo se pueden mover las paradas pendientes.');
         abort_unless(in_array($direction, ['up', 'down'], true), 422);
@@ -428,6 +435,35 @@ class Today extends Component
 
         unset($this->route);
         $this->dispatch('toast', message: 'Orden de la ruta actualizado.', variant: 'success');
+    }
+
+    /** Alterna el bloqueo del reordenado manual (botones ▲/▼) — protección contra toques sin querer. */
+    public function toggleReorderLock(): void
+    {
+        $this->reorderLocked = ! $this->reorderLocked;
+    }
+
+    /**
+     * Quita una parada PENDIENTE de la ruta (el chofer se equivocó al añadirla, o ya no
+     * corresponde). Funciona aunque la jornada no haya empezado — a diferencia de cerrar una
+     * parada (StopActionForm), que sí exige guardStarted(); esto no es "operar" el reparto, es
+     * deshacer un error en la planificación del día, igual que moveStop()/addClientStop().
+     * Cualquier parada Pendiente de su ruta, no solo las que él mismo añadió (route_stops no
+     * distingue el origen) — siempre avisa a oficina al momento, nunca en silencio.
+     */
+    public function removeStop(RouteStop $stop): void
+    {
+        $this->authorizeRoute();
+        abort_unless($stop->route_id === $this->route->id, 404);
+        abort_unless($stop->status === RouteStopStatus::Pending, 422, 'Solo se pueden quitar las paradas pendientes.');
+
+        $customerName = $stop->customer_name;
+        $stop->delete();
+
+        app(RouteChangeNotifier::class)->stopRemoved($stop);
+
+        unset($this->route);
+        $this->dispatch('toast', message: "Parada de {$customerName} quitada de la ruta.", variant: 'success');
     }
 
     /** Paradas pendientes con ubicación de la ruta (para elegir el punto de partida en el modal). */
