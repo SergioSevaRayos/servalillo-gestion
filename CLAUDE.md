@@ -1155,6 +1155,26 @@ Backed enums con `->label()` en español; casteados en los modelos.
       de verdad, frente a los ~1,7 KB de las respuestas-aviso de CARTO). Si esto también acabara
       limitado algún día, la alternativa es un proveedor con API key (Stadia Maps / MapTiler) o un
       proxy propio de mosaicos con caché.
+    - **Cambio de estilo a "Canvas" gris claro (2026-09-24)**: `World_Street_Map` (el estilo de
+      arriba) se veía anticuado — petición explícita del usuario. Los **5** mapas Leaflet de la
+      app (`routeMap`, `deviceMap`, `geofenceMap`, `attendanceLocationMap`, `clientLocationMap`,
+      todos en `app.js`) comparten ahora una única función `addBasemapLayers(map)` (antes cada uno
+      repetía su propio `L.tileLayer(...)`) que monta **dos** capas apiladas del mismo dominio
+      Esri, sin key: `Canvas/World_Light_Gray_Base` (fondo) + `Canvas/World_Light_Gray_Reference`
+      (etiquetas de calles/lugares — Esri las sirve separadas en este estilo, a diferencia de
+      `World_Street_Map` que las traía todas en una). Comparado visualmente contra
+      `World_Topo_Map` (igual de anticuado) y `World_Imagery` (satélite, sin etiquetas por
+      defecto, cambia demasiado el caso de uso) descargando teselas reales de cada uno — mismo
+      método que la lección de arriba. **Gotcha encontrado así**: el zoom nativo máximo real de
+      Canvas es **16** (confirmado descargando: z17+ devuelve un placeholder "Map data not yet
+      available" en vez de mapa, mientras que `World_Street_Map` llegaba a 19) — con
+      `maxZoom: 19` a secas como antes, cualquier mapa que zoomeara manualmente más allá de 16
+      (p. ej. afinar el pin del editor de geovalla) se habría quedado con teselas en blanco.
+      Arreglado con **`maxNativeZoom: 16`** en las opciones de `L.tileLayer` (Leaflet reescala las
+      teselas de z=16 en vez de pedir teselas inexistentes — zoom algo borroso más allá de ese
+      nivel, comportamiento estándar, no un roto). Se descartó deliberadamente hacer el mapa
+      reactivo al tema claro/oscuro de la app (`Alpine.store('theme')`) — el usuario, preguntado
+      explícitamente, pidió el estilo claro siempre, no uno por tema.
 
 ### API de tracking GPS (Bloque 10)
 - **La única API de la app** (`routes/api.php`). El "Bloque 10 — API Flutter" del contrato original de
