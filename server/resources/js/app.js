@@ -484,17 +484,26 @@ document.addEventListener('alpine:init', () => {
     // key, mismo dominio; solo que más limpio/minimalista). Son DOS capas apiladas (fondo +
     // etiquetas de calles/lugares) en vez de una — Esri las sirve por separado en este estilo.
     // OJO, mismo detalle que ya tenía World_Street_Map: el orden de la plantilla es z/y/x, al
-    // revés que OSM/CARTO. `maxNativeZoom: 16` es imprescindible: comprobado descargando teselas
-    // reales que a partir de z=17 este estilo devuelve un placeholder "Map data not yet
-    // available" en vez de mapa (su zoom nativo máximo real es 16, a diferencia de
-    // World_Street_Map que llegaba a 19) — sin este límite, cualquier mapa que haga zoom manual
-    // más allá de 16 (p. ej. afinar el pin del editor de geovalla) se quedaría con teselas en
-    // blanco. Con `maxNativeZoom`, Leaflet reescala las teselas de z=16 en su lugar (zoom
-    // ligeramente borroso más allá de ese nivel, comportamiento estándar, no un roto).
+    // revés que OSM/CARTO.
+    //
+    // Su zoom nativo máximo real es 16 (comprobado descargando teselas: z17+ devuelve un
+    // placeholder "Map data not yet available" en vez de mapa). Primer intento: `maxNativeZoom:
+    // 16` (Leaflet reescala la tesela de z16 en vez de pedir una inexistente) — DESCARTADO
+    // (2026-09-24, bug real reportado en producción con captura): el reescalado x2/x3 de una
+    // tesela con texto pequeño (nombres de calle) la deja ilegible, no solo "algo borrosa" como
+    // se esperaba. Fix real: una TERCERA capa de refuerzo con el estilo anterior
+    // (`World_Street_Map`, que SÍ tiene detalle nítido real hasta z19 — comprobado igual,
+    // descargando una tesela z19 real) activa SOLO para zoom 17-19 (`minZoom`/`maxZoom` por
+    // capa — Leaflet no pide tiles de una capa fuera de su rango, y compone el rango total del
+    // mapa a partir de la unión de las 3). Efecto: estilo moderno en el uso normal (0-16), y
+    // al hacer zoom muy de cerca (verificar una dirección, afinar un pin) el mapa cambia sin más
+    // aviso al estilo anterior pero nítido — un cambio de estilo visible en el punto de corte,
+    // aceptado a propósito: legibilidad por encima de la consistencia visual en ese rango.
     function addBasemapLayers(map) {
-        const options = { maxZoom: 19, maxNativeZoom: 16, attribution: 'Tiles &copy; Esri' };
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', options).addTo(map);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', options).addTo(map);
+        const attribution = 'Tiles &copy; Esri';
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution }).addTo(map);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution }).addTo(map);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { minZoom: 17, maxZoom: 19, attribution }).addTo(map);
     }
 
     /*

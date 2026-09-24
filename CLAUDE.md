@@ -1170,11 +1170,27 @@ Backed enums con `->label()` en español; casteados en los modelos.
       available" en vez de mapa, mientras que `World_Street_Map` llegaba a 19) — con
       `maxZoom: 19` a secas como antes, cualquier mapa que zoomeara manualmente más allá de 16
       (p. ej. afinar el pin del editor de geovalla) se habría quedado con teselas en blanco.
-      Arreglado con **`maxNativeZoom: 16`** en las opciones de `L.tileLayer` (Leaflet reescala las
-      teselas de z=16 en vez de pedir teselas inexistentes — zoom algo borroso más allá de ese
-      nivel, comportamiento estándar, no un roto). Se descartó deliberadamente hacer el mapa
-      reactivo al tema claro/oscuro de la app (`Alpine.store('theme')`) — el usuario, preguntado
-      explícitamente, pidió el estilo claro siempre, no uno por tema.
+      Primer intento: **`maxNativeZoom: 16`** en las opciones de `L.tileLayer` (Leaflet reescala
+      las teselas de z=16 en vez de pedir teselas inexistentes). Se descartó deliberadamente hacer
+      el mapa reactivo al tema claro/oscuro de la app (`Alpine.store('theme')`) — el usuario,
+      preguntado explícitamente, pidió el estilo claro siempre, no uno por tema.
+    - **Bug real de producción corregido (2026-09-24, el mismo día): el reescalado de
+      `maxNativeZoom` dejaba los nombres de calle ILEGIBLES, no solo "algo borrosos".**
+      Reportado por el usuario con una captura real (mapa "Ver recorrido" con zoom manual más
+      allá de 16, con los controles +/−) — el texto pequeño de las etiquetas de Canvas, al
+      reescalarse x2/x3, dejaba de leerse del todo, peor de lo esperado al planear el cambio
+      anterior. **Fix real**: en vez de reescalar, `addBasemapLayers()` añade una **tercera capa**
+      de refuerzo con el estilo anterior (`World_Street_Map`, que SÍ tiene detalle nítido real
+      hasta z19 — comprobado igual, descargando una tesela z19 real sobre Alicante con nombres de
+      calle legibles) activa **solo** para zoom 17-19 (`minZoom: 17, maxZoom: 19` en esa capa —
+      Leaflet no pide teselas de una capa fuera de su propio rango, y compone el rango de zoom
+      total del mapa a partir de la unión de las 3 capas presentes; ya no hace falta
+      `maxNativeZoom` en las capas Canvas, que se quedan en `maxZoom: 16` a secas). Efecto:
+      estilo moderno en el uso normal (zoom 0-16, la inmensa mayoría de las veces que se abre un
+      mapa) y, al hacer zoom muy de cerca para verificar una dirección o afinar un pin, el mapa
+      cambia sin más aviso al estilo anterior pero nítido — un salto de estilo visible justo en
+      el punto de corte, aceptado a propósito: legibilidad por encima de la consistencia visual
+      en ese rango de zoom tan profundo.
 
 ### API de tracking GPS (Bloque 10)
 - **La única API de la app** (`routes/api.php`). El "Bloque 10 — API Flutter" del contrato original de
