@@ -166,46 +166,48 @@
             </a>
         @endif
 
-        {{-- Acciones de la ruta --}}
+        {{-- Acciones de la ruta — icono encima de la etiqueta (nunca en línea: con dos palabras
+             el texto envolvía y quedaba descuadrado respecto al icono). --}}
         <div class="{{ $this->operable() && $this->navRouteUrl ? 'mt-2' : 'mt-4' }} flex flex-wrap gap-2">
             <button type="button" wire:click="showRouteMap" wire:target="showRouteMap"
                 wire:loading.attr="disabled"
-                class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500">
-                <svg wire:loading.remove wire:target="showRouteMap" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+                class="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-medium leading-tight text-slate-600 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500">
+                <svg wire:loading.remove wire:target="showRouteMap" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" />
                 </svg>
-                <svg wire:loading wire:target="showRouteMap" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <svg wire:loading wire:target="showRouteMap" class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
                 </svg>
-                {{ __('Ver recorrido') }}
+                <span>{{ __('Ver recorrido') }}</span>
             </button>
 
             @if ($this->operable() && ! $this->finished && $this->pendingCount > 1)
                 <button type="button" wire:click="startOptimize" wire:target="startOptimize"
                     wire:loading.attr="disabled"
-                    class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500">
-                    <svg wire:loading.remove wire:target="startOptimize" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                    class="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-medium leading-tight text-slate-600 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500">
+                    <svg wire:loading.remove wire:target="startOptimize" class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                         <path fill-rule="evenodd" d="M11.3 1.046a1 1 0 0 1 .7 1.19L10.42 8H15a1 1 0 0 1 .8 1.6l-7 9.333A1 1 0 0 1 7 18.333L8.58 12H4a1 1 0 0 1-.8-1.6l7-9.333a1 1 0 0 1 1.1-.021Z" clip-rule="evenodd" />
                     </svg>
-                    <svg wire:loading wire:target="startOptimize" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                    <svg wire:loading wire:target="startOptimize" class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
                     </svg>
-                    {{ __('Organizar mi ruta') }}
+                    <span>{{ __('Organización automática') }}</span>
                 </button>
 
-                {{-- Bloqueo de seguridad: por defecto las paradas quedan fijas, para no moverlas
-                     sin querer al tocar la pantalla — solo afecta a los botones ▲/▼ de abajo. --}}
+                {{-- "Gestionar": por defecto las paradas quedan fijas y sin botón de quitar, para
+                     no tocarlas sin querer en la pantalla — al pulsarlo aparecen los botones ▲/▼
+                     y el de quitar parada en cada tarjeta de abajo. --}}
                 <button type="button" wire:click="toggleReorderLock"
-                    aria-label="{{ $reorderLocked ? __('Desbloquear el orden de las paradas') : __('Bloquear el orden de las paradas') }}"
-                    class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-medium transition-colors disabled:opacity-50 {{ $reorderLocked ? 'border-slate-200 bg-white text-slate-600 hover:border-primary-400 hover:text-primary-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500' : 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300' }}">
+                    aria-label="{{ $reorderLocked ? __('Gestionar las paradas de la ruta') : __('Terminar de gestionar las paradas') }}"
+                    class="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl border py-2.5 text-xs font-medium leading-tight transition-colors disabled:opacity-50 {{ $reorderLocked ? 'border-slate-200 bg-white text-slate-600 hover:border-primary-400 hover:text-primary-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500' : 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300' }}">
                     @if ($reorderLocked)
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
-                        {{ __('Orden bloqueado') }}
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                        <span>{{ __('Gestionar') }}</span>
                     @else
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
-                        {{ __('Orden desbloqueado') }}
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                        <span>{{ __('Listo') }}</span>
                     @endif
                 </button>
             @endif
@@ -218,7 +220,7 @@
                 @php
                     $rank = $pendingIds->search($stop->id);
                     $canReorder = $rank !== false && $this->operable() && ! $this->finished && $pendingIds->count() > 1 && ! $reorderLocked;
-                    $canRemove = $stop->status === \App\Enums\RouteStopStatus::Pending && $this->operable() && ! $this->finished;
+                    $canRemove = $stop->status === \App\Enums\RouteStopStatus::Pending && $this->operable() && ! $this->finished && ! $reorderLocked;
                     $hasNav = $stop->status === \App\Enums\RouteStopStatus::Pending
                         && $stop->latitude !== null && $stop->longitude !== null;
                 @endphp
@@ -257,10 +259,10 @@
                             </button>
                             @endif
                             @if ($canRemove)
-                            {{-- El chofer se equivocó al añadir/planificar esta parada — la quita de su ruta. --}}
-                            <button type="button" wire:click="removeStop({{ $stop->id }})"
-                                wire:confirm="{{ __('¿Quitar esta parada de tu ruta? Se avisará a oficina.') }}"
-                                wire:target="removeStop" wire:loading.attr="disabled"
+                            {{-- El chofer se equivocó al añadir/planificar esta parada — pide confirmación
+                                 en un modal antes de quitarla de su ruta (nunca con un solo toque). --}}
+                            <button type="button" wire:click="confirmRemoveStop({{ $stop->id }})"
+                                wire:target="confirmRemoveStop" wire:loading.attr="disabled"
                                 aria-label="{{ __('Quitar esta parada de la ruta') }}"
                                 class="grid h-9 w-9 place-items-center rounded-lg border border-rose-200 text-rose-500 transition-colors hover:border-rose-400 hover:bg-rose-50 disabled:opacity-30 dark:border-rose-500/40 dark:text-rose-400 dark:hover:bg-rose-500/10">
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
@@ -399,6 +401,24 @@
 
             <div class="mt-6 flex justify-end">
                 <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cerrar') }}</x-ui.button>
+            </div>
+        </div>
+    </x-modal>
+
+    {{-- Modal: confirmar quitar una parada (nunca de un solo toque) --}}
+    <x-modal name="remove-stop" max-width="sm">
+        <div class="p-6">
+            <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ __('¿Quitar esta parada?') }}</h3>
+            <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                {{ __('Vas a quitar la parada de :cliente de tu ruta. Quedará registrado y se avisará a oficina de que hubo un error en la planificación.', ['cliente' => $removingStopName]) }}
+            </p>
+
+            <div class="mt-6 flex justify-end gap-2">
+                <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('No') }}</x-ui.button>
+                <x-ui.button variant="danger" type="button" wire:click="removeStop({{ $removingStopId }})"
+                    wire:target="removeStop" wire:loading.attr="disabled">
+                    {{ __('Sí, quitar') }}
+                </x-ui.button>
             </div>
         </div>
     </x-modal>

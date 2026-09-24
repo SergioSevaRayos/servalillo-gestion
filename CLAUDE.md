@@ -707,31 +707,47 @@ Backed enums con `->label()` en español; casteados en los modelos.
   la posición de cada fila `[data-stop-row]` antes del commit y anima `translateY` de la vieja a la
   nueva tras la respuesta; respeta `prefers-reduced-motion`). La fila lleva `wire:key="stop-row-…"`
   para que el morph mueva el nodo en vez de recrearlo.
-  - **Bloqueo de seguridad (2026-09-24)**: `Today::$reorderLocked` (bool, `true` por defecto, sin
-    persistir — cada carga de página vuelve a bloqueado) + `toggleReorderLock()`. Petición
-    explícita del usuario: evitar mover una parada sin querer al tocar la pantalla del móvil. Los
-    botones ▲/▼ no se pintan mientras está bloqueado (`$canReorder` en el Blade añade
-    `&& ! $reorderLocked`) y `moveStop()` lo comprueba también en servidor (`abort_if`) — defensa
-    en profundidad, no solo ocultar el botón. Botón de candado junto a "Organizar mi ruta", misma
-    condición de visibilidad. Solo afecta a ▲/▼: no bloquea "Quitar parada" (de abajo, que ya
-    lleva su propia confirmación) ni "Organizar mi ruta" (auto-organizar, acción explícita aparte).
-- **Quitar una parada equivocada (2026-09-24)**: `Today::removeStop(RouteStop)`. **Bug real
-  corregido**: si el chofer añadía una parada por error (p. ej. con "Añadir cliente"), no tenía
-  ninguna forma de deshacerlo antes de pulsar "Empezar jornada" — no hay borrado en el chofer, y
-  reprogramar solo se dispara al CERRAR una parada (`StopActionForm`), que exige `guardStarted()`
-  (jornada en curso). `removeStop()` usa el mismo guard que `moveStop()`/`addClientStop()`
-  (`authorizeRoute()`, que solo exige `operable()` — **no** `guardStarted()` — así que funciona
-  antes y después de empezar la jornada) + comprobación manual de propiedad
-  (`$stop->route_id === $this->route->id`, sin policy nueva, mismo patrón exacto que `moveStop()`
-  en vez del `RouteStopPolicy::complete` que usan `openStop`/`captureStopCoordinates`). Alcance:
-  **cualquier parada `Pending` de su propia ruta**, no solo las que él añadió — `route_stops` no
-  tiene ninguna columna que distinga el origen de la parada, y no se ha creado una para esto.
-  Considerado seguro porque siempre avisa a oficina al momento (**6º tipo** de notificación
-  chofer→oficina, `RouteChangeNotifier::stopRemoved()` → `ChoferRouteChanged` kind
-  `stop_removed`, mismo patrón de dispatch explícito que los otros 5 — nunca observer), exige
-  `wire:confirm` explícito, y nunca toca paradas ya cerradas (historial intocable). Botón de
-  papelera (color `rose`, semántico de peligro) en la misma columna de acciones que ▲/▼ y el
-  enlace de navegación — independiente del bloqueo de reordenado de arriba.
+  - **Modo "Gestionar" (2026-09-24, rediseñado el mismo día tras feedback visual del usuario)**:
+    `Today::$reorderLocked` (bool, `true` por defecto, sin persistir — cada carga de página vuelve
+    a bloqueado) + `toggleReorderLock()`. Petición explícita del usuario: evitar mover o borrar una
+    parada sin querer al tocar la pantalla del móvil. Mientras está bloqueado, ni los botones ▲/▼
+    ni el de "Quitar parada" (ver el punto siguiente) se pintan — los tres controles por fila
+    quedan ocultos hasta pulsar el botón **"Gestionar"** (pasa a decir **"Listo"** mientras está
+    desbloqueado). `$canReorder`/`$canRemove` en el Blade añaden `&& ! $reorderLocked`; `moveStop()`
+    lo comprueba también en servidor (`abort_if`) — defensa en profundidad, no solo ocultar el
+    botón (`confirmRemoveStop()`/`removeStop()` no lo necesitan porque ya piden confirmación en un
+    modal aparte, ver abajo). Botón de candado junto a "Organización automática" (antes "Organizar
+    mi ruta" — renombrado el mismo día).
+    - **Primer intento con los 3 botones en fila con icono en línea con el texto, descartado**: con
+      etiquetas de dos palabras ("Orden bloqueado"…) el texto envolvía a una segunda línea mientras
+      el icono se quedaba arriba, descuadrado — el usuario lo señaló explícitamente como mala UX.
+      Los tres botones de la barra de acciones (`Ver recorrido`/`Organización automática`/
+      `Gestionar`) pasan a **icono encima, etiqueta debajo** (`flex flex-col items-center`, no
+      `inline-flex items-center` en línea) — con `items-stretch` implícito del contenedor flex, los
+      tres quedan de la misma altura aunque una etiqueta ocupe dos líneas y otra una.
+- **Quitar una parada equivocada (2026-09-24, con modal de confirmación propio)**:
+  `Today::confirmRemoveStop(RouteStop)` (abre `<x-modal name="remove-stop">`, guarda
+  `$removingStopId`/`$removingStopName`) → el modal pregunta **"¿Quitar esta parada?"** con
+  Sí/No → `Today::removeStop(RouteStop)` la borra de verdad. **No usa `wire:confirm`** (el diálogo
+  nativo del navegador) a propósito — el usuario lo pidió como un modal propio de la app, igual que
+  el resto de confirmaciones del sistema de diseño. **Bug real corregido**: si el chofer añadía una
+  parada por error (p. ej. con "Añadir cliente"), no tenía ninguna forma de deshacerlo antes de
+  pulsar "Empezar jornada" — no hay borrado en el chofer, y reprogramar solo se dispara al CERRAR
+  una parada (`StopActionForm`), que exige `guardStarted()` (jornada en curso). `removeStop()` usa
+  el mismo guard que `moveStop()`/`addClientStop()` (`authorizeRoute()`, que solo exige
+  `operable()` — **no** `guardStarted()` — así que funciona antes y después de empezar la jornada)
+  + comprobación manual de propiedad (`$stop->route_id === $this->route->id`, sin policy nueva,
+  mismo patrón exacto que `moveStop()` en vez del `RouteStopPolicy::complete` que usan
+  `openStop`/`captureStopCoordinates`). Alcance: **cualquier parada `Pending` de su propia ruta**,
+  no solo las que él añadió — `route_stops` no tiene ninguna columna que distinga el origen de la
+  parada, y no se ha creado una para esto. Considerado seguro porque: (1) el botón solo aparece en
+  modo "Gestionar" (ver arriba, no es un toque accidental), (2) siempre pide confirmación en el
+  modal, (3) siempre avisa a oficina al momento (**6º tipo** de notificación chofer→oficina,
+  `RouteChangeNotifier::stopRemoved()` → `ChoferRouteChanged` kind `stop_removed`, título "Error de
+  planificación en una ruta" — texto pedido explícitamente por el usuario, mismo patrón de
+  dispatch explícito que los otros 5, nunca observer), (4) nunca toca paradas ya cerradas
+  (historial intocable). Botón de papelera (color `rose`, semántico de peligro) en la misma columna
+  de acciones que ▲/▼ y el enlace de navegación.
 - **Añadir cliente sobre la marcha** (un cliente llama al chofer): botón "Añadir cliente (ha llamado)"
   **al final de la lista de paradas** (visible si `operable()`, es decir hoy o ruta `InProgress`) →
   modal `add-stop` con buscador (`clientMatches`, `Client::scopeSearch`, mín. 2 caracteres) →

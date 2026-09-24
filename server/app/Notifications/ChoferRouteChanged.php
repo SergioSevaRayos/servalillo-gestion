@@ -50,7 +50,7 @@ class ChoferRouteChanged extends Notification
             'stop_rescheduled' => 'Parada reprogramada',
             'client_added' => 'Cliente añadido a una ruta',
             'meter_discrepancy' => 'Contador de litros descuadrado',
-            'stop_removed' => 'Parada quitada de una ruta',
+            'stop_removed' => 'Error de planificación en una ruta',
             default => 'Cambio en una ruta',
         };
     }
@@ -66,7 +66,7 @@ class ChoferRouteChanged extends Notification
             'stop_rescheduled' => "{$who} reprogramó la parada de {$cliente} para el {$this->detail}.",
             'client_added' => "{$who} añadió a {$cliente} a su ruta del {$this->routeDate}.",
             'meter_discrepancy' => "{$who} cerró la jornada del {$this->routeDate} con un descuadre: {$this->detail}.",
-            'stop_removed' => "{$who} quitó la parada de {$cliente} de su ruta.",
+            'stop_removed' => "{$who} quitó la parada de {$cliente} de su ruta: hubo un error al planificarla.",
             default => "{$who} modificó su ruta del {$this->routeDate}.",
         };
     }

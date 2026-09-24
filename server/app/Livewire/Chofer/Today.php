@@ -443,6 +443,23 @@ class Today extends Component
         $this->reorderLocked = ! $this->reorderLocked;
     }
 
+    /** Id/nombre de la parada pendiente de confirmación de borrado (modal "remove-stop"). */
+    public ?int $removingStopId = null;
+
+    public string $removingStopName = '';
+
+    /** Abre el modal de confirmación — nunca se quita una parada con un solo toque. */
+    public function confirmRemoveStop(RouteStop $stop): void
+    {
+        $this->authorizeRoute();
+        abort_unless($stop->route_id === $this->route->id, 404);
+        abort_unless($stop->status === RouteStopStatus::Pending, 422, 'Solo se pueden quitar las paradas pendientes.');
+
+        $this->removingStopId = $stop->id;
+        $this->removingStopName = $stop->customer_name;
+        $this->dispatch('open-modal', 'remove-stop');
+    }
+
     /**
      * Quita una parada PENDIENTE de la ruta (el chofer se equivocó al añadirla, o ya no
      * corresponde). Funciona aunque la jornada no haya empezado — a diferencia de cerrar una
@@ -462,7 +479,10 @@ class Today extends Component
 
         app(RouteChangeNotifier::class)->stopRemoved($stop);
 
+        $this->removingStopId = null;
+        $this->removingStopName = '';
         unset($this->route);
+        $this->dispatch('close-modal', 'remove-stop');
         $this->dispatch('toast', message: "Parada de {$customerName} quitada de la ruta.", variant: 'success');
     }
 

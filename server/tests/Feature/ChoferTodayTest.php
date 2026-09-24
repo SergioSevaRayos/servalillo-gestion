@@ -704,6 +704,28 @@ it('un chofer no puede quitar una parada de la ruta de otro', function () {
     expect(RouteStop::find($ajena->id))->not->toBeNull();
 });
 
+it('confirmRemoveStop abre el modal de confirmación sin borrar todavía (2026-09-24)', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::Published], stops: 0);
+    $stop = RouteStop::factory()->for($route, 'route')->create(['status' => RouteStopStatus::Pending, 'customer_name' => 'Bar Central']);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('confirmRemoveStop', $stop->id)
+        ->assertDispatched('open-modal', 'remove-stop')
+        ->assertSet('removingStopId', $stop->id)
+        ->assertSet('removingStopName', 'Bar Central');
+
+    expect(RouteStop::find($stop->id))->not->toBeNull(); // todavía no se ha borrado
+});
+
+it('confirmRemoveStop rechaza una parada ya completada', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::Published], stops: 0);
+    $done = RouteStop::factory()->for($route, 'route')->create(['status' => RouteStopStatus::Completed]);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('confirmRemoveStop', $done->id)
+        ->assertStatus(422);
+});
+
 it('no se puede organizar una ruta ya terminada', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::Completed, 'started_at' => now(), 'completed_at' => now()], stops: 3);
 
