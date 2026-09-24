@@ -479,33 +479,6 @@ document.addEventListener('alpine:init', () => {
     const ROUTE_MAP_ICON_CLOCK = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>';
     const ROUTE_MAP_ICON_CROSS = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
-    // Estilo de mosaico compartido por los 5 mapas Leaflet de la app (2026-09-24: el estilo de
-    // calles clásico de Esri se veía anticuado — este "Canvas" es su catálogo gratuito, sin API
-    // key, mismo dominio; solo que más limpio/minimalista). Son DOS capas apiladas (fondo +
-    // etiquetas de calles/lugares) en vez de una — Esri las sirve por separado en este estilo.
-    // OJO, mismo detalle que ya tenía World_Street_Map: el orden de la plantilla es z/y/x, al
-    // revés que OSM/CARTO.
-    //
-    // Su zoom nativo máximo real es 16 (comprobado descargando teselas: z17+ devuelve un
-    // placeholder "Map data not yet available" en vez de mapa). Primer intento: `maxNativeZoom:
-    // 16` (Leaflet reescala la tesela de z16 en vez de pedir una inexistente) — DESCARTADO
-    // (2026-09-24, bug real reportado en producción con captura): el reescalado x2/x3 de una
-    // tesela con texto pequeño (nombres de calle) la deja ilegible, no solo "algo borrosa" como
-    // se esperaba. Fix real: una TERCERA capa de refuerzo con el estilo anterior
-    // (`World_Street_Map`, que SÍ tiene detalle nítido real hasta z19 — comprobado igual,
-    // descargando una tesela z19 real) activa SOLO para zoom 17-19 (`minZoom`/`maxZoom` por
-    // capa — Leaflet no pide tiles de una capa fuera de su rango, y compone el rango total del
-    // mapa a partir de la unión de las 3). Efecto: estilo moderno en el uso normal (0-16), y
-    // al hacer zoom muy de cerca (verificar una dirección, afinar un pin) el mapa cambia sin más
-    // aviso al estilo anterior pero nítido — un cambio de estilo visible en el punto de corte,
-    // aceptado a propósito: legibilidad por encima de la consistencia visual en ese rango.
-    function addBasemapLayers(map) {
-        const attribution = 'Tiles &copy; Esri';
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution }).addTo(map);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution }).addTo(map);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { minZoom: 17, maxZoom: 19, attribution }).addTo(map);
-    }
-
     /*
     | "Ver recorrido" (Bloque 13): mapa Leaflet con las paradas de una ruta y su trazado.
     | El componente Livewire (Board / Chofer\Today) emite el evento `open-route-map` con
@@ -549,7 +522,17 @@ document.addEventListener('alpine:init', () => {
                 // nos bloqueó con OpenStreetMap y CARTO.
                 this.map = L.map(this.$refs.map, { scrollWheelZoom: true });
                 this.map.attributionControl.setPrefix(false);
-                addBasemapLayers(this.map);
+                // Esri World Street Map, NI tile.openstreetmap.org NI CARTO: ambos empezaron a
+                // bloquear/marcar de agua los mosaicos sin API key (ver el comentario largo en
+                // CLAUDE.md, sección "Ver recorrido" → Gotchas Leaflet). Los tiles REST públicos de
+                // ArcGIS Online sí siguen sirviendo sin key para este volumen de uso — comprobado con
+                // una descarga real de un tile sobre Alicante antes de fijar esta URL. OJO: el orden
+                // de la plantilla de Esri es z/y/x (al revés que OSM/CARTO/la mayoría), por eso el
+                // template lleva {y} antes que {x}.
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 19,
+                    attribution: 'Tiles &copy; Esri',
+                }).addTo(this.map);
                 this.layer = L.layerGroup().addTo(this.map);
             }
 
@@ -796,7 +779,17 @@ document.addEventListener('alpine:init', () => {
                 // nos bloqueó con OpenStreetMap y CARTO.
                 this.map = L.map(this.$refs.map, { scrollWheelZoom: true });
                 this.map.attributionControl.setPrefix(false);
-                addBasemapLayers(this.map);
+                // Esri World Street Map, NI tile.openstreetmap.org NI CARTO: ambos empezaron a
+                // bloquear/marcar de agua los mosaicos sin API key (ver el comentario largo en
+                // CLAUDE.md, sección "Ver recorrido" → Gotchas Leaflet). Los tiles REST públicos de
+                // ArcGIS Online sí siguen sirviendo sin key para este volumen de uso — comprobado con
+                // una descarga real de un tile sobre Alicante antes de fijar esta URL. OJO: el orden
+                // de la plantilla de Esri es z/y/x (al revés que OSM/CARTO/la mayoría), por eso el
+                // template lleva {y} antes que {x}.
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 19,
+                    attribution: 'Tiles &copy; Esri',
+                }).addTo(this.map);
                 this.layer = L.layerGroup().addTo(this.map);
             }
 
@@ -926,7 +919,10 @@ document.addEventListener('alpine:init', () => {
             this.map.attributionControl.setPrefix(false);
             // Mismos tiles REST de ArcGIS que routeMap/deviceMap — ver el comentario largo de
             // ese componente (o CLAUDE.md, "Ver recorrido") sobre por qué no OSM ni CARTO.
-            addBasemapLayers(this.map);
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                attribution: 'Tiles &copy; Esri',
+            }).addTo(this.map);
 
             this.circle = L.circle([this.lat, this.lng], {
                 radius: this.radius,
@@ -1138,7 +1134,10 @@ document.addEventListener('alpine:init', () => {
             if (! this.map) {
                 this.map = L.map(this.$refs.map, { scrollWheelZoom: true });
                 this.map.attributionControl.setPrefix(false);
-                addBasemapLayers(this.map);
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 19,
+                    attribution: 'Tiles &copy; Esri',
+                }).addTo(this.map);
                 this.layer = L.layerGroup().addTo(this.map);
             }
 
@@ -1203,7 +1202,10 @@ document.addEventListener('alpine:init', () => {
             this.$nextTick(() => {
                 const map = L.map(this.$refs.map, { scrollWheelZoom: false });
                 map.attributionControl.setPrefix(false);
-                addBasemapLayers(map);
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 19,
+                    attribution: 'Tiles &copy; Esri',
+                }).addTo(map);
 
                 L.marker([lat, lng], {
                     icon: L.divIcon({
