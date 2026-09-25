@@ -480,6 +480,15 @@ Backed enums con `->label()` en español; casteados en los modelos.
   `RouteGeometry::payloadFor()` + `<x-route-map-modal>` (misma infra que el tablero) para el mapa de
   ese día si hay GPS/paradas con coordenadas. Autorización = `RoutePolicy::view` (la misma de la ficha
   permanente); `RouteDayPolicy` gobierna el día individual dentro (`viewDay`/`showDayMap`).
+  - **"Ver detalle" ampliado (2026-09-25)**: además de la lista de paradas, el modal muestra ahora
+    (1) el estado del contador de la jornada justo bajo la fecha — mismo texto/formato que la
+    cabecera de columna del tablero ("Contador: inicio L · esperado L" en curso, "inicio → fin L"
+    cerrada) más el aviso ámbar de `liter_discrepancy_note` si lo hubo; y (2) los datos de cada
+    reparto por parada: litros entregados, aviso "No pasa por el contador" si aplica
+    (`counted_in_meter`), y los campos flexibles del tipo de reparto (`deliveryType->fields()`
+    contra `stop->data`, p. ej. "Tipo de depósito: Aljibe") para las completadas; el motivo para
+    las falladas/canceladas (`failure_reason`). No hizo falta tocar `History.php` — `viewingDay()`
+    ya cargaba `stops.deliveryType` de antes, todo el cambio fue de plantilla.
 - **Cambiar el estado del día a mano (2026-09-10)**: el badge de estado del `RouteDay` es un botón
   (para quien tiene `routes.update`) tanto en la cabecera de columna del tablero como en la fila del
   Historial → abre `<x-routes.status-picker-modal>` (compartido) con los 5 `RouteStatus`. `Board::

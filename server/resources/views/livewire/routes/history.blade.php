@@ -121,6 +121,29 @@
                     {{ __('Día :date', ['date' => $this->viewingDay->route_date->format('d/m/Y')]) }}
                 </h3>
 
+                @if ($this->viewingDay->liter_meter_start !== null)
+                    <p class="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                        @if ($this->viewingDay->liter_meter_end !== null)
+                            {{ __('Contador: :inicio → :fin L', [
+                                'inicio' => number_format($this->viewingDay->liter_meter_start, 0, ',', '.'),
+                                'fin' => number_format($this->viewingDay->liter_meter_end, 0, ',', '.'),
+                            ]) }}
+                        @else
+                            {{ __('Contador: :inicio L · esperado :esperado L', [
+                                'inicio' => number_format($this->viewingDay->liter_meter_start, 0, ',', '.'),
+                                'esperado' => number_format($this->viewingDay->literMeterExpected(), 0, ',', '.'),
+                            ]) }}
+                        @endif
+                    </p>
+                    @if ($this->viewingDay->liter_discrepancy_note)
+                        <p class="mt-1 flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400">
+                            <svg class="mt-px h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" /></svg>
+                            <span>{{ __('Ajuste de contador:') }} {{ $this->viewingDay->liter_discrepancy_note }}</span>
+                        </p>
+                    @endif
+                @endif
+
                 <ul class="mt-4 max-h-[55vh] divide-y divide-slate-100 overflow-y-auto themed-scrollbar dark:divide-slate-800">
                     @forelse ($this->viewingDay->stops as $stop)
                         @if ($leg = ($this->transitLegs[$stop->id] ?? null))
@@ -135,18 +158,44 @@
                                 @endif
                             </li>
                         @endif
-                        <li class="flex items-center justify-between gap-3 py-2.5">
-                            <div class="min-w-0">
-                                <p class="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{{ $stop->customer_name }}</p>
-                                <p class="truncate text-xs text-slate-500 dark:text-slate-400">{{ $stop->address }}</p>
-                                <x-stop-dwell :stop="$stop" variant="line" />
+                        <li class="flex flex-col gap-1 py-2.5">
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{{ $stop->customer_name }}</p>
+                                    <p class="truncate text-xs text-slate-500 dark:text-slate-400">{{ $stop->address }}</p>
+                                    <x-stop-dwell :stop="$stop" variant="line" />
+                                </div>
+                                <div class="flex shrink-0 items-center gap-2">
+                                    <x-ui.badge :variant="$stop->status->badgeVariant()">{{ $stop->status->label() }}</x-ui.badge>
+                                    @if ($stop->deliveryNote)
+                                        <x-ui.button href="{{ route('delivery-notes.pdf', $stop->deliveryNote) }}" variant="ghost" size="sm">{{ __('Albarán') }}</x-ui.button>
+                                    @endif
+                                </div>
                             </div>
-                            <div class="flex shrink-0 items-center gap-2">
-                                <x-ui.badge :variant="$stop->status->badgeVariant()">{{ $stop->status->label() }}</x-ui.badge>
-                                @if ($stop->deliveryNote)
-                                    <x-ui.button href="{{ route('delivery-notes.pdf', $stop->deliveryNote) }}" variant="ghost" size="sm">{{ __('Albarán') }}</x-ui.button>
-                                @endif
-                            </div>
+
+                            @if ($stop->status === \App\Enums\RouteStopStatus::Completed)
+                                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                                    @if ($stop->delivered_quantity !== null)
+                                        <span>{{ __(':n L entregados', ['n' => number_format($stop->delivered_quantity, 0, ',', '.')]) }}</span>
+                                    @endif
+                                    @unless ($stop->counted_in_meter)
+                                        <span class="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                                            <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM4 4l16 16" /></svg>
+                                            {{ __('No pasa por el contador') }}
+                                        </span>
+                                    @endunless
+                                    @if ($stop->deliveryType)
+                                        @foreach ($stop->deliveryType->fields() as $field)
+                                            @php $value = $stop->data[$field['key']] ?? null; @endphp
+                                            @if ($value !== null && $value !== '')
+                                                <span>{{ $field['label'] }}: {{ is_bool($value) ? ($value ? __('Sí') : __('No')) : $value }}</span>
+                                            @endif
+                                        @endforeach
+                                    @endif
+                                </div>
+                            @elseif (in_array($stop->status, [\App\Enums\RouteStopStatus::Failed, \App\Enums\RouteStopStatus::Skipped], true) && $stop->failure_reason)
+                                <p class="text-xs text-rose-600 dark:text-rose-400">{{ $stop->failure_reason }}</p>
+                            @endif
                         </li>
                     @empty
                         <li class="py-4 text-sm text-slate-500 dark:text-slate-400">{{ __('Sin paradas ese día.') }}</li>

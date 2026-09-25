@@ -49,6 +49,37 @@ test('ver detalle de un día muestra sus paradas', function () {
         ->assertSee('Bar Central');
 });
 
+test('ver detalle de un día muestra el estado del contador y los datos de cada reparto (2026-09-25)', function () {
+    $route = Route::factory()->create();
+    $day = makeRouteDay($route, '2026-09-10');
+    $day->update(['liter_meter_start' => 500000, 'liter_meter_end' => 501200, 'liter_discrepancy_note' => 'Se derramaron 200 L']);
+
+    $type = App\Models\DeliveryType::factory()->create([
+        'field_schema' => [
+            ['key' => 'deposito', 'label' => 'Tipo de depósito', 'type' => 'select', 'required' => false, 'options' => ['Aljibe', 'Cisterna']],
+        ],
+    ]);
+    RouteStop::factory()->for($day, 'route')->create([
+        'customer_name' => 'Bar Central', 'status' => RouteStopStatus::Completed,
+        'delivered_quantity' => 350, 'counted_in_meter' => false,
+        'delivery_type_id' => $type->id, 'data' => ['deposito' => 'Aljibe'],
+    ]);
+    RouteStop::factory()->for($day, 'route')->create([
+        'customer_name' => 'Panadería Sol', 'status' => RouteStopStatus::Failed, 'failure_reason' => 'Cliente ausente',
+    ]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(History::class, ['route' => $route])
+        ->call('viewDay', $day->id)
+        ->assertSee('500.000')
+        ->assertSee('501.200')
+        ->assertSee('Se derramaron 200 L')
+        ->assertSee('350 L entregados')
+        ->assertSee('No pasa por el contador')
+        ->assertSee('Tipo de depósito: Aljibe')
+        ->assertSee('Cliente ausente');
+});
+
 test('por defecto el historial muestra la fecha más reciente primero', function () {
     $route = Route::factory()->create();
     makeRouteDay($route, '2026-09-01');
