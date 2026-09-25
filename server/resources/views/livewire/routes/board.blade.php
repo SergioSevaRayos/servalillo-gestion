@@ -126,6 +126,22 @@
                             </button>
                         @endcan
                     </div>
+                    @if ($route->liter_meter_start !== null)
+                        <p class="mt-1 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                            <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                            @if ($route->liter_meter_end !== null)
+                                {{ __('Contador: :inicio → :fin L', [
+                                    'inicio' => number_format($route->liter_meter_start, 0, ',', '.'),
+                                    'fin' => number_format($route->liter_meter_end, 0, ',', '.'),
+                                ]) }}
+                            @else
+                                {{ __('Contador: :inicio L · esperado :esperado L', [
+                                    'inicio' => number_format($route->liter_meter_start, 0, ',', '.'),
+                                    'esperado' => number_format($route->literMeterExpected(), 0, ',', '.'),
+                                ]) }}
+                            @endif
+                        </p>
+                    @endif
                     @if ($route->liter_discrepancy_note)
                         <p class="mt-1 flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400" title="{{ $route->liter_discrepancy_note }}">
                             <svg class="mt-px h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" /></svg>

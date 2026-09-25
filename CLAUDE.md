@@ -787,6 +787,25 @@ Backed enums con `->label()` en español; casteados en los modelos.
   de cerrar; toast `warning` al finalizar con ajuste. Al terminar, `trucks.liter_meter` = lectura de
   fin. Helpers en `RouteDay`: `deliveredLiters()`, `literMeterExpected()`, `literDiscrepancy()`. El
   tablero Kanban del admin marca la columna con aviso ámbar si hay `liter_discrepancy_note`.
+  - **Entregas que no pasan por el contador (2026-09-25)**: `route_stops.counted_in_meter`
+    (boolean, `true` por defecto). No toda entrega sale de la cisterna que mide el contador del
+    camión (p. ej. un repostaje aparte) — al completar una parada, un botón-toggle junto a
+    "Litros entregados" ("Pasa por el contador" / "No pasa por el contador", por defecto
+    marcado) deja guardar esta excepción por parada (`StopActionForm`). **`deliveredLiters()`
+    sigue sumando TODAS las paradas completadas** (es el dato de "cuánto se ha repartido", que
+    no cambia — se sigue usando tal cual en `history.blade.php` y en el "Repartido" del chofer);
+    se añadió **`RouteDay::meteredLiters()`**, que solo suma las que tienen
+    `counted_in_meter = true`, y es la que ahora usan `literMeterExpected()`/`literDiscrepancy()`
+    y el cuadre de `Chofer\Today::endDay()`/`endMeterDiscrepancy()` — así una entrega marcada
+    aparte no genera un descuadre falso al cerrar la jornada. `FleetStatsService`/`Clients\Show`/
+    `DeliveryNoteService` siguen sumando `delivered_quantity` tal cual, sin este filtro, a
+    propósito: no son cálculos de cuadre de contador, son estadísticas/historial de reparto.
+  - **Estado del contador en el tablero del administrador (2026-09-25)**: la cabecera de cada
+    columna del Kanban (`routes/board.blade.php`) muestra ahora, si la jornada ya empezó
+    (`liter_meter_start` no nulo), una línea con el estado del contador — "Contador: :inicio L ·
+    esperado :esperado L" mientras está en curso, o "Contador: :inicio → :fin L" ya cerrada —
+    usando `literMeterExpected()` (por tanto ya excluye lo no contabilizado). El aviso ámbar de
+    `liter_discrepancy_note` (ya existente) se queda debajo, solo si hubo que ajustar al cerrar.
 - **`<x-ui.digit-wheel unit="…">`** = selector numérico tipo "ruleta" (una columna scroll-snap por
   dígito) para las lecturas del contador de litros. `wire:model` **diferido** (no `.live`): el valor
   sincroniza al enviar el form, así que el aviso de descuadre del modal de terminar jornada aparece

@@ -24,6 +24,9 @@ class StopActionForm extends Form
 
     public ?float $delivered_quantity = null;
 
+    /** Si esta entrega pasa por el contador de litros del camión (por defecto sí). */
+    public bool $counted_in_meter = true;
+
     /** Motivo obligatorio para failed / skipped. */
     public ?string $reason = null;
 
@@ -51,6 +54,7 @@ class StopActionForm extends Form
         $this->delivered_quantity = $stop->delivered_quantity !== null
             ? (float) $stop->delivered_quantity
             : ($stop->planned_quantity !== null ? (float) $stop->planned_quantity : null);
+        $this->counted_in_meter = $stop->counted_in_meter;
         $this->reason = $stop->failure_reason;
         $this->data = $stop->data ?: [];
 
@@ -66,6 +70,7 @@ class StopActionForm extends Form
         $rules = [
             'outcome' => ['required', 'in:completed,failed,skipped'],
             'delivered_quantity' => ['nullable', 'numeric', 'min:0', 'required_if:outcome,completed'],
+            'counted_in_meter' => ['boolean'],
             'reason' => ['nullable', 'string', 'max:500', 'required_if:outcome,failed', 'required_if:outcome,skipped'],
             'reschedule_on' => ['nullable', 'date', 'after:today'],
         ];
@@ -117,6 +122,7 @@ class StopActionForm extends Form
             $stop->update([
                 'status' => RouteStopStatus::Completed,
                 'delivered_quantity' => $validated['delivered_quantity'],
+                'counted_in_meter' => $validated['counted_in_meter'] ?? true,
                 'failure_reason' => null,
                 'completed_at' => now(),
                 'data' => $cleanData,
@@ -198,6 +204,7 @@ class StopActionForm extends Form
         $this->stop->update([
             'status' => RouteStopStatus::Pending,
             'delivered_quantity' => null,
+            'counted_in_meter' => true,
             'failure_reason' => null,
             'completed_at' => null,
         ]);

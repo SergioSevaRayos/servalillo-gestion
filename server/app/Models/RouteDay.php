@@ -93,7 +93,9 @@ class RouteDay extends Model implements Auditable
         return true;
     }
 
-    /** Litros ya repartidos a clientes en esta ruta (paradas completadas). */
+    /** Litros ya repartidos a clientes en esta ruta (paradas completadas) — TODOS, pasen o no
+     *  por el contador del camión. Es un dato de reparto, no de cuadre; para el cuadre del
+     *  contador usa `meteredLiters()`. */
     public function deliveredLiters(): float
     {
         return (float) $this->stops
@@ -101,23 +103,37 @@ class RouteDay extends Model implements Auditable
             ->sum('delivered_quantity');
     }
 
-    /** Por dónde debería ir el contador ahora mismo = lectura de inicio + litros repartidos. */
+    /**
+     * Litros repartidos que SÍ pasan por el contador del camión — excluye las paradas donde
+     * el chofer marcó "No pasa por el contador" (`route_stops.counted_in_meter`, p. ej. un
+     * repostaje que no sale de la cisterna que mide el contador). Es lo que hay que sumar al
+     * cuadre del contador, nunca `deliveredLiters()` a secas.
+     */
+    public function meteredLiters(): float
+    {
+        return (float) $this->stops
+            ->where('status', RouteStopStatus::Completed)
+            ->where('counted_in_meter', true)
+            ->sum('delivered_quantity');
+    }
+
+    /** Por dónde debería ir el contador ahora mismo = lectura de inicio + litros contabilizados. */
     public function literMeterExpected(): ?float
     {
         return $this->liter_meter_start === null
             ? null
-            : $this->liter_meter_start + $this->deliveredLiters();
+            : $this->liter_meter_start + $this->meteredLiters();
     }
 
     /**
-     * (fin − inicio) − repartido. >0 = el contador marca más de lo repartido
+     * (fin − inicio) − contabilizado. >0 = el contador marca más de lo contabilizado
      * (mermas/derrames); <0 = marca menos (raro). null si faltan datos.
      */
     public function literDiscrepancy(): ?float
     {
         return ($this->liter_meter_start === null || $this->liter_meter_end === null)
             ? null
-            : ($this->liter_meter_end - $this->liter_meter_start) - $this->deliveredLiters();
+            : ($this->liter_meter_end - $this->liter_meter_start) - $this->meteredLiters();
     }
 
     public function route(): BelongsTo

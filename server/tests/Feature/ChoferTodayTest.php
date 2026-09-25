@@ -295,6 +295,23 @@ it('completa una parada con cantidad y datos del tipo de reparto', function () {
     Queue::assertPushed(ProcessDeliveryNote::class);
 });
 
+it('completar una parada marcando "no pasa por el contador" se guarda así (2026-09-25)', function () {
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 1);
+    $stop = $route->stops()->first();
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->assertSet('form.counted_in_meter', true) // por defecto sí pasa por contador
+        ->set('form.outcome', 'completed')
+        ->set('form.delivered_quantity', 200)
+        ->set('form.counted_in_meter', false)
+        ->set('form.channel', 'physical')
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    expect($stop->fresh()->counted_in_meter)->toBeFalse();
+});
+
 it('la entrega en mano no pide firma en el teléfono', function () {
     [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()]);
     $stop = $route->stops()->first();
@@ -492,6 +509,29 @@ it('si el contador de litros no cuadra con lo repartido, exige un motivo del aju
         ->and($route->liter_meter_end)->toBe(501004)
         ->and($route->liter_discrepancy_note)->toContain('manguera')
         ->and($truck->fresh()->liter_meter)->toBe(501004);
+});
+
+it('una entrega marcada "no pasa por el contador" no cuenta para el cuadre (2026-09-25)', function () {
+    [$user, $driver, $route, $truck] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 0);
+    // 1000 L normales (sí pasan por contador) + 300 L que no pasan (p. ej. de otra cisterna).
+    RouteStop::factory()->for($route, 'route')->create([
+        'status' => RouteStopStatus::Completed, 'delivered_quantity' => 1000, 'counted_in_meter' => true, 'completed_at' => now(),
+    ]);
+    RouteStop::factory()->for($route, 'route')->create([
+        'status' => RouteStopStatus::Completed, 'delivered_quantity' => 300, 'counted_in_meter' => false, 'completed_at' => now(),
+    ]);
+
+    // El contador solo debería haber avanzado 1000 L, no 1300 — el prellenado de "fin" ya lo confirma.
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openEndDay')
+        ->assertSet('meterEnd', 501000)
+        ->call('endDay')
+        ->assertHasNoErrors();
+
+    expect($route->fresh()->liter_discrepancy_note)->toBeNull()
+        ->and($route->fresh()->deliveredLiters())->toBe(1300.0) // sigue contando el reparto total
+        ->and($route->fresh()->meteredLiters())->toBe(1000.0)
+        ->and($truck->fresh()->liter_meter)->toBe(501000);
 });
 
 it('rechaza una lectura de fin menor que la de inicio', function () {

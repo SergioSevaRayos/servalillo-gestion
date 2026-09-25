@@ -542,6 +542,29 @@
                         <x-ui.input name="form.delivered_quantity" type="number" step="any" inputmode="decimal"
                             label="{{ __('Litros entregados') }}" wire:model="form.delivered_quantity" />
 
+                        {{-- Algunas entregas no salen de la cisterna que mide el contador del camión
+                             (p. ej. un repostaje aparte) — si se marca "No pasa por el contador", estos
+                             litros no se descuentan al cuadrar la jornada (Today::endDay()). --}}
+                        <div>
+                            <x-input-label :value="__('Contador de litros')" />
+                            <button type="button"
+                                wire:click="$set('form.counted_in_meter', {{ $this->form->counted_in_meter ? 'false' : 'true' }})"
+                                class="mt-1 flex w-full items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-colors {{ $this->form->counted_in_meter
+                                    ? 'border-primary-300 bg-primary-50 text-primary-700 dark:border-primary-500/40 dark:bg-primary-500/10 dark:text-primary-300'
+                                    : 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300' }}">
+                                @if ($this->form->counted_in_meter)
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                                    {{ __('Pasa por el contador') }}
+                                @else
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM4 4l16 16" /></svg>
+                                    {{ __('No pasa por el contador') }}
+                                @endif
+                            </button>
+                            @unless ($this->form->counted_in_meter)
+                                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ __('Estos litros no se descontarán del contador del camión al cuadrar la jornada.') }}</p>
+                            @endunless
+                        </div>
+
                         @if ($s->deliveryType)
                             @foreach ($s->deliveryType->fields() as $field)
                                 <div>

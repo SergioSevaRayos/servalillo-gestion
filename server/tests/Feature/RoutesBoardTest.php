@@ -55,6 +55,22 @@ test('la tarjeta de una parada pendiente sigue mostrando los litros previstos', 
         ->assertSee('220');
 });
 
+test('la cabecera de columna muestra el estado del contador, excluyendo lo que no pasa por él (2026-09-25)', function () {
+    $route = makeRoute('2026-09-10');
+    $route->update(['liter_meter_start' => 500000]);
+    RouteStop::factory()->for($route, 'route')->create([
+        'status' => RouteStopStatus::Completed, 'delivered_quantity' => 1000, 'counted_in_meter' => true,
+    ]);
+    RouteStop::factory()->for($route, 'route')->create([
+        'status' => RouteStopStatus::Completed, 'delivered_quantity' => 300, 'counted_in_meter' => false,
+    ]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Board::class)->set('date', '2026-09-10')
+        // esperado = 500000 + 1000 (los 300 sin contador no cuentan)
+        ->assertSee('501.000');
+});
+
 test('la tarjeta de una parada reprogramada a este día muestra el indicador "Reprogramada" (2026-09-16)', function () {
     $route = makeRoute('2026-09-10');
     $chofer = makeUser('chofer');

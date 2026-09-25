@@ -587,7 +587,7 @@ class Today extends Component
 
         return ($route?->liter_meter_start === null || $this->meterEnd === null)
             ? null
-            : ($this->meterEnd - $route->liter_meter_start) - $route->deliveredLiters();
+            : ($this->meterEnd - $route->liter_meter_start) - $route->meteredLiters();
     }
 
     public function endDay(): void
@@ -599,7 +599,7 @@ class Today extends Component
 
         $meter = $this->validateMeter('meterEnd', min: $this->route->liter_meter_start, minMessage: 'La lectura de fin no puede ser menor que la de inicio (:min).');
 
-        $discrepancy = ($meter - ($this->route->liter_meter_start ?? $meter)) - $this->route->deliveredLiters();
+        $discrepancy = ($meter - ($this->route->liter_meter_start ?? $meter)) - $this->route->meteredLiters();
         $tolerance = (int) config('servalillo.liter_meter_tolerance', 0);
         $adjusted = abs($discrepancy) > $tolerance;
 
