@@ -450,8 +450,25 @@ Backed enums con `->label()` en español; casteados en los modelos.
   editado a mano** para esa ruta y esa fecha). Solo cambió el objetivo: antes creaba `Route` a partir de
   `TruckAssignment`, ahora crea `RouteDay` a partir de `Route`. Mismo comando `rutas:generar-rutas
   {fecha?}` (scheduler diario 05:25) + disparo desde `Routes\Board` al cambiar de fecha. Días generados:
-  `status = Published`, `service_kind` = el de la ruta permanente. Si se borra/edita la `Route` después,
-  los `RouteDay` ya generados no se tocan.
+  `status = Published`, `service_kind` = el de la ruta permanente. Si se borra la `Route` después, los
+  `RouteDay` ya generados no se tocan.
+  - **Bug real de producción corregido (2026-09-25): cambiar el chofer/camión de la ruta permanente
+    desde `/rutas/listado` no se reflejaba en el tablero (`/rutas`) ni en "Mi ruta" del chofer
+    nuevo.** Como `firstOrCreate()` solo copia `driver_id`/`truck_id` de la `Route` a cada `RouteDay`
+    **una vez, al crearlo**, editar la `Route` después nunca tocaba los `RouteDay` ya generados —
+    el chofer nuevo ni siquiera veía la ruta en su propia web (`Chofer\Today` filtra por
+    `route_days.driver_id`) hasta el día siguiente (cuando `RecurringRouteService` genera un
+    `RouteDay` nuevo con los datos ya correctos), y mientras tanto el chofer viejo seguía viendo y
+    pudiendo operar una ruta que ya no era suya. Reportado por el usuario, que lo diagnosticó
+    correctamente él mismo. **Fix**: `RouteForm::save()` detecta con `wasChanged(['driver_id',
+    'truck_id'])` si de verdad cambió alguno de los dos tras el `update()`, y si es así llama a
+    **`RecurringRouteService::syncUpcomingRouteDays(Route, $previousDriverId)`** (nueva) — propaga
+    el chofer/camión actuales de la ruta a sus `RouteDay` de **hoy y futuros que no estén ya
+    `Completed`/`Cancelled`** (el historial cerrado no se toca, mismo criterio que "eliminar una
+    ruta permanente no toca el historial"). Si cambió el chofer, además reasigna su `Device` (GPS)
+    al nuevo — mismo patrón (y misma guarda de "no le robes el dispositivo a quien ya tiene el
+    suyo") que la reasignación manual de un día suelto que ya existía en `Routes\History::
+    reassignDriver()`.
 - `App\Support\RouteCode::build()` — fórmula del código (`{R|V}-{Ymd}-{camión}`), ahora usada **solo**
   por `RecurringRouteService` (y `ensureForDate()`, red de seguridad) para el `code` de cada `RouteDay`
   — la `Route` permanente no tiene código.

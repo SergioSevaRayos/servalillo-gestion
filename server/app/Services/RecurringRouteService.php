@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\RouteStatus;
+use App\Models\Device;
 use App\Models\Route;
 use App\Models\RouteDay;
 use App\Support\RouteCode;
@@ -11,8 +12,9 @@ use Illuminate\Support\Carbon;
 /**
  * Genera automáticamente el `RouteDay` de cada `Route` vigente para un día. Es idempotente:
  * si ya existe un `RouteDay` para esa ruta ese día (generado antes o creado a mano) no se
- * toca — la edición manual siempre gana. Si una `Route` se borra o se edita después, los
- * `RouteDay` que ya generó no se tocan ni se borran.
+ * toca — la edición manual siempre gana. Si una `Route` se borra, los `RouteDay` que ya
+ * generó no se tocan ni se borran. Si se le cambia el chofer/camión, sí hay que propagarlo a
+ * los días futuros/de hoy todavía no cerrados — ver `syncUpcomingRouteDays()`.
  */
 class RecurringRouteService
 {
@@ -112,5 +114,41 @@ class RecurringRouteService
         $routeDay->reopenIfCompleted();
 
         return $routeDay;
+    }
+
+    /**
+     * Tras cambiar el chofer y/o camión de la ruta permanente (`RouteForm::save()`), propaga
+     * el cambio a sus `RouteDay` ya generados que todavía no han pasado. Sin esto, el chofer
+     * nuevo no vería la ruta en su propia "Mi ruta" (`Chofer\Today` filtra por
+     * `route_days.driver_id`), el tablero seguiría mostrando el chofer/camión viejo, y el GPS
+     * del chofer nuevo no se atribuiría a estos días (`GpsIngestService` empareja por
+     * `driver_id`) — `firstOrCreate()` solo copia estos datos una vez, al generar el día.
+     * Los días ya cerrados (`Completed`/`Cancelled`) son historial y no se tocan.
+     *
+     * @return int RouteDay actualizados
+     */
+    public function syncUpcomingRouteDays(Route $route, ?int $previousDriverId): int
+    {
+        $days = RouteDay::where('route_id', $route->id)
+            ->where('route_date', '>=', today())
+            ->whereNotIn('status', [RouteStatus::Completed, RouteStatus::Cancelled])
+            ->get();
+
+        foreach ($days as $day) {
+            $day->update(['driver_id' => $route->driver_id, 'truck_id' => $route->truck_id]);
+        }
+
+        // El dispositivo GPS sigue al chofer, igual que en la reasignación manual de un día
+        // suelto (Routes\History::reassignDriver()) — nunca le quita el suyo a un chofer que
+        // ya tenga uno propio.
+        if ($previousDriverId !== null && $previousDriverId !== $route->driver_id) {
+            $device = Device::where('driver_id', $previousDriverId)->first();
+
+            if ($device !== null && ! Device::where('driver_id', $route->driver_id)->exists()) {
+                $device->update(['driver_id' => $route->driver_id]);
+            }
+        }
+
+        return $days->count();
     }
 }

@@ -4,6 +4,7 @@ namespace App\Livewire\Forms;
 
 use App\Enums\ServiceKind;
 use App\Models\Route;
+use App\Services\RecurringRouteService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Form;
@@ -74,8 +75,16 @@ class RouteForm extends Form
         $validated = $this->validate();
 
         if ($this->editing) {
+            $previousDriverId = $this->editing->getOriginal('driver_id');
             $this->editing->update($validated);
             $route = $this->editing;
+
+            // El chofer/camión de un RouteDay ya generado es una foto fija (RecurringRouteService
+            // solo los copia una vez, al crearlo) — sin esto, cambiar aquí el chofer no se veía
+            // reflejado ni en el tablero ni en "Mi ruta" del chofer nuevo hasta el día siguiente.
+            if ($route->wasChanged(['driver_id', 'truck_id'])) {
+                app(RecurringRouteService::class)->syncUpcomingRouteDays($route, $previousDriverId);
+            }
         } else {
             $route = Route::create([
                 ...$validated,

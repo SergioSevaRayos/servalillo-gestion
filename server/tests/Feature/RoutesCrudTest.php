@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Livewire\Routes\Index;
+use App\Models\Device;
 use App\Models\Driver;
 use App\Models\Route;
 use App\Models\RouteStop;
@@ -58,6 +60,103 @@ test('editar el chofer de una ruta la actualiza', function () {
         ->assertHasNoErrors();
 
     expect($route->fresh()->driver_id)->toBe($otroChofer->id);
+});
+
+test('editar el chofer/camión de una ruta propaga el cambio a los RouteDay de hoy y futuros (2026-09-25)', function () {
+    $route = Route::factory()->create(['valid_from' => today()->subMonth(), 'valid_until' => null]);
+    $hoy = makeRouteDay($route, today()->toDateString());
+    $futuro = makeRouteDay($route, today()->addDays(3)->toDateString());
+
+    $otroChofer = Driver::factory()->for(User::factory(), 'user')->create();
+    $otroCamion = Truck::factory()->create();
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('edit', $route)
+        ->set('form.driver_id', $otroChofer->id)
+        ->set('form.truck_id', $otroCamion->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($hoy->fresh()->driver_id)->toBe($otroChofer->id)
+        ->and($hoy->fresh()->truck_id)->toBe($otroCamion->id)
+        ->and($futuro->fresh()->driver_id)->toBe($otroChofer->id)
+        ->and($futuro->fresh()->truck_id)->toBe($otroCamion->id);
+});
+
+test('editar el chofer de una ruta no toca un RouteDay ya completado ni el historial pasado', function () {
+    $route = Route::factory()->create(['valid_from' => today()->subMonth(), 'valid_until' => null]);
+    $driverOriginal = $route->driver_id;
+    $completadoHoy = makeRouteDay($route, today()->toDateString());
+    $completadoHoy->update(['status' => RouteStatus::Completed]);
+    $pasado = makeRouteDay($route, today()->subDays(5)->toDateString());
+
+    $otroChofer = Driver::factory()->for(User::factory(), 'user')->create();
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('edit', $route)
+        ->set('form.driver_id', $otroChofer->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($completadoHoy->fresh()->driver_id)->toBe($driverOriginal)
+        ->and($pasado->fresh()->driver_id)->toBe($driverOriginal);
+});
+
+test('editar el chofer de una ruta reasigna también su dispositivo GPS si el nuevo chofer no tiene uno', function () {
+    $route = Route::factory()->create(['valid_from' => today()->subMonth(), 'valid_until' => null]);
+    $driverOriginal = $route->driver_id;
+    $device = Device::factory()->create(['driver_id' => $driverOriginal]);
+    makeRouteDay($route, today()->toDateString());
+
+    $otroChofer = Driver::factory()->for(User::factory(), 'user')->create();
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('edit', $route)
+        ->set('form.driver_id', $otroChofer->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($device->fresh()->driver_id)->toBe($otroChofer->id);
+});
+
+test('editar el chofer de una ruta no le roba el dispositivo a un chofer que ya tiene el suyo', function () {
+    $route = Route::factory()->create(['valid_from' => today()->subMonth(), 'valid_until' => null]);
+    $driverOriginal = $route->driver_id;
+    $deviceOriginal = Device::factory()->create(['driver_id' => $driverOriginal]);
+    makeRouteDay($route, today()->toDateString());
+
+    $otroChofer = Driver::factory()->for(User::factory(), 'user')->create();
+    $deviceDelOtro = Device::factory()->create(['driver_id' => $otroChofer->id]);
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('edit', $route)
+        ->set('form.driver_id', $otroChofer->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($deviceOriginal->fresh()->driver_id)->toBe($driverOriginal)
+        ->and($deviceDelOtro->fresh()->driver_id)->toBe($otroChofer->id);
+});
+
+test('editar una ruta sin cambiar chofer/camión no toca los RouteDay ni el dispositivo', function () {
+    $route = Route::factory()->create(['valid_from' => today()->subMonth(), 'valid_until' => null]);
+    $driverOriginal = $route->driver_id;
+    $day = makeRouteDay($route, today()->toDateString());
+    $updatedAt = $day->updated_at;
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Index::class)
+        ->call('edit', $route)
+        ->set('form.notes', 'Nota nueva')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($day->fresh()->driver_id)->toBe($driverOriginal)
+        ->and($day->fresh()->updated_at->eq($updatedAt))->toBeTrue();
 });
 
 test('eliminar una ruta permanente no toca el historial de días ya generados', function () {
