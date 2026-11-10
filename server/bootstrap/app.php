@@ -49,6 +49,13 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
 
+        // Las llamadas Livewire fabricadas a mano (sondeos) son un error del cliente, no un 500.
+        $exceptions->render(function (Throwable $e) {
+            return ErrorLogger::isForgedLivewireCall($e)
+                ? response('Petición no válida.', 400)
+                : null;
+        });
+
         // Persistir excepciones en la tabla error_logs para el panel de Mantenimiento.
         $exceptions->report(function (Throwable $e) {
             ErrorLogger::record($e);
