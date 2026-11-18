@@ -1720,9 +1720,10 @@ Backed enums con `->label()` en español; casteados en los modelos.
   (`100.97.218.44:8090`), así que el VPS de producción tiene que estar unido al mismo tailnet
   (decisión explícita del usuario — más seguro que depender de HTTP sin cifrar por internet
   público). `servalillo.sgra.public_url` es un config **aparte**, solo para el botón "Ver panel
-  completo" que abre el propio navegador del administrador (no lo usa el backend) — sigue siendo
-  la URL pública DuckDNS, porque el navegador del administrador no tiene por qué estar en el
-  tailnet. **Requisito pendiente antes de activar en producción**: cambiar `DASH_PASSWORD` en el
+  completo" que abre el propio navegador del administrador (no lo usa el backend) — es
+  `https://sgra.geosafety.es`, servido por este mismo VPS como proxy hacia el NAS (el router de
+  casa ya no abre puertos, ver docs/04-despliegue-vps.md "Proxy SGRA"), porque el navegador del
+  administrador no tiene por qué estar en el tailnet. **Requisito pendiente antes de activar en producción**: cambiar `DASH_PASSWORD` en el
   `.env` de SGRA (documentado ahí mismo como placeholder `admin` sin rotar) antes de meter esa
   contraseña real en el `.env` de Gestión Servalillo.
 - `config('servalillo.sgra.enabled')` en `false` por defecto — local/tests nunca tocan red real
