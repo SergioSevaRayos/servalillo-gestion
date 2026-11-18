@@ -14,6 +14,7 @@ use App\Livewire\Dashboard\Index as DashboardIndex;
 use App\Livewire\DeliveryNotes\Index as DeliveryNotesIndex;
 use App\Livewire\Drivers\Diary as DriversDiary;
 use App\Livewire\Drivers\Index as DriversIndex;
+use App\Livewire\Fleet\Map as FleetMap;
 use App\Livewire\Invoices\Index as InvoicesIndex;
 use App\Livewire\Maintenance\Audits as MaintenanceAudits;
 use App\Livewire\Maintenance\Devices as MaintenanceDevices;
@@ -102,6 +103,9 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
     Route::get('rutas/{route}/historial', RoutesHistory::class)->name('routes.history');
 
     Route::get('albaranes', DeliveryNotesIndex::class)->middleware('permission:delivery_notes.view')->name('delivery-notes.index');
+
+    // Dónde está la flota ahora mismo (última posición GPS de cada dispositivo).
+    Route::get('mapa', FleetMap::class)->middleware('permission:devices.manage')->name('fleet.map');
 
     // Facturas que piden los clientes al recibir una entrega: trabajo de administración.
     Route::get('facturas', InvoicesIndex::class)->middleware('permission:invoices.manage')->name('invoices.index');

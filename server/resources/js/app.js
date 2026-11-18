@@ -851,6 +851,113 @@ document.addEventListener('alpine:init', () => {
     }));
 
     /*
+    | Mapa de la flota (/mapa): una chincheta por camión con su última posición. Mismo tile
+    | ArcGIS que deviceMap/routeMap (orden z/y/x). El <div> va en `wire:ignore`; el poll de
+    | Livewire dispara `fleet-map-updated` y aquí solo se MUEVEN los marcadores (no se recrea
+    | el mapa, así el zoom/posición del usuario se respetan). Los objetos de Leaflet viven en el
+    | closure, no en `this`, para que Alpine no los envuelva en un Proxy reactivo.
+    */
+    Alpine.data('fleetMap', (initial) => {
+        let map = null;
+        let layer = null;
+        let markers = {};
+        let fleet = initial || [];
+        const COLORS = { fresh: '#0d9488', stale: '#d97706', none: '#94a3b8' };
+
+        const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+        const pin = (d) => L.divIcon({
+            className: '',
+            html: `<span class="route-map-pin" style="background:${COLORS[d.state] || COLORS.none}">🚚</span>`,
+            iconSize: [26, 26],
+            iconAnchor: [13, 13],
+        });
+
+        const label = (d) => {
+            const bits = [`<strong>${esc(d.driver)}</strong>`];
+            if (d.truck) bits.push(esc(d.truck));
+            bits.push(d.minutes_ago === null ? 'sin datos' : (d.minutes_ago < 1 ? 'ahora mismo' : `hace ${d.minutes_ago} min`));
+            if (typeof d.speed_kmh === 'number') bits.push(`${d.speed_kmh} km/h`);
+            return bits.join(' · ');
+        };
+
+        const draw = () => {
+            const seen = new Set();
+            fleet.forEach((d) => {
+                if (d.lat === null || d.lng === null) return;
+                seen.add(d.id);
+                const pos = [d.lat, d.lng];
+                if (markers[d.id]) {
+                    markers[d.id].setLatLng(pos).setIcon(pin(d)).setPopupContent(label(d));
+                } else {
+                    markers[d.id] = L.marker(pos, { icon: pin(d) }).bindPopup(label(d)).addTo(layer);
+                }
+            });
+            Object.keys(markers).forEach((id) => {
+                if (! seen.has(Number(id))) {
+                    layer.removeLayer(markers[id]);
+                    delete markers[id];
+                }
+            });
+        };
+
+        return {
+            init() {
+                // El contenedor puede tardar un frame en tener tamaño (wire:navigate).
+                const start = (tries = 60) => {
+                    const el = this.$refs.map;
+                    if (! el || el.clientWidth === 0) {
+                        if (tries > 0) requestAnimationFrame(() => start(tries - 1));
+                        return;
+                    }
+                    map = L.map(el, { scrollWheelZoom: true });
+                    map.attributionControl.setPrefix(false);
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                        maxZoom: 19,
+                        attribution: 'Tiles &copy; Esri',
+                    }).addTo(map);
+                    layer = L.layerGroup().addTo(map);
+                    draw();
+                    this.fit();
+                };
+                start();
+            },
+
+            update(next) {
+                fleet = next || [];
+                if (map) draw();
+            },
+
+            // Encuadra todos los camiones con posición (o, si no hay ninguno, un punto por defecto).
+            fit() {
+                if (! map) return;
+                const pts = fleet.filter((d) => d.lat !== null).map((d) => [d.lat, d.lng]);
+                map.invalidateSize();
+                if (pts.length === 0) {
+                    map.setView([36.8769, -2.4431], 9);
+                } else if (pts.length === 1) {
+                    map.setView(pts[0], 14);
+                } else {
+                    map.fitBounds(pts, { padding: [40, 40], maxZoom: 15 });
+                }
+            },
+
+            focus(id) {
+                const m = markers[id];
+                if (! map || ! m) return;
+                map.setView(m.getLatLng(), Math.max(map.getZoom(), 15));
+                m.openPopup();
+            },
+
+            destroy() {
+                map?.remove();
+                map = null;
+                markers = {};
+            },
+        };
+    });
+
+    /*
     | Geovalla de fichaje (Bloque 18): mapa Leaflet interactivo embebido en el formulario de
     | usuario/chofer (livewire/users|drivers/index.blade.php, <x-ui.geofence-map>) para fijar
     | dónde puede fichar una persona sin escribir coordenadas a mano. Dos chinchetas

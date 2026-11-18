@@ -65,6 +65,11 @@ new class extends Component
                                 {{ __('Albaranes') }}
                             </x-nav-link>
                         @endcan
+                        @can('devices.manage')
+                            <x-nav-link :href="route('fleet.map')" :active="request()->routeIs('fleet.map')" wire:navigate>
+                                {{ __('Mapa') }}
+                            </x-nav-link>
+                        @endcan
                         @can('invoices.manage')
                             <x-nav-link :href="route('invoices.index')" :active="request()->routeIs('invoices.*')" wire:navigate>
                                 {{ __('Facturas') }}
@@ -200,6 +205,11 @@ new class extends Component
                 @can('viewAny', \App\Models\DeliveryNote::class)
                     <x-responsive-nav-link :href="route('delivery-notes.index')" :active="request()->routeIs('delivery-notes.*')" wire:navigate>
                         {{ __('Albaranes') }}
+                    </x-responsive-nav-link>
+                @endcan
+                @can('devices.manage')
+                    <x-responsive-nav-link :href="route('fleet.map')" :active="request()->routeIs('fleet.map')" wire:navigate>
+                        {{ __('Mapa') }}
                     </x-responsive-nav-link>
                 @endcan
                 @can('invoices.manage')
