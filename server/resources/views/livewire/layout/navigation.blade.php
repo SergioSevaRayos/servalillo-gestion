@@ -70,6 +70,14 @@ new class extends Component
                                 {{ __('Mapa') }}
                             </x-nav-link>
                         @endcan
+                        @can('alerts.manage')
+                            <x-nav-link :href="route('alerts.index')" :active="request()->routeIs('alerts.index')" wire:navigate>
+                                {{ __('Avisos') }}
+                                @if (($openAlerts = \App\Models\AlertEvent::query()->open()->count()) > 0)
+                                    <span class="ml-1.5 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">{{ $openAlerts }}</span>
+                                @endif
+                            </x-nav-link>
+                        @endcan
                         @can('invoices.manage')
                             <x-nav-link :href="route('invoices.index')" :active="request()->routeIs('invoices.*')" wire:navigate>
                                 {{ __('Facturas') }}
@@ -210,6 +218,11 @@ new class extends Component
                 @can('devices.manage')
                     <x-responsive-nav-link :href="route('fleet.map')" :active="request()->routeIs('fleet.map')" wire:navigate>
                         {{ __('Mapa') }}
+                    </x-responsive-nav-link>
+                @endcan
+                @can('alerts.manage')
+                    <x-responsive-nav-link :href="route('alerts.index')" :active="request()->routeIs('alerts.index')" wire:navigate>
+                        {{ __('Avisos') }}
                     </x-responsive-nav-link>
                 @endcan
                 @can('invoices.manage')

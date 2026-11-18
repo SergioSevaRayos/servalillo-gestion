@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Fleet;
 
+use App\Enums\AlertType;
 use App\Enums\RouteStatus;
+use App\Models\AlertRule;
 use App\Models\Device;
 use App\Models\GpsPosition;
 use App\Models\RouteDay;
@@ -23,10 +25,13 @@ class Map extends Component
         abort_unless(auth()->user()?->can('devices.manage'), 403);
     }
 
-    /** Minutos sin recibir posición a partir de los cuales un camión se pinta como "sin señal". */
+    /**
+     * Minutos sin recibir posición a partir de los cuales un camión se pinta como "sin señal":
+     * el mismo umbral que el aviso "Dispositivo sin señal GPS" de /avisos (una sola fuente).
+     */
     public function staleMinutes(): int
     {
-        return (int) config('servalillo.fleet_map.stale_minutes', 5);
+        return (int) (AlertRule::forType(AlertType::GpsSilence)->threshold ?? AlertType::GpsSilence->defaultThreshold());
     }
 
     /**
@@ -35,6 +40,8 @@ class Map extends Component
     #[Computed]
     public function fleet(): array
     {
+        $stale = $this->staleMinutes();
+
         $devices = Device::query()
             ->with('driver.user')
             ->where('is_active', true)
@@ -49,7 +56,7 @@ class Map extends Component
             ->get()
             ->keyBy('driver_id');
 
-        return $devices->map(function (Device $device) use ($routes) {
+        return $devices->map(function (Device $device) use ($routes, $stale) {
             // Índice (device_id, recorded_at): última posición sin recorrer la tabla.
             $last = GpsPosition::query()
                 ->where('device_id', $device->id)
@@ -73,7 +80,7 @@ class Map extends Component
                 'recorded_at' => $recordedAt?->toIso8601String(),
                 'minutes_ago' => $minutes,
                 // fresh = reporta | stale = sin señal reciente | none = nunca ha enviado nada
-                'state' => $last === null ? 'none' : ($minutes > $this->staleMinutes() ? 'stale' : 'fresh'),
+                'state' => $last === null ? 'none' : ($minutes > $stale ? 'stale' : 'fresh'),
             ];
         })->sortBy('driver')->values()->all();
     }

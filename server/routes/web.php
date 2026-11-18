@@ -4,6 +4,7 @@ use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\DeliveryNoteController;
 use App\Http\Controllers\RouteTerminalController;
 use App\Http\Controllers\ThemeController;
+use App\Livewire\Alerts\Index as AlertsIndex;
 use App\Livewire\Attendance\Index as AttendanceIndex;
 use App\Livewire\Attendance\Manage as AttendanceManage;
 use App\Livewire\Attendance\Totals as AttendanceTotals;
@@ -106,6 +107,9 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
 
     // Dónde está la flota ahora mismo (última posición GPS de cada dispositivo).
     Route::get('mapa', FleetMap::class)->middleware('permission:devices.manage')->name('fleet.map');
+
+    // Configuración de los avisos de flota (sin señal GPS, batería, jornadas, velocidad).
+    Route::get('avisos', AlertsIndex::class)->middleware('permission:alerts.manage')->name('alerts.index');
 
     // Facturas que piden los clientes al recibir una entrega: trabajo de administración.
     Route::get('facturas', InvoicesIndex::class)->middleware('permission:invoices.manage')->name('invoices.index');

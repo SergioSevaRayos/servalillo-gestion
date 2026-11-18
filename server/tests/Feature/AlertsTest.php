@@ -1,0 +1,276 @@
+<?php
+
+use App\Enums\AlertType;
+use App\Enums\RouteStatus;
+use App\Enums\RouteStopStatus;
+use App\Livewire\Alerts\Index;
+use App\Livewire\Fleet\Map;
+use App\Models\AlertEvent;
+use App\Models\AlertRule;
+use App\Models\Device;
+use App\Models\GpsPosition;
+use App\Models\RouteStop;
+use App\Models\Truck;
+use App\Notifications\FleetAlert;
+use App\Services\AlertEvaluator;
+use App\Support\TrackingWindow;
+use Illuminate\Support\Facades\Notification;
+use Livewire\Livewire;
+
+beforeEach(function () {
+    Notification::fake();
+    $this->admin = makeUser('administrador');
+    // Miércoles 10:00 — dentro de la ventana de tracking (pausa 22:00–05:00).
+    $this->travelTo(now()->setDate(2026, 11, 18)->setTime(10, 0));
+});
+
+/** Ruta de hoy + dispositivo de su chofer, con la última señal hace $minutes. */
+function onRoute(?int $minutesSilent = 1, RouteStatus $status = RouteStatus::InProgress): array
+{
+    $route = makeRoute(today()->toDateString());
+    $route->update(['status' => $status]);
+    $device = Device::factory()->create([
+        'driver_id' => $route->driver_id,
+        'last_seen_at' => $minutesSilent === null ? null : now()->subMinutes($minutesSilent),
+    ]);
+
+    return [$route, $device];
+}
+
+function position(Device $device, array $attrs = []): GpsPosition
+{
+    return GpsPosition::factory()->create([
+        'device_id' => $device->id,
+        'truck_id' => Truck::factory()->create()->id,
+        'recorded_at' => now()->subMinute(),
+        'speed_mps' => 5,
+        'battery_level' => 80,
+        ...$attrs,
+    ]);
+}
+
+function evaluate(): array
+{
+    return app(AlertEvaluator::class)->run();
+}
+
+it('la ventana de tracking pausa de 22:00 a 05:00', function () {
+    expect(TrackingWindow::isActive(now()->setTime(10, 0)))->toBeTrue()
+        ->and(TrackingWindow::isActive(now()->setTime(4, 59)))->toBeFalse()
+        ->and(TrackingWindow::isActive(now()->setTime(5, 0)))->toBeTrue()
+        ->and(TrackingWindow::isActive(now()->setTime(21, 59)))->toBeTrue()
+        ->and(TrackingWindow::isActive(now()->setTime(22, 0)))->toBeFalse()
+        ->and(TrackingWindow::isActive(now()->setTime(23, 30)))->toBeFalse();
+});
+
+it('avisa una sola vez cuando un dispositivo pasa de 5 minutos sin señal', function () {
+    [$route, $device] = onRoute(minutesSilent: 8);
+
+    expect(evaluate()['gps_silence'])->toBe(['opened' => 1, 'resolved' => 0]);
+    Notification::assertSentToTimes($this->admin, FleetAlert::class, 1);
+
+    // Segunda pasada con la misma situación: no repite ni duplica el aviso.
+    evaluate();
+    Notification::assertSentToTimes($this->admin, FleetAlert::class, 1);
+    expect(AlertEvent::open()->count())->toBe(1)
+        ->and(AlertEvent::first()->message)->toContain('sin señal GPS')->toContain($route->driver->user->name);
+});
+
+it('avisa también a mantenimiento', function () {
+    onRoute(minutesSilent: 8);
+    $mantenimiento = makeUser('mantenimiento');
+
+    evaluate();
+
+    Notification::assertSentTo($mantenimiento, FleetAlert::class);
+});
+
+it('no avisa si la señal es reciente, si la ruta no está operativa o si no hay ruta hoy', function () {
+    onRoute(minutesSilent: 3);                                    // dentro del umbral
+    onRoute(minutesSilent: 30, status: RouteStatus::Completed);   // ya terminó: es normal que calle
+
+    $sinRuta = Device::factory()->create(['last_seen_at' => now()->subHours(5)]);
+    $sinRuta->update(['driver_id' => makePermanentRoute()->driver_id]);
+
+    evaluate();
+
+    expect(AlertEvent::count())->toBe(0);
+    Notification::assertNothingSent();
+});
+
+it('al volver la señal resuelve el aviso y lo notifica una vez', function () {
+    [$route, $device] = onRoute(minutesSilent: 8);
+    evaluate();
+
+    $device->update(['last_seen_at' => now()]);
+    expect(evaluate()['gps_silence'])->toBe(['opened' => 0, 'resolved' => 1]);
+
+    Notification::assertSentToTimes($this->admin, FleetAlert::class, 2); // abierto + resuelto
+    expect(AlertEvent::open()->count())->toBe(0);
+
+    evaluate();
+    Notification::assertSentToTimes($this->admin, FleetAlert::class, 2);
+});
+
+it('fuera del horario de tracking no avisa ni cierra los avisos abiertos', function () {
+    [$route, $device] = onRoute(minutesSilent: 8);
+    evaluate();
+
+    $this->travelTo(now()->setTime(23, 0));
+    $device->update(['last_seen_at' => now()->subHours(1)]);
+    evaluate();
+
+    // El de señal sigue abierto y sin falso "resuelto" a las 22:00 por el mero hecho de pausarse
+    // el tracking (la jornada en curso sí abre, legítimamente, su propio aviso de "sin cerrar").
+    expect(AlertEvent::open()->where('rule_type', AlertType::GpsSilence)->count())->toBe(1);
+    Notification::assertNotSentTo($this->admin, FleetAlert::class, fn ($n) => $n->kind === 'resolved');
+});
+
+it('respeta el umbral configurado', function () {
+    [$route, $device] = onRoute(minutesSilent: 10);
+    AlertRule::forType(AlertType::GpsSilence)->update(['threshold' => 30]);
+
+    evaluate();
+    expect(AlertEvent::count())->toBe(0);
+
+    AlertRule::forType(AlertType::GpsSilence)->update(['threshold' => 5]);
+    evaluate();
+    expect(AlertEvent::open()->count())->toBe(1);
+});
+
+it('con el aviso desactivado no notifica y cierra en silencio los abiertos', function () {
+    onRoute(minutesSilent: 8);
+    evaluate();
+    Notification::assertSentToTimes($this->admin, FleetAlert::class, 1);
+
+    AlertRule::forType(AlertType::GpsSilence)->update(['enabled' => false]);
+    evaluate();
+
+    expect(AlertEvent::open()->count())->toBe(0);
+    Notification::assertSentToTimes($this->admin, FleetAlert::class, 1); // ni siquiera "resuelto"
+});
+
+it('avisa de batería baja con lectura reciente y de nada si la lectura es vieja', function () {
+    [$route, $device] = onRoute();
+    position($device, ['battery_level' => 9]);
+
+    evaluate();
+    expect(AlertEvent::open()->where('rule_type', AlertType::LowBattery)->count())->toBe(1);
+
+    [$route2, $device2] = onRoute();
+    position($device2, ['battery_level' => 5, 'recorded_at' => now()->subHours(2)]);
+
+    evaluate();
+    expect(AlertEvent::open()->where('rule_type', AlertType::LowBattery)->count())->toBe(1); // solo el primero
+});
+
+it('el exceso de velocidad exige dos lecturas seguidas por encima del límite', function () {
+    [$route, $device] = onRoute();
+    position($device, ['speed_mps' => 40, 'recorded_at' => now()->subMinutes(2)]); // 144 km/h
+    evaluate();
+    expect(AlertEvent::open()->where('rule_type', AlertType::Speeding)->count())->toBe(0); // un pico suelto
+
+    position($device, ['speed_mps' => 38, 'recorded_at' => now()->subMinute()]);
+    evaluate();
+    expect(AlertEvent::open()->where('rule_type', AlertType::Speeding)->count())->toBe(1);
+
+    position($device, ['speed_mps' => 10, 'recorded_at' => now()]);
+    evaluate();
+    expect(AlertEvent::open()->where('rule_type', AlertType::Speeding)->count())->toBe(0); // vuelve a la normalidad
+});
+
+it('avisa de una jornada sin empezar solo pasada la hora y con paradas pendientes', function () {
+    [$route] = onRoute(status: RouteStatus::Published);
+    RouteStop::factory()->for($route, 'route')->create(['status' => RouteStopStatus::Pending]);
+
+    evaluate(); // 10:00 ≥ 09:00 → avisa
+    expect(AlertEvent::open()->where('rule_type', AlertType::ShiftNotStarted)->count())->toBe(1);
+
+    $route->update(['status' => RouteStatus::InProgress, 'liter_meter_start' => 1000]);
+    evaluate();
+    expect(AlertEvent::open()->where('rule_type', AlertType::ShiftNotStarted)->count())->toBe(0);
+});
+
+it('no avisa de jornada sin empezar antes de la hora ni sin paradas pendientes', function () {
+    $this->travelTo(now()->setTime(8, 0));
+    [$route] = onRoute(status: RouteStatus::Published);
+    RouteStop::factory()->for($route, 'route')->create(['status' => RouteStopStatus::Pending]);
+    evaluate();
+    expect(AlertEvent::count())->toBe(0);
+
+    $this->travelTo(now()->setTime(11, 0));
+    [$vacia] = onRoute(status: RouteStatus::Published); // sin paradas
+    evaluate();
+    expect(AlertEvent::where('rule_type', AlertType::ShiftNotStarted)->where('subject_id', $vacia->id)->count())->toBe(0);
+});
+
+it('avisa de una jornada sin cerrar: la de hoy pasada la hora y las de días anteriores siempre', function () {
+    [$hoy] = onRoute(status: RouteStatus::InProgress);
+
+    evaluate(); // 10:00 < 21:00
+    expect(AlertEvent::open()->where('rule_type', AlertType::ShiftNotClosed)->count())->toBe(0);
+
+    $ayer = makeRoute(today()->subDay()->toDateString());
+    $ayer->update(['status' => RouteStatus::InProgress]);
+    evaluate();
+    expect(AlertEvent::open()->where('rule_type', AlertType::ShiftNotClosed)->count())->toBe(1);
+
+    $this->travelTo(now()->setTime(21, 30));
+    evaluate();
+    expect(AlertEvent::open()->where('rule_type', AlertType::ShiftNotClosed)->count())->toBe(2);
+});
+
+it('el comando avisos:evaluar ejecuta la evaluación', function () {
+    onRoute(minutesSilent: 8);
+
+    $this->artisan('avisos:evaluar')->assertSuccessful();
+
+    expect(AlertEvent::open()->count())->toBe(1);
+});
+
+it('administrador y mantenimiento entran en /avisos; el chofer no', function () {
+    $this->actingAs($this->admin)->get('/avisos')->assertOk();
+    $this->actingAs(makeUser('mantenimiento'))->get('/avisos')->assertOk();
+    $this->actingAs(makeUser('chofer'))->get('/avisos')->assertForbidden();
+});
+
+it('guarda la configuración y la pantalla la recarga con los valores nuevos', function () {
+    Livewire::actingAs($this->admin)->test(Index::class)
+        ->set('form.items.gps_silence.threshold', 12)
+        ->set('form.items.low_battery.enabled', false)
+        ->set('form.items.shift_not_started.time', '08:30')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(AlertRule::forType(AlertType::GpsSilence)->threshold)->toBe(12)
+        ->and(AlertRule::forType(AlertType::LowBattery)->enabled)->toBeFalse()
+        ->and(AlertRule::forType(AlertType::ShiftNotStarted)->time_of_day)->toBe('08:30');
+
+    Livewire::actingAs($this->admin)->test(Index::class)
+        ->assertSet('form.items.gps_silence.threshold', 12);
+});
+
+it('rechaza umbrales fuera de rango y el mensaje llega al HTML', function () {
+    $test = Livewire::actingAs($this->admin)->test(Index::class)
+        ->set('form.items.gps_silence.threshold', 0)
+        ->set('form.items.shift_not_closed.time', '25:99')
+        ->call('save')
+        ->assertHasErrors(['form.items.gps_silence.threshold', 'form.items.shift_not_closed.time']);
+
+    expect($test->html())->toContain('Debe estar entre 1 y 240')->toContain('La hora no es válida');
+    expect(AlertRule::forType(AlertType::GpsSilence)->threshold)->toBe(5);
+});
+
+it('"Evaluar ahora" ejecuta la evaluación desde la pantalla', function () {
+    onRoute(minutesSilent: 8);
+
+    Livewire::actingAs($this->admin)->test(Index::class)->call('evaluateNow')->assertDispatched('toast');
+
+    expect(AlertEvent::open()->count())->toBe(1);
+});
+
+it('el mapa usa el mismo umbral que el aviso de señal', function () {
+    AlertRule::forType(AlertType::GpsSilence)->update(['threshold' => 20]);
+
+    expect(Livewire::actingAs($this->admin)->test(Map::class)->instance()->staleMinutes())->toBe(20);
+});
