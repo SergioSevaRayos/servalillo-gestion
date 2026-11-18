@@ -86,6 +86,21 @@ van en el grupo de rutas **"Gestión"** (`role:administrador|mantenimiento`), nu
   mismos destinatarios que `RouteChangeNotifier` (administrador + mantenimiento activos). Botón
   "Evaluar ahora" en la pantalla para probar un umbral sin esperar al minuto.
 
+### Gestión del historial de avisos (2026-11-18)
+- **Antes no había ningún tope**: la pantalla enseñaba solo los últimos 15 resueltos, pero las filas de
+  `alert_events` no se borraban nunca (tabla creciendo sin límite).
+- **Purga automática**: `avisos:purgar` (`PurgeAlertEvents`, diario 04:20) borra los **resueltos** con más de
+  `config('servalillo.alerts_retention_days')` días (`ALERTS_RETENTION_DAYS`, def. **30**; opción `--dias=`).
+  **Nunca borra un aviso activo**, por antiguo que sea. Mismo patrón que `accesos:purgar`.
+- **Pantalla `/avisos`**: el bloque "Resueltos recientemente" pasa a **"Historial de avisos resueltos"**:
+  paginado (15/página, antes un `limit(15)` seco), filtros por tipo y rango de fechas, casillas con
+  "Seleccionar los de esta página" (no toca otras páginas), **"Eliminar seleccionados"** y **"Vaciar esta lista"**
+  (respeta los filtros activos), ambos con `wire:confirm`. Muestra el total guardado y la retención en vigor.
+- Defensa en profundidad: `deleteSelected()` y `deleteFiltered()` filtran siempre `resolved_at IS NOT NULL` en la
+  propia consulta, así que aunque alguien cuele el id de un aviso activo en la selección no se borra.
+- Un aviso **activo** no se puede descartar a mano a propósito: si la condición sigue dándose, el evaluador lo
+  reabriría y volvería a notificar en la pasada siguiente. Se cierra solo cuando la condición desaparece.
+
 ## Despliegue
 - **`deploy.sh` ahora reejecuta `RolePermissionSeeder` tras `migrate`** (idempotente): `invoices.manage` y
   `alerts.manage` llegan solos a producción (era el gotcha pendiente del Bloque 18).

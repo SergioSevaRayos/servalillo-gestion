@@ -274,3 +274,111 @@ it('el mapa usa el mismo umbral que el aviso de señal', function () {
 
     expect(Livewire::actingAs($this->admin)->test(Map::class)->instance()->staleMinutes())->toBe(20);
 });
+
+/** Aviso ya resuelto hace $daysAgo días (o abierto si es null). */
+function alertEvent(?int $resolvedDaysAgo, AlertType $type = AlertType::GpsSilence, string $label = 'Pedro'): AlertEvent
+{
+    return AlertEvent::create([
+        'rule_type' => $type,
+        'subject_type' => 'device',
+        'subject_id' => fake()->unique()->numberBetween(1, 99999),
+        'subject_label' => $label,
+        'message' => "{$label}: aviso",
+        'opened_at' => now()->subDays(($resolvedDaysAgo ?? 0) + 1),
+        'resolved_at' => $resolvedDaysAgo === null ? null : now()->subDays($resolvedDaysAgo),
+    ]);
+}
+
+it('avisos:purgar borra los resueltos antiguos y nunca los activos ni los recientes', function () {
+    $viejo = alertEvent(45);
+    $reciente = alertEvent(5);
+    $activoViejo = alertEvent(null);
+    $activoViejo->update(['opened_at' => now()->subDays(90)]); // lleva meses abierto: sigue vigente
+
+    $this->artisan('avisos:purgar')->assertSuccessful(); // retención por defecto: 30 días
+
+    expect(AlertEvent::find($viejo->id))->toBeNull()
+        ->and(AlertEvent::find($reciente->id))->not->toBeNull()
+        ->and(AlertEvent::find($activoViejo->id))->not->toBeNull();
+});
+
+it('avisos:purgar respeta --dias', function () {
+    $a = alertEvent(10);
+
+    $this->artisan('avisos:purgar --dias=7')->assertSuccessful();
+
+    expect(AlertEvent::find($a->id))->toBeNull();
+});
+
+it('el historial pagina, filtra por tipo y no muestra los activos', function () {
+    foreach (range(1, 20) as $i) {
+        alertEvent(1, AlertType::GpsSilence, "Silencio {$i}");
+    }
+    alertEvent(1, AlertType::LowBattery, 'Batería Luis');
+    alertEvent(null, AlertType::GpsSilence, 'Activo Ana');
+
+    $test = Livewire::actingAs($this->admin)->test(Index::class);
+
+    expect($test->viewData('history')->total())->toBe(21)
+        ->and($test->viewData('history')->count())->toBe(15)   // 15 por página, no un tope total
+        ->and($test->viewData('resolvedTotal'))->toBe(21);
+
+    $test->set('historyType', 'low_battery');
+    expect($test->viewData('history')->total())->toBe(1);
+    expect($test->html())->toContain('Batería Luis')->not->toContain('Silencio 1');
+});
+
+it('se pueden eliminar avisos resueltos seleccionados, pero nunca uno activo', function () {
+    $a = alertEvent(1, label: 'Resuelto A');
+    $b = alertEvent(1, label: 'Resuelto B');
+    $activo = alertEvent(null, label: 'Activo');
+
+    Livewire::actingAs($this->admin)->test(Index::class)
+        ->set('selected', [$a->id, $activo->id]) // intento colar un activo en la selección
+        ->call('deleteSelected')
+        ->assertDispatched('toast');
+
+    expect(AlertEvent::find($a->id))->toBeNull()
+        ->and(AlertEvent::find($b->id))->not->toBeNull()
+        ->and(AlertEvent::find($activo->id))->not->toBeNull();
+});
+
+it('"Vaciar esta lista" borra solo los resueltos que cumplen el filtro', function () {
+    alertEvent(1, AlertType::GpsSilence, 'Silencio');
+    $bateria = alertEvent(1, AlertType::LowBattery, 'Batería');
+    $activo = alertEvent(null, AlertType::GpsSilence, 'Activo');
+
+    Livewire::actingAs($this->admin)->test(Index::class)
+        ->set('historyType', 'gps_silence')
+        ->call('deleteFiltered');
+
+    expect(AlertEvent::where('rule_type', AlertType::GpsSilence)->whereNotNull('resolved_at')->count())->toBe(0)
+        ->and(AlertEvent::find($bateria->id))->not->toBeNull()
+        ->and(AlertEvent::find($activo->id))->not->toBeNull();
+});
+
+it('seleccionar todos marca solo los de la página visible', function () {
+    foreach (range(1, 20) as $i) {
+        alertEvent(1, label: "Aviso {$i}");
+    }
+
+    $test = Livewire::actingAs($this->admin)->test(Index::class)->call('toggleSelectAll');
+    expect($test->get('selected'))->toHaveCount(15);
+
+    $test->call('toggleSelectAll'); // segunda vez: desmarca
+    expect($test->get('selected'))->toHaveCount(0);
+});
+
+it('un chofer no puede borrar avisos', function () {
+    $a = alertEvent(1);
+
+    Livewire::actingAs(makeUser('chofer'))->test(Index::class)->assertForbidden();
+
+    expect(AlertEvent::find($a->id))->not->toBeNull();
+});
+
+it('el historial explica la retención automática', function () {
+    $test = Livewire::actingAs($this->admin)->test(Index::class);
+
+    expect($test->html())->toContain('se borran solos a los 30 días')->toContain('nunca se borran');
+});

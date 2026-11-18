@@ -33,6 +33,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Retención del historial de avisos
+    |--------------------------------------------------------------------------
+    | Los avisos YA RESUELTOS (alert_events) se borran solos pasados estos días
+    | (comando `avisos:purgar`, diario). Los activos nunca se borran.
+    */
+    'alerts_retention_days' => (int) env('ALERTS_RETENTION_DAYS', 30),
+
+    /*
+    |--------------------------------------------------------------------------
     | "Conectado ahora" en Mantenimiento → Accesos
     |--------------------------------------------------------------------------
     | Un usuario se considera activo si su última petición (users.last_seen_at,

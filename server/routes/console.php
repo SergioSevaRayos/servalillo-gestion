@@ -23,5 +23,8 @@ Schedule::command('gps:purgar')->dailyAt('04:00');
 // Retención del registro de accesos (Mantenimiento → Accesos).
 Schedule::command('accesos:purgar')->dailyAt('04:10');
 
+// Historial de avisos resueltos (Avisos): purga los más antiguos que alerts_retention_days.
+Schedule::command('avisos:purgar')->dailyAt('04:20');
+
 // Avisos de flota (/avisos): sin señal GPS, batería, jornadas sin empezar/cerrar, velocidad.
 Schedule::command('avisos:evaluar')->everyMinute()->withoutOverlapping();

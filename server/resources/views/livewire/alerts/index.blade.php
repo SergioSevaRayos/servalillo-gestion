@@ -57,23 +57,71 @@
         </div>
     </form>
 
-    {{-- Resueltos recientemente --}}
-    @if ($recent->isNotEmpty())
-        <section class="mt-8">
-            <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('Resueltos recientemente') }}</h2>
+    {{-- Historial de resueltos: filtros, borrado manual y purga automática --}}
+    <section class="mt-8">
+        <div class="mb-2 flex flex-wrap items-end justify-between gap-2">
+            <div>
+                <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('Historial de avisos resueltos') }}</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                    {{ __('Los resueltos se borran solos a los :n días. Los avisos activos nunca se borran.', ['n' => $retentionDays]) }}
+                </p>
+            </div>
+            <p class="text-xs text-slate-400">{{ trans_choice(':count aviso resuelto guardado|:count avisos resueltos guardados', $resolvedTotal) }}</p>
+        </div>
+
+        <div class="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center">
+            <select wire:model.live="historyType" class="rounded-lg border-slate-300 shadow-soft-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:text-sm">
+                <option value="all">{{ __('Todos los tipos') }}</option>
+                @foreach ($types as $type)
+                    <option value="{{ $type->value }}">{{ __($type->label()) }}</option>
+                @endforeach
+            </select>
+            <div class="w-40"><x-ui.date-input name="from" wire:model.live="from" placeholder="{{ __('Desde') }}" /></div>
+            <div class="w-40"><x-ui.date-input name="to" wire:model.live="to" placeholder="{{ __('Hasta') }}" /></div>
+            <x-ui.button type="button" variant="ghost" size="sm" wire:click="resetHistoryFilters">{{ __('Limpiar') }}</x-ui.button>
+
+            <div class="flex items-center gap-2 lg:ml-auto">
+                @if (count($selected) > 0)
+                    <x-ui.button type="button" variant="danger" size="sm" wire:click="deleteSelected"
+                        wire:confirm="{{ __('¿Eliminar los avisos seleccionados? No se puede deshacer.') }}">
+                        {{ __('Eliminar seleccionados') }} ({{ count($selected) }})
+                    </x-ui.button>
+                @endif
+                @if ($history->total() > 0)
+                    <x-ui.button type="button" variant="ghost" size="sm" wire:click="deleteFiltered"
+                        wire:confirm="{{ __('¿Vaciar :n aviso(s) resuelto(s) de esta lista? No se puede deshacer.', ['n' => $history->total()]) }}">
+                        {{ __('Vaciar esta lista') }}
+                    </x-ui.button>
+                @endif
+            </div>
+        </div>
+
+        @if ($history->isEmpty())
+            <p class="surface rounded-xl p-4 text-sm text-slate-500 dark:text-slate-400">{{ __('No hay avisos resueltos con estos filtros.') }}</p>
+        @else
             <div class="surface divide-y divide-slate-100 rounded-xl dark:divide-slate-800">
-                @foreach ($recent as $event)
-                    <div class="flex items-start justify-between gap-3 p-3" wire:key="rec-{{ $event->id }}">
-                        <div>
-                            <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ $event->rule_type->label() }} · {{ $event->subject_label }}</p>
+                <label class="flex items-center gap-3 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                    <input type="checkbox" wire:click="toggleSelectAll"
+                        @checked($history->pluck('id')->every(fn ($id) => in_array($id, array_map('intval', $selected), true)))
+                        class="rounded border-slate-300 text-primary-600 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800" />
+                    {{ __('Seleccionar los de esta página') }}
+                </label>
+                @foreach ($history as $event)
+                    <label class="flex cursor-pointer items-start gap-3 p-3" wire:key="rec-{{ $event->id }}">
+                        <input type="checkbox" value="{{ $event->id }}" wire:model.live="selected"
+                            class="mt-1 rounded border-slate-300 text-primary-600 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800" />
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ __($event->rule_type->label()) }} · {{ $event->subject_label }}</p>
                             <p class="text-xs text-slate-500 dark:text-slate-400">
-                                {{ __('Desde :a hasta :b', ['a' => $event->opened_at->format('d/m H:i'), 'b' => $event->resolved_at->format('H:i')]) }}
+                                {{ __('Desde :a hasta :b', ['a' => $event->opened_at->format('d/m/Y H:i'), 'b' => $event->resolved_at->format($event->resolved_at->isSameDay($event->opened_at) ? 'H:i' : 'd/m/Y H:i')]) }}
                             </p>
                         </div>
                         <x-ui.badge variant="success">{{ __('Resuelto') }}</x-ui.badge>
-                    </div>
+                    </label>
                 @endforeach
             </div>
-        </section>
-    @endif
+
+            <div class="mt-3">{{ $history->links() }}</div>
+        @endif
+    </section>
 </div>
