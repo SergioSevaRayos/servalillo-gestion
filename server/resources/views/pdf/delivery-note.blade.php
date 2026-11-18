@@ -12,7 +12,7 @@
             line-height: 1.45;
         }
         .header { border-bottom: 2px solid #0f766e; padding-bottom: 12px; margin-bottom: 20px; }
-        .header h1 { margin: 0; font-size: 20px; color: #0f766e; }
+        .header .logo { height: 44px; }
         .header .meta { margin-top: 2px; color: #64748b; font-size: 10px; }
         .doc-number { float: right; text-align: right; }
         .doc-number .n { font-size: 16px; font-weight: bold; }
@@ -38,6 +38,8 @@
     @php
         $c = $note->customer_snapshot ?? [];
         $route = $stop->route;
+        // Data URI: dompdf no depende de rutas/chroot y el logo viaja dentro del PDF.
+        $logo = 'data:image/png;base64,'.base64_encode(file_get_contents(public_path('images/logo-aguas-del-servalillo.png')));
     @endphp
 
     <div class="header">
@@ -45,7 +47,7 @@
             <div class="n">{{ $note->number }}</div>
             <div class="d">{{ $note->issued_at->format('d/m/Y H:i') }}</div>
         </div>
-        <h1>{{ config('app.name') }}</h1>
+        <img class="logo" src="{{ $logo }}" alt="Aguas del Servalillo">
         <div class="meta">Albarán de entrega</div>
     </div>
 
@@ -105,6 +107,6 @@
         <div class="who">{{ $note->signer_name ?: '—' }}</div>
     </div>
 
-    <div class="foot">{{ config('app.name') }} · {{ $note->number }} · generado el {{ now()->format('d/m/Y H:i') }}</div>
+    <div class="foot">Aguas del Servalillo · {{ $note->number }} · generado el {{ now()->format('d/m/Y H:i') }}</div>
 </body>
 </html>

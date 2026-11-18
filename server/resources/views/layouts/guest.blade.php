@@ -22,11 +22,8 @@
                 <x-ui.theme-toggle />
             </div>
 
-            <a href="/" wire:navigate class="relative z-10 mb-6 flex items-center gap-2 text-primary-700 dark:text-primary-300">
-                <x-application-logo class="h-10 w-10" />
-                <span class="text-lg font-semibold tracking-tight text-slate-800 dark:text-slate-100">
-                    {{ config('app.name') }}
-                </span>
+            <a href="/" wire:navigate class="relative z-10 mb-6 flex items-center" title="{{ config('app.name') }}">
+                <img src="{{ asset('images/logo-aguas-del-servalillo.png') }}" alt="Aguas del Servalillo" class="h-20 w-auto sm:h-24 dark:rounded-xl dark:bg-white dark:px-3 dark:py-2" width="480" height="145">
             </a>
 
             <div class="surface relative z-10 w-full max-w-md rounded-2xl p-6 sm:p-8">
