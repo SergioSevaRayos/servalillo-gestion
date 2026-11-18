@@ -147,3 +147,17 @@
 - Componente nuevo `<x-side-link>` (mismos tokens que `<x-nav-link>` pero a todo el ancho y con hueco para insignia).
 - **Pendiente de verificar a mano**: la interacción (menú de usuario, campana) no se pudo probar en el navegador
   automatizado — en esa pestaña no ejecutaba JS ni con la navegación antigua. Los tests de servidor sí pasan.
+
+### Menú móvil (`<x-ui.drop-menu>`): alto máximo y bloqueo de scroll (2026-11-18)
+- **Bug real**: con las opciones nuevas (Mapa, Avisos, Facturas…) el panel, que crece hacia arriba desde la gota
+  fija abajo-derecha, era más alto que la pantalla y **se salía por arriba**, con las primeras opciones
+  inalcanzables. Fix: clase `.drop-menu-panel` (`app.css`) = `max-height: calc(100dvh - 7.5rem)` (botón + huecos),
+  con `overflow-y-auto overscroll-contain` y `themed-scrollbar`; scroll propio dentro del panel. `dvh` = alto real
+  visible del móvil (sin la barra de direcciones; con `vh` el panel seguía pasándose); `@supports not (height:
+  100dvh)` da el respaldo en `vh` (el minificador de Vite descartaba una segunda declaración `vh` "redundante").
+- **Scroll de la página bloqueado mientras el menú está abierto**: `x-effect` en la raíz del componente alterna la
+  clase `menu-open` en `<html>` y `<body>` (`overflow: hidden; overscroll-behavior: none`); el fondo oscuro lleva
+  `touch-none`. Se cierra solo con `livewire:navigating` y, como red de seguridad, `app.js` quita `menu-open` en cada
+  `livewire:navigated` (si el componente se destruyese con el menú abierto, su `x-effect` ya no podría limpiarlo).
+- **No se pudo comprobar el gesto real en el navegador automatizado** (la pestaña no ejecutaba JS): hay tests de
+  marcado/CSS, pero conviene probar a mano en el móvil (o en el modo responsive de Chrome).

@@ -3,7 +3,11 @@
     más pequeñas (con rebote) mientras se despliega el menú. Fijo abajo-derecha, solo en móvil.
     Uso: <x-ui.drop-menu><x-responsive-nav-link href="...">Rutas</x-responsive-nav-link>...</x-ui.drop-menu>
 --}}
-<div x-data="{ open: false }" class="md:hidden">
+{{-- Mientras el menú está abierto se bloquea el scroll de la página de detrás (clase `menu-open` en <html> y
+     <body>, ver app.css) y se cierra solo al navegar (wire:navigate) para no dejar el bloqueo puesto. --}}
+<div x-data="{ open: false }" class="md:hidden"
+    x-effect="document.documentElement.classList.toggle('menu-open', open); document.body.classList.toggle('menu-open', open)"
+    x-on:livewire:navigating.window="open = false">
     <div
         x-show="open"
         x-cloak
@@ -14,7 +18,7 @@
         x-transition:leave-start="opacity-100"
         x-transition:leave-end="opacity-0"
         @click="open = false"
-        class="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[2px]"
+        class="fixed inset-0 z-40 touch-none bg-slate-950/30 backdrop-blur-[2px]"
     ></div>
 
     <div class="drop-menu-fab fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
@@ -28,7 +32,7 @@
             x-transition:leave="ease-in duration-150"
             x-transition:leave-start="opacity-100 scale-100"
             x-transition:leave-end="opacity-0 scale-90 translate-y-2"
-            class="w-60 origin-bottom-right rounded-2xl border border-slate-200 bg-white p-2 shadow-soft-lg dark:border-slate-700 dark:bg-slate-800"
+            class="themed-scrollbar drop-menu-panel w-60 origin-bottom-right overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-2 shadow-soft-lg dark:border-slate-700 dark:bg-slate-800"
         >
             <nav class="flex flex-col gap-0.5" @click="open = false">
                 {{ $slot }}

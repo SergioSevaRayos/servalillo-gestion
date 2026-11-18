@@ -331,3 +331,28 @@
         backdrop-filter: none !important;
     }
 }
+
+/*
+| Menú móvil abierto: la página de detrás no debe desplazarse (<x-ui.drop-menu> añade `menu-open` a <html> y
+| <body> mientras está abierto). `overscroll-behavior: none` evita además el rebote/encadenado en iOS.
+*/
+html.menu-open,
+body.menu-open {
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+/*
+| Panel del menú móvil: nunca más alto que la pantalla (con tantas opciones se salía por arriba). 7.5rem =
+| botón gota (3.5rem) + hueco inferior (1.25rem) + separación (0.75rem) + margen superior (2rem). `dvh` es el
+| alto REAL visible del móvil (sin la barra de direcciones); el `@supports` da el respaldo en `vh` a los
+| navegadores que no lo entienden (el minificador descartaba una segunda declaración `vh` "redundante").
+*/
+.drop-menu-panel {
+    max-height: calc(100dvh - 7.5rem);
+}
+@supports not (height: 100dvh) {
+    .drop-menu-panel {
+        max-height: calc(100vh - 7.5rem);
+    }
+}

@@ -2054,3 +2054,10 @@ window.tank3d = function (initial) {
         },
     };
 };
+
+// Red de seguridad del menú móvil: tras cualquier navegación SPA se quita el bloqueo de scroll (`menu-open`),
+// por si el componente se destruyó con el menú abierto y su x-effect ya no pudo limpiarlo.
+document.addEventListener('livewire:navigated', () => {
+    document.documentElement.classList.remove('menu-open');
+    document.body.classList.remove('menu-open');
+});
