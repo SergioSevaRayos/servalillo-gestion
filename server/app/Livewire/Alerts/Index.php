@@ -12,6 +12,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Throwable;
 
 /** Configuración de los avisos de flota y listado de los activos / resueltos recientemente. */
 #[Layout('layouts.app')]
@@ -47,20 +48,6 @@ class Index extends Component
         $this->form->save();
 
         $this->dispatch('toast', message: 'Avisos guardados.', variant: 'success');
-    }
-
-    /** Evalúa ahora mismo (sin esperar al minuto del planificador): útil al ajustar un umbral. */
-    public function evaluateNow(AlertEvaluator $evaluator): void
-    {
-        $this->authorize('update', new AlertRule);
-
-        $summary = $evaluator->run();
-        $opened = array_sum(array_column($summary, 'opened'));
-
-        $this->dispatch('toast',
-            message: $opened ? "Evaluado: {$opened} aviso(s) nuevo(s)." : 'Evaluado: sin avisos nuevos.',
-            variant: $opened ? 'warning' : 'success',
-        );
     }
 
     public function updating($name): void
@@ -120,8 +107,17 @@ class Index extends Component
         $this->dispatch('toast', message: "{$count} aviso(s) eliminado(s).", variant: 'success');
     }
 
-    public function render()
+    public function render(AlertEvaluator $evaluator)
     {
+        // Totalmente asíncrono: el poll de la vista (10 s) llega aquí y, si la última evaluación tiene
+        // más de ~45 s, se evalúa en este mismo momento. Nadie tiene que pulsar nada, y funciona aunque
+        // el planificador no esté corriendo. Un fallo del evaluador nunca debe tirar la pantalla.
+        try {
+            $evaluator->runGuarded(45);
+        } catch (Throwable $e) {
+            report($e);
+        }
+
         $days = (int) config('servalillo.alerts_retention_days');
 
         return view('livewire.alerts.index', [
@@ -130,6 +126,7 @@ class Index extends Component
             'history' => $this->historyQuery()->latest('resolved_at')->paginate(15),
             'resolvedTotal' => AlertEvent::query()->whereNotNull('resolved_at')->count(),
             'retentionDays' => $days,
+            'lastRun' => $evaluator->lastRunAt(),
         ]);
     }
 }

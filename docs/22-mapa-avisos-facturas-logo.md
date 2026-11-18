@@ -83,8 +83,17 @@ van en el grupo de rutas **"Gestión"** (`role:administrador|mantenimiento`), nu
   barata por dispositivo, sin tocar `gps_positions`). Un dispositivo con ruta hoy que **nunca** ha enviado
   nada también cuenta.
 - Notificación `App\Notifications\FleetAlert` (database, esquema `type/title/body/url/icon` de la campana),
-  mismos destinatarios que `RouteChangeNotifier` (administrador + mantenimiento activos). Botón
-  "Evaluar ahora" en la pantalla para probar un umbral sin esperar al minuto.
+  mismos destinatarios que `RouteChangeNotifier` (administrador + mantenimiento activos).
+- **Totalmente asíncrono, sin botones (2026-11-18)**: se quitó "Evaluar ahora". `AlertEvaluator::runGuarded($minAge)`
+  (lock no bloqueante + sello `alerts:last_run` en caché) lo usan **dos disparadores**: el planificador (cada
+  minuto) y la propia pantalla `/avisos` (`wire:poll.10s` → `render()` evalúa si la última pasada tiene > ~45 s;
+  recálculo perezoso, mismo patrón que `dwell_recalculated_at`). Así funciona aunque el planificador no corra
+  (local) y nadie pulsa nada. Un fallo del evaluador se reporta pero nunca tira la pantalla. La cabecera muestra
+  "Se actualiza solo · última comprobación a las HH:MM:SS".
+- **Insignias del menú vivas**: `App\Livewire\Layout\NavBadge` (`wire:poll.20s`, `kind` = `invoices|alerts`, respeta
+  permisos) sustituye al número que se calculaba una sola vez al cargar la página y se quedaba congelado.
+  **Gotcha de tests**: como la pantalla evalúa al abrirse, los avisos "activos" de fixture sin dispositivo real se
+  cierran como resueltos; los tests de borrado llaman a `evaluatorJustRan()` para evitarlo.
 
 ### Gestión del historial de avisos (2026-11-18)
 - **Antes no había ningún tope**: la pantalla enseñaba solo los últimos 15 resueltos, pero las filas de

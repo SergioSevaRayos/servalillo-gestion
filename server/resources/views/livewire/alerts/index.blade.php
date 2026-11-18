@@ -1,4 +1,4 @@
-<div wire:poll.30s>
+<div wire:poll.10s>
     <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
             <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ __('Avisos') }}</h1>
@@ -6,7 +6,14 @@
                 {{ __('Configura cuándo quieres que la app te avise. Los avisos llegan a la campana, una vez al producirse y otra al resolverse.') }}
             </p>
         </div>
-        <x-ui.button variant="secondary" size="sm" wire:click="evaluateNow">{{ __('Evaluar ahora') }}</x-ui.button>
+        {{-- Sin botón de "evaluar": se comprueba solo. Esto solo informa de que está vivo. --}}
+        <p class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <span class="relative flex h-2 w-2" aria-hidden="true">
+                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
+                <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+            </span>
+            {{ __('Se actualiza solo') }}@if ($lastRun) · {{ __('última comprobación a las :h', ['h' => $lastRun->format('H:i:s')]) }}@endif
+        </p>
     </div>
 
     {{-- Avisos activos --}}

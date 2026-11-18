@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Services\AlertEvaluator;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
 
 class EvaluateAlerts extends Command
 {
@@ -14,18 +13,8 @@ class EvaluateAlerts extends Command
 
     public function handle(AlertEvaluator $evaluator): int
     {
-        // Lock no bloqueante: si una pasada anterior sigue en marcha, esta se salta sin más.
-        $lock = Cache::lock('alerts:evaluate', 55);
-
-        if (! $lock->get()) {
-            return self::SUCCESS;
-        }
-
-        try {
-            $summary = $evaluator->run();
-        } finally {
-            $lock->release();
-        }
+        // Lock no bloqueante dentro de runGuarded(): si una pasada sigue en marcha, esta se salta.
+        $summary = $evaluator->runGuarded() ?? [];
 
         foreach ($summary as $type => $counts) {
             if ($counts['opened'] || $counts['resolved']) {

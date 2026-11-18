@@ -15,6 +15,7 @@ use App\Notifications\FleetAlert;
 use App\Support\TrackingWindow;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
 
 /**
@@ -25,6 +26,47 @@ use Illuminate\Support\Facades\Notification;
  */
 class AlertEvaluator
 {
+    public const LAST_RUN_KEY = 'alerts:last_run';
+
+    /**
+     * Evalúa solo si hace falta y sin solaparse: lock NO bloqueante + sello de la última pasada.
+     * Lo usan el planificador (cada minuto, `$minAgeSeconds = 0`) y la propia pantalla /avisos
+     * (recálculo perezoso, ~45 s): así los avisos se actualizan solos aunque el planificador no
+     * esté corriendo (p. ej. en local) sin que nadie pulse nada — mismo patrón que el tiempo de
+     * permanencia en parada (`dwell_recalculated_at`).
+     *
+     * @return array<string, array{opened: int, resolved: int}>|null null = se saltó (reciente o en curso)
+     */
+    public function runGuarded(int $minAgeSeconds = 0): ?array
+    {
+        $last = Cache::get(self::LAST_RUN_KEY);
+        if ($minAgeSeconds > 0 && $last && now()->diffInSeconds(Carbon::createFromTimestamp($last), true) < $minAgeSeconds) {
+            return null;
+        }
+
+        $lock = Cache::lock('alerts:evaluate', 55);
+        if (! $lock->get()) {
+            return null;
+        }
+
+        try {
+            $summary = $this->run();
+            Cache::forever(self::LAST_RUN_KEY, now()->timestamp);
+
+            return $summary;
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /** Momento de la última evaluación (para mostrarlo en pantalla), o null si nunca se ha hecho. */
+    public function lastRunAt(): ?Carbon
+    {
+        $ts = Cache::get(self::LAST_RUN_KEY);
+
+        return $ts ? Carbon::createFromTimestamp($ts) : null;
+    }
+
     /** @return array<string, array{opened: int, resolved: int}> Resumen por tipo (para el comando/tests). */
     public function run(?Carbon $now = null): array
     {

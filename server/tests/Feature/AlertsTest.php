@@ -5,6 +5,7 @@ use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Livewire\Alerts\Index;
 use App\Livewire\Fleet\Map;
+use App\Livewire\Layout\NavBadge;
 use App\Models\AlertEvent;
 use App\Models\AlertRule;
 use App\Models\Device;
@@ -14,6 +15,7 @@ use App\Models\Truck;
 use App\Notifications\FleetAlert;
 use App\Services\AlertEvaluator;
 use App\Support\TrackingWindow;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 
@@ -261,12 +263,79 @@ it('rechaza umbrales fuera de rango y el mensaje llega al HTML', function () {
     expect(AlertRule::forType(AlertType::GpsSilence)->threshold)->toBe(5);
 });
 
-it('"Evaluar ahora" ejecuta la evaluación desde la pantalla', function () {
-    onRoute(minutesSilent: 8);
+it('la pantalla no tiene botón de evaluar y se refresca sola por poll', function () {
+    $html = Livewire::actingAs($this->admin)->test(Index::class)->html();
 
-    Livewire::actingAs($this->admin)->test(Index::class)->call('evaluateNow')->assertDispatched('toast');
+    expect($html)->not->toContain('Evaluar ahora')
+        ->and($html)->toContain('wire:poll.10s')
+        ->and($html)->toContain('Se actualiza solo');
+});
+
+it('al abrir la pantalla evalúa sola (sin planificador ni botón) y muestra los avisos activos', function () {
+    onRoute(minutesSilent: 8);
+    expect(AlertEvent::count())->toBe(0);
+
+    $test = Livewire::actingAs($this->admin)->test(Index::class);
 
     expect(AlertEvent::open()->count())->toBe(1);
+    expect($test->html())->toContain('sin señal GPS')->toContain('última comprobación a las 10:00:00');
+});
+
+it('un poll posterior detecta un aviso nuevo en cuanto la evaluación anterior es antigua', function () {
+    [$route, $device] = onRoute(minutesSilent: 1);
+    $test = Livewire::actingAs($this->admin)->test(Index::class);
+    expect(AlertEvent::count())->toBe(0);
+
+    // El dispositivo se calla; pasa más de un minuto y llega el siguiente poll de la pantalla.
+    $device->update(['last_seen_at' => now()->subMinutes(7)]);
+    $this->travel(60)->seconds();
+    $test->call('$refresh');
+
+    expect(AlertEvent::open()->count())->toBe(1);
+});
+
+it('la evaluación perezosa no se repite si la anterior es reciente ni mientras otra está en curso', function () {
+    onRoute(minutesSilent: 8);
+    $evaluator = app(AlertEvaluator::class);
+
+    expect($evaluator->runGuarded(45))->not->toBeNull();  // primera: evalúa
+    expect($evaluator->runGuarded(45))->toBeNull();       // reciente: se salta
+
+    $this->travel(46)->seconds();
+    $lock = Cache::lock('alerts:evaluate', 55);
+    $lock->get();
+    expect($evaluator->runGuarded(45))->toBeNull();       // otra pasada en curso: se salta
+    $lock->release();
+
+    expect($evaluator->runGuarded(45))->not->toBeNull();  // libre y antigua: evalúa
+});
+
+it('un fallo del evaluador no tira la pantalla de avisos', function () {
+    $this->mock(AlertEvaluator::class, function ($mock) {
+        $mock->shouldReceive('runGuarded')->andThrow(new RuntimeException('boom'));
+        $mock->shouldReceive('lastRunAt')->andReturn(null);
+    });
+
+    Livewire::actingAs($this->admin)->test(Index::class)->assertOk()->assertSee('Todo en orden');
+});
+
+it('las insignias del menú son componentes vivos con su propio poll y respetan permisos', function () {
+    AlertEvent::create(['rule_type' => AlertType::GpsSilence, 'subject_type' => 'device', 'subject_id' => 1,
+        'subject_label' => 'X', 'message' => 'm', 'opened_at' => now()]);
+    AlertEvent::create(['rule_type' => AlertType::GpsSilence, 'subject_type' => 'device', 'subject_id' => 2,
+        'subject_label' => 'Y', 'message' => 'm', 'opened_at' => now()]);
+
+    $test = Livewire::actingAs($this->admin)->test(NavBadge::class, ['kind' => 'alerts']);
+    expect($test->html())->toContain('wire:poll.20s')->toContain('>2<');
+
+    // Un aviso nuevo aparece en la insignia en el siguiente poll, sin recargar la página.
+    AlertEvent::create(['rule_type' => AlertType::LowBattery, 'subject_type' => 'device', 'subject_id' => 3,
+        'subject_label' => 'Z', 'message' => 'm', 'opened_at' => now()]);
+    expect($test->call('$refresh')->html())->toContain('>3<');
+
+    // Un chofer no ve ningún número.
+    $chofer = Livewire::actingAs(makeUser('chofer'))->test(NavBadge::class, ['kind' => 'alerts']);
+    expect($chofer->html())->not->toContain('>3<')->toContain('wire:poll.20s');
 });
 
 it('el mapa usa el mismo umbral que el aviso de señal', function () {
@@ -274,6 +343,15 @@ it('el mapa usa el mismo umbral que el aviso de señal', function () {
 
     expect(Livewire::actingAs($this->admin)->test(Map::class)->instance()->staleMinutes())->toBe(20);
 });
+
+/**
+ * Marca la evaluación como recién hecha: la pantalla /avisos evalúa sola al abrirse si la última pasada
+ * es antigua, y los avisos "activos" de fixture (sin dispositivo real detrás) se cerrarían como resueltos.
+ */
+function evaluatorJustRan(): void
+{
+    Cache::forever(AlertEvaluator::LAST_RUN_KEY, now()->timestamp);
+}
 
 /** Aviso ya resuelto hace $daysAgo días (o abierto si es null). */
 function alertEvent(?int $resolvedDaysAgo, AlertType $type = AlertType::GpsSilence, string $label = 'Pedro'): AlertEvent
@@ -311,6 +389,7 @@ it('avisos:purgar respeta --dias', function () {
 });
 
 it('el historial pagina, filtra por tipo y no muestra los activos', function () {
+    evaluatorJustRan();
     foreach (range(1, 20) as $i) {
         alertEvent(1, AlertType::GpsSilence, "Silencio {$i}");
     }
@@ -329,6 +408,7 @@ it('el historial pagina, filtra por tipo y no muestra los activos', function () 
 });
 
 it('se pueden eliminar avisos resueltos seleccionados, pero nunca uno activo', function () {
+    evaluatorJustRan();
     $a = alertEvent(1, label: 'Resuelto A');
     $b = alertEvent(1, label: 'Resuelto B');
     $activo = alertEvent(null, label: 'Activo');
@@ -344,6 +424,7 @@ it('se pueden eliminar avisos resueltos seleccionados, pero nunca uno activo', f
 });
 
 it('"Vaciar esta lista" borra solo los resueltos que cumplen el filtro', function () {
+    evaluatorJustRan();
     alertEvent(1, AlertType::GpsSilence, 'Silencio');
     $bateria = alertEvent(1, AlertType::LowBattery, 'Batería');
     $activo = alertEvent(null, AlertType::GpsSilence, 'Activo');

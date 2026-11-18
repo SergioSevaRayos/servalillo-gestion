@@ -30,8 +30,8 @@ new class extends Component
             $user->can('viewAny', \App\Models\Route::class) ? [__('Rutas'), 'routes.board', ['routes.*']] : null,
             $user->can('devices.manage') ? [__('Mapa'), 'fleet.map', ['fleet.map']] : null,
             $user->can('viewAny', \App\Models\DeliveryNote::class) ? [__('Albaranes'), 'delivery-notes.index', ['delivery-notes.*']] : null,
-            $user->can('invoices.manage') ? [__('Facturas'), 'invoices.index', ['invoices.*'], \App\Models\Invoice::query()->pending()->count(), 'bg-amber-500'] : null,
-            $user->can('alerts.manage') ? [__('Avisos'), 'alerts.index', ['alerts.index'], \App\Models\AlertEvent::query()->open()->count(), 'bg-rose-500'] : null,
+            $user->can('invoices.manage') ? [__('Facturas'), 'invoices.index', ['invoices.*'], 'invoices'] : null,
+            $user->can('alerts.manage') ? [__('Avisos'), 'alerts.index', ['alerts.index'], 'alerts'] : null,
         ])];
 
         $groups[] = [__('Datos'), array_filter([
@@ -58,9 +58,9 @@ new class extends Component
         ])];
     }
 
-    // Cada enlace se normaliza a 5 campos (insignia y color opcionales) y se descartan los grupos vacíos.
+    // Cada enlace se normaliza a 4 campos (insignia opcional) y se descartan los grupos vacíos.
     $groups = array_values(array_filter(array_map(
-        fn ($g) => [$g[0], array_map(fn ($i) => array_pad($i, 5, null), array_values($g[1]))],
+        fn ($g) => [$g[0], array_map(fn ($i) => array_pad($i, 4, null), array_values($g[1]))],
         $groups,
     ), fn ($g) => count($g[1]) > 0));
     $initials = Str::of($user->name)->explode(' ')->map(fn ($p) => mb_substr($p, 0, 1))->take(2)->implode('');
@@ -100,11 +100,11 @@ new class extends Component
                         <p class="mb-0.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ $title }}</p>
                     @endif
                     <div class="space-y-0.5">
-                        @foreach ($items as [$label, $routeName, $patterns, $badge, $badgeColor])
+                        @foreach ($items as [$label, $routeName, $patterns, $badge])
                             <x-side-link :href="route($routeName)" :active="request()->routeIs(...$patterns)" wire:navigate>
                                 <span>{{ $label }}</span>
-                                @if (($badge ?? 0) > 0)
-                                    <span class="rounded-full {{ $badgeColor }} px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">{{ $badge }}</span>
+                                @if ($badge)
+                                    <livewire:layout.nav-badge :kind="$badge" :key="'nav-badge-'.$badge" />
                                 @endif
                             </x-side-link>
                         @endforeach
@@ -153,7 +153,7 @@ new class extends Component
          anidado en el <nav> sticky (iOS Safari coloca mal un position:fixed dentro de sticky). --}}
     <template x-teleport="body"><x-ui.drop-menu>
         @foreach ($groups as [$title, $items])
-            @foreach ($items as [$label, $routeName, $patterns, $badge, $badgeColor])
+            @foreach ($items as [$label, $routeName, $patterns, $badge])
                 <x-responsive-nav-link :href="route($routeName)" :active="request()->routeIs(...$patterns)" wire:navigate>
                     {{ $label }}
                 </x-responsive-nav-link>
