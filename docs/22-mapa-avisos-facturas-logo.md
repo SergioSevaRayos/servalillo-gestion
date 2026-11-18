@@ -15,9 +15,12 @@ van en el grupo de rutas **"Gestión"** (`role:administrador|mantenimiento`), nu
 - `public/images/logo-aguas-del-servalillo.png`: recortado (`convert -trim`) y reducido a 480 px
   (~72 KB) desde `AGUAs.png` (1366×768, fondo transparente, mucho margen).
 - Se usa en la cabecera del albarán PDF (`pdf/delivery-note.blade.php`, como **data URI** para no
-  depender de rutas/chroot de dompdf) y en el acceso (`layouts/guest.blade.php`, con placa blanca en
-  modo oscuro). **La barra de navegación se queda con el icono de gota**: un logo ancho volvería a
-  forzar el scroll horizontal del menú (problema ya resuelto el 2026-09-12).
+  depender de rutas/chroot de dompdf), en el acceso (`layouts/guest.blade.php`) y, desde el menú lateral
+  (2026-11-18, ver `docs/07`), en la cabecera de la navegación (escritorio y barra móvil): ya no hay barra
+  superior con enlaces, así que el logo ancho no desborda nada.
+- **Modo oscuro**: `logo-aguas-del-servalillo-oscuro.png`, variante con un borde blanco fino pegado a las letras
+  (ImageMagick: dilatar el alfa + `colorize` blanco bajo el original). Una placa blanca cuadrada detrás del
+  logo se descartó por fea. Se alternan dos `<img>` con `dark:hidden` / `hidden dark:block`.
 
 ## DNI/CIF del cliente al entregar (web del chofer)
 - `StopActionForm::$customer_tax_id`, visible con "Entregada". Se **precarga** desde
