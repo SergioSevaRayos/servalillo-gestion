@@ -13,7 +13,8 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased">
-        <div class="min-h-screen">
+        {{-- md:pl-60 = hueco del menú lateral fijo (w-60) de livewire/layout/navigation. --}}
+        <div class="min-h-screen md:pl-60">
             <livewire:layout.navigation />
 
             @if (isset($header))

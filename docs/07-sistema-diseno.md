@@ -125,3 +125,25 @@
 - `resources/views/vendor/pagination/tailwind.blade.php`: vista de paginación por defecto de Laravel,
   publicada y restilizada con los tokens del proyecto (se detecta por convención, no requiere registro).
 
+
+
+### Menú lateral en escritorio (2026-11-18)
+- **Sustituye a la barra superior en `md+`** (petición del usuario: con tantas opciones la barra obligaba a un
+  scroll horizontal; prefiere el menú a la izquierda). `livewire/layout/navigation.blade.php` (Volt): `<aside
+  class="fixed inset-y-0 left-0 w-60 hidden md:flex">` con cabecera (logo + campana), enlaces **agrupados**
+  (Operación / Datos / Personal / Sistema) y pie con el usuario. Scroll **vertical** propio si no caben
+  (nunca horizontal); el espaciado está ajustado para que quepan sin scroll en ~615 px de alto.
+- **`layouts/app.blade.php`: `md:pl-60`** reserva el hueco del menú. Las columnas del Kanban
+  (`md:h-[calc(100vh-14rem)]`) se calcularon con la barra superior: ahora sobra algo de alto, sin romper nada.
+- **Una sola definición de enlaces** (`$groups` en un `@php` al inicio de la vista) alimenta el menú lateral y el
+  menú móvil: antes estaban escritos dos veces. Cada enlace es `[etiqueta, ruta, patrones de "activo", insignia, color]`;
+  un enlace nuevo se añade en UN sitio. Insignias: facturas pendientes (ámbar) y avisos activos (rojo).
+- **Móvil no cambia**: pill superior opaca (logo + campana) + gota FAB (`<x-ui.drop-menu>`). El `<nav>` sigue siendo la
+  raíz única de Livewire y es `sticky` solo en móvil (`md:static`); el `<aside>` es un hijo `fixed` (no se puede
+  envolver en un `<div>` ni usar `display: contents`: rompen el sticky móvil).
+- El menú del usuario (tema, perfil, guía de estilo, cerrar sesión) se abre **hacia arriba** desde el pie con un
+  popover Alpine propio: `<x-dropdown>` solo abre hacia abajo y en el pie no cabría. El logo de la cabecera es
+  `images/logo-aguas-del-servalillo.png` (con placa blanca en modo oscuro).
+- Componente nuevo `<x-side-link>` (mismos tokens que `<x-nav-link>` pero a todo el ancho y con hueco para insignia).
+- **Pendiente de verificar a mano**: la interacción (menú de usuario, campana) no se pudo probar en el navegador
+  automatizado — en esa pestaña no ejecutaba JS ni con la navegación antigua. Los tests de servidor sí pasan.
