@@ -139,3 +139,12 @@ it('solo ve su propio historial, no el de otros', function () {
     expect($history)->toHaveCount(1);
     expect($history->first()->user_id)->toBe($user->id);
 });
+
+it('con el bloque desactivado, mantenimiento sigue viendo el panel de gestión y administrador no', function () {
+    config()->set('servalillo.attendance.enabled', false);
+
+    $this->actingAs(makeUser('mantenimiento'))->get('/fichajes/gestion')->assertOk();
+    $this->actingAs(makeUser('mantenimiento'))->get('/fichajes/totales')->assertOk();
+    $this->actingAs(makeUser('administrador'))->get('/fichajes/gestion')->assertNotFound();
+    $this->actingAs(makeUser('chofer'))->get('/fichar')->assertNotFound();
+});

@@ -20,7 +20,7 @@ class AttendanceExportController extends Controller
 {
     public function json(Request $request, AttendanceExportService $exportService): JsonResponse
     {
-        abort_unless(config('servalillo.attendance.enabled'), 404);
+        abort_unless(auth()->user()?->attendanceVisible(), 404);
 
         $from = $request->date('from') ?? today()->startOfMonth();
         $to = $request->date('to') ?? today()->endOfMonth();

@@ -52,6 +52,17 @@ class User extends Authenticatable implements Auditable
     }
 
     /**
+     * ¿Ve este usuario el módulo de fichaje (menú, pantallas, exportaciones)? Con
+     * `ATTENDANCE_ENABLED=false` el módulo queda apagado para todos EXCEPTO mantenimiento
+     * (gestor técnico de la plataforma), que lo sigue viendo para poder configurarlo y
+     * probarlo. No cambia quién puede fichar: eso lo decide `canPunchAttendance()`.
+     */
+    public function attendanceVisible(): bool
+    {
+        return (bool) config('servalillo.attendance.enabled') || $this->isMaintenance();
+    }
+
+    /**
      * Solo administrador y chofer fichan — mantenimiento es el gestor técnico, no personal.
      * Excluye además a quien ficha con huella en la base a través del sistema externo
      * (`attendance_mode = 'external'`, ya implementado y sin relación con esta app):

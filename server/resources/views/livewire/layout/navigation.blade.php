@@ -70,7 +70,7 @@ new class extends Component
                                 {{ __('Depósitos') }}
                             </x-nav-link>
                         @endcan
-                        @if (config('servalillo.attendance.enabled'))
+                        @if (auth()->user()->attendanceVisible())
                             @can('attendance.manage')
                                 <x-nav-link :href="route('attendance.manage')" :active="request()->routeIs('attendance.manage')" wire:navigate>
                                     {{ __('Fichajes') }}
@@ -87,7 +87,7 @@ new class extends Component
                                 {{ __('Mantenimiento') }}
                             </x-nav-link>
                         @endif
-                        @if (config('servalillo.attendance.enabled') && auth()->user()->canPunchAttendance())
+                        @if (auth()->user()->attendanceVisible() && auth()->user()->canPunchAttendance())
                             <x-nav-link :href="route('attendance.index')" :active="request()->routeIs('attendance.index')" wire:navigate>
                                 {{ __('Fichar') }}
                             </x-nav-link>
@@ -96,7 +96,7 @@ new class extends Component
                         <x-nav-link :href="route('chofer.today')" :active="request()->routeIs('chofer.*')" wire:navigate>
                             {{ __('Mi ruta') }}
                         </x-nav-link>
-                        @if (config('servalillo.attendance.enabled') && auth()->user()->canPunchAttendance())
+                        @if (auth()->user()->attendanceVisible() && auth()->user()->canPunchAttendance())
                             <x-nav-link :href="route('attendance.index')" :active="request()->routeIs('attendance.index')" wire:navigate>
                                 {{ __('Fichar') }}
                             </x-nav-link>
@@ -199,7 +199,7 @@ new class extends Component
                         {{ __('Depósitos') }}
                     </x-responsive-nav-link>
                 @endcan
-                @if (config('servalillo.attendance.enabled'))
+                @if (auth()->user()->attendanceVisible())
                     @can('attendance.manage')
                         <x-responsive-nav-link :href="route('attendance.manage')" :active="request()->routeIs('attendance.manage')" wire:navigate>
                             {{ __('Fichajes') }}
@@ -221,7 +221,7 @@ new class extends Component
                         {{ __('Soporte / incidencias') }}
                     </x-responsive-nav-link>
                 @endif
-                @if (config('servalillo.attendance.enabled') && auth()->user()->canPunchAttendance())
+                @if (auth()->user()->attendanceVisible() && auth()->user()->canPunchAttendance())
                     <x-responsive-nav-link :href="route('attendance.index')" :active="request()->routeIs('attendance.index')" wire:navigate>
                         {{ __('Fichar') }}
                     </x-responsive-nav-link>
@@ -233,7 +233,7 @@ new class extends Component
                 <x-responsive-nav-link :href="route('chofer.today')" :active="request()->routeIs('chofer.*')" wire:navigate>
                     {{ __('Mi ruta') }}
                 </x-responsive-nav-link>
-                @if (config('servalillo.attendance.enabled') && auth()->user()->canPunchAttendance())
+                @if (auth()->user()->attendanceVisible() && auth()->user()->canPunchAttendance())
                     <x-responsive-nav-link :href="route('attendance.index')" :active="request()->routeIs('attendance.index')" wire:navigate>
                         {{ __('Fichar') }}
                     </x-responsive-nav-link>

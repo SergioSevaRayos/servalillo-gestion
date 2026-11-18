@@ -23,7 +23,7 @@ class Index extends Component
 {
     public function mount(): void
     {
-        abort_unless(config('servalillo.attendance.enabled'), 404);
+        abort_unless(auth()->user()?->attendanceVisible(), 404);
         abort_unless(auth()->user()->canPunchAttendance(), 403);
     }
 

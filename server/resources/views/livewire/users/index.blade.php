@@ -103,7 +103,7 @@
                     </div>
                 </div>
 
-                @if (config('servalillo.attendance.enabled') && $form->role === 'administrador')
+                @if (auth()->user()->attendanceVisible() && $form->role === 'administrador')
                     <div class="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
                         <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ __('Dónde puede fichar') }}</p>
                         <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">

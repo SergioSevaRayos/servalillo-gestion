@@ -31,7 +31,7 @@ class Totals extends Component
 
     public function mount(): void
     {
-        abort_unless(config('servalillo.attendance.enabled'), 404);
+        abort_unless(auth()->user()?->attendanceVisible(), 404);
         // El middleware de ruta (`permission:attendance.manage`) no se ejecuta en
         // Livewire::test(), así que se repite aquí — mismo patrón que Manage.
         abort_unless(auth()->user()->can('attendance.manage'), 403);
