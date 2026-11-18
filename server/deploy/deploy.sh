@@ -5,6 +5,7 @@
 #   bash server/deploy/deploy.sh            # normal (corre los tests antes)
 #   SKIP_TESTS=1 bash server/deploy/deploy.sh
 #
+# Tras migrar reejecuta RolePermissionSeeder (idempotente): un permiso nuevo llega solo a producción.
 # Compila los assets en local, sube public/build por rsync y ejecuta el resto por SSH.
 # El VPS no lleva Node.
 #
@@ -58,6 +59,7 @@ ssh "$VPS" "
   rc=0
   composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist &&
   php artisan migrate --force &&
+  php artisan db:seed --class=RolePermissionSeeder --force &&
   php artisan optimize &&
   { php artisan storage:link || true; } &&
   { chmod -R ug+rwX storage bootstrap/cache 2>/dev/null || true; } &&
