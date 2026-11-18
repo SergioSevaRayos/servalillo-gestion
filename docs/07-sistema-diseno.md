@@ -143,7 +143,7 @@
   envolver en un `<div>` ni usar `display: contents`: rompen el sticky móvil).
 - El menú del usuario (tema, perfil, guía de estilo, cerrar sesión) se abre **hacia arriba** desde el pie con un
   popover Alpine propio: `<x-dropdown>` solo abre hacia abajo y en el pie no cabría. El logo de la cabecera es
-  `images/logo-aguas-del-servalillo.png` (con placa blanca en modo oscuro).
+  `images/logo-aguas-del-servalillo.png` (en modo oscuro, variante `logo-aguas-del-servalillo-oscuro.png` con borde blanco fino pegado a las letras: una placa blanca cuadrada quedaba fea).
 - Componente nuevo `<x-side-link>` (mismos tokens que `<x-nav-link>` pero a todo el ancho y con hueco para insignia).
 - **Pendiente de verificar a mano**: la interacción (menú de usuario, campana) no se pudo probar en el navegador
   automatizado — en esa pestaña no ejecutaba JS ni con la navegación antigua. Los tests de servidor sí pasan.
