@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\InvoiceStatus;
 use App\Enums\RouteStatus;
 use App\Enums\RouteStopStatus;
 use App\Jobs\ProcessDeliveryNote;
@@ -7,12 +8,15 @@ use App\Livewire\Chofer\Today;
 use App\Models\Client;
 use App\Models\DeliveryType;
 use App\Models\Driver;
+use App\Models\Invoice;
 use App\Models\Route;
 use App\Models\RouteDay;
 use App\Models\RouteStop;
 use App\Models\Truck;
 use App\Models\UnplannedStop;
+use App\Notifications\ChoferRouteChanged;
 use App\Support\GoogleMaps;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -961,4 +965,85 @@ it('el DNI/CIF es opcional: entregar sin él sigue funcionando', function () {
 
     expect($stop->fresh()->status)->toBe(RouteStopStatus::Completed)
         ->and($client->fresh()->tax_id)->toBeNull();
+});
+
+it('si el cliente quiere factura hace falta el DNI/CIF, y la entrega queda como factura pendiente', function () {
+    Notification::fake();
+    [$user, $client, $stop] = stopOfClient(null);
+    $admin = makeUser('administrador');
+
+    // Sin DNI/CIF: rechazado.
+    $test = Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->set('form.delivered_quantity', 300)
+        ->set('form.channel', 'physical')
+        ->set('form.invoice_requested', true)
+        ->call('saveStop')
+        ->assertHasErrors('form.customer_tax_id');
+
+    expect($test->html())->toContain('hace falta el DNI/CIF')
+        ->and(Invoice::count())->toBe(0);
+
+    // Con DNI/CIF: entrega cerrada + factura pendiente + aviso a administración.
+    $test->set('form.customer_tax_id', 'B04198628')->call('saveStop')->assertHasNoErrors();
+
+    $invoice = Invoice::first();
+    expect($invoice->status)->toBe(InvoiceStatus::Pending)
+        ->and($invoice->route_stop_id)->toBe($stop->id)
+        ->and($invoice->delivery_note_id)->toBe($stop->fresh()->deliveryNote->id)
+        ->and($invoice->customer_snapshot['tax_id'])->toBe('B04198628')
+        ->and($invoice->customer_snapshot['name'])->toBe('Autocares Alonso')
+        ->and($stop->fresh()->invoice_requested)->toBeTrue();
+
+    Notification::assertSentTo($admin, ChoferRouteChanged::class, fn ($n) => $n->kind === 'invoice_requested');
+});
+
+it('sin pedir factura no se crea ninguna ni se avisa', function () {
+    Notification::fake();
+    [$user, $client, $stop] = stopOfClient(null);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->set('form.delivered_quantity', 300)
+        ->set('form.channel', 'physical')
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    expect(Invoice::count())->toBe(0);
+    Notification::assertNothingSent();
+});
+
+it('un cliente que "siempre factura" llega con la casilla ya marcada', function () {
+    [$user, $client, $stop] = stopOfClient('B04198628');
+    $client->update(['always_invoice' => true]);
+
+    $test = Livewire::actingAs($user)->test(Today::class)->call('openStop', $stop->id);
+
+    $test->assertSet('form.invoice_requested', true);
+    expect($test->html())->toContain('El cliente quiere factura');
+});
+
+it('reabrir y volver a cerrar una entrega con factura no la duplica ni vuelve a avisar', function () {
+    Notification::fake();
+    [$user, $client, $stop] = stopOfClient('B04198628');
+    $admin = makeUser('administrador');
+
+    $component = Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->set('form.delivered_quantity', 300)
+        ->set('form.channel', 'physical')
+        ->set('form.invoice_requested', true)
+        ->call('saveStop')
+        ->assertHasNoErrors()
+        ->call('openStop', $stop->id)
+        ->call('reopenStop')
+        ->call('openStop', $stop->id)
+        ->set('form.delivered_quantity', 310)
+        ->set('form.channel', 'physical')
+        ->set('form.invoice_requested', true)
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    expect(Invoice::count())->toBe(1);
+    Notification::assertSentToTimes($admin, ChoferRouteChanged::class, 1);
 });

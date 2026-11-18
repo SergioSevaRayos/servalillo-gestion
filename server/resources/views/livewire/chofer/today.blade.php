@@ -547,6 +547,15 @@
                             label="{{ __('DNI / CIF del cliente') }}" wire:model="form.customer_tax_id"
                             :help="__('Si el cliente ya lo tenía guardado sale solo; si no, se guarda ahora para la próxima vez.')" />
 
+                        {{-- Factura: la hace administración; aquí solo se pide. Exige el DNI/CIF de arriba. --}}
+                        <div>
+                            <x-ui.checkbox name="form.invoice_requested" wire:model.live="form.invoice_requested"
+                                label="{{ __('El cliente quiere factura') }}" />
+                            @if ($this->form->invoice_requested)
+                                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ __('Administración se la preparará y se la enviará. El DNI/CIF es obligatorio.') }}</p>
+                            @endif
+                        </div>
+
                         {{-- Algunas entregas no salen de la cisterna que mide el contador del camión
                              (p. ej. un repostaje aparte) — si se marca "No pasa por el contador", estos
                              litros no se descuentan al cuadrar la jornada (Today::endDay()). --}}

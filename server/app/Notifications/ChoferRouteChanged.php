@@ -14,7 +14,7 @@ class ChoferRouteChanged extends Notification
 {
     use Queueable;
 
-    /** @param  'stop_failed'|'stop_skipped'|'stop_rescheduled'|'client_added'|'meter_discrepancy'|'stop_removed'  $kind */
+    /** @param  'stop_failed'|'stop_skipped'|'stop_rescheduled'|'client_added'|'meter_discrepancy'|'stop_removed'|'invoice_requested'  $kind */
     public function __construct(
         public string $kind,
         public string $driverName,
@@ -38,7 +38,9 @@ class ChoferRouteChanged extends Notification
             'icon' => 'route',
             'title' => $this->title(),
             'body' => $this->body(),
-            'url' => route('routes.board', ['date' => $this->routeDate]),
+            'url' => $this->kind === 'invoice_requested'
+                ? route('invoices.index')
+                : route('routes.board', ['date' => $this->routeDate]),
         ];
     }
 
@@ -51,6 +53,7 @@ class ChoferRouteChanged extends Notification
             'client_added' => 'Cliente añadido a una ruta',
             'meter_discrepancy' => 'Contador de litros descuadrado',
             'stop_removed' => 'Error de planificación en una ruta',
+            'invoice_requested' => 'Factura solicitada',
             default => 'Cambio en una ruta',
         };
     }
@@ -66,6 +69,7 @@ class ChoferRouteChanged extends Notification
             'stop_rescheduled' => "{$who} reprogramó la parada de {$cliente} para el {$this->detail}.",
             'client_added' => "{$who} añadió a {$cliente} a su ruta del {$this->routeDate}.",
             'meter_discrepancy' => "{$who} cerró la jornada del {$this->routeDate} con un descuadre: {$this->detail}.",
+            'invoice_requested' => "{$who} entregó a {$cliente} y el cliente quiere factura (entrega del {$this->routeDate}).",
             'stop_removed' => "{$who} quitó la parada de {$cliente} de su ruta: hubo un error al planificarla.",
             default => "{$who} modificó su ruta del {$this->routeDate}.",
         };

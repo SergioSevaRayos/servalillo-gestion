@@ -43,6 +43,11 @@ class RouteChangeNotifier
         $this->sendForStop('stop_removed', $stop);
     }
 
+    public function invoiceRequested(RouteStop $stop): void
+    {
+        $this->sendForStop('invoice_requested', $stop);
+    }
+
     public function meterDiscrepancy(RouteDay $route, float $liters, ?string $note): void
     {
         if ($this->guarded()) {
@@ -75,6 +80,7 @@ class RouteChangeNotifier
 
     /** Mismos destinatarios que StopDwellService::notifyNewUnplannedStops() — administrador y
      *  mantenimiento comparten el acceso completo de gestión (User::isManager()).
+     *
      *  @return Collection<int, User> */
     private function recipients(): Collection
     {

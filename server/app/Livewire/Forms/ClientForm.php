@@ -95,6 +95,9 @@ class ClientForm extends Form
 
     public bool $is_active = true;
 
+    /** Cliente que siempre pide factura: marca sola la casilla del chofer al entregar. */
+    public bool $always_invoice = false;
+
     public function rules(): array
     {
         $id = $this->editing?->id;
@@ -138,6 +141,7 @@ class ClientForm extends Form
             'access_notes' => ['nullable', 'string', 'max:2000'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['boolean'],
+            'always_invoice' => ['boolean'],
         ];
     }
 

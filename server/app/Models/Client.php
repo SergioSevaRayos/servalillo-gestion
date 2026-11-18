@@ -30,7 +30,7 @@ class Client extends Model implements Auditable
         'water_type', 'typical_quantity', 'quantity_unit',
         'frequency_days', 'delivery_weekdays', 'schedule_starts_on', 'schedule_ends_on',
         'tank_capacity_liters', 'tank_distance_m',
-        'requires_own_pump', 'preferred_channel', 'price', 'price_type', 'payment_terms', 'last_served_on',
+        'requires_own_pump', 'preferred_channel', 'price', 'price_type', 'payment_terms', 'always_invoice', 'last_served_on',
         'access_notes', 'notes', 'is_active',
     ];
 
@@ -55,6 +55,7 @@ class Client extends Model implements Auditable
             'price_type' => PriceType::class,
             'last_served_on' => 'date',
             'is_active' => 'boolean',
+            'always_invoice' => 'boolean',
         ];
     }
 

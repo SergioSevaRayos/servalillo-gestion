@@ -7,9 +7,11 @@ use App\Models\Client;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
+use App\Services\InvoiceService;
 use App\Services\RecurringRouteService;
 use App\Support\Notifications\RouteChangeNotifier;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Livewire\Form;
 
 /**
@@ -30,6 +32,9 @@ class StopActionForm extends Form
 
     /** DNI/NIF/CIF del cliente (se precarga si ya se guardó alguna vez; ver setStop()). */
     public ?string $customer_tax_id = null;
+
+    /** El cliente quiere factura: la hace administración (ver InvoiceService). Exige el DNI/CIF. */
+    public bool $invoice_requested = false;
 
     /** Motivo obligatorio para failed / skipped. */
     public ?string $reason = null;
@@ -60,7 +65,10 @@ class StopActionForm extends Form
             : ($stop->planned_quantity !== null ? (float) $stop->planned_quantity : null);
         $this->counted_in_meter = $stop->counted_in_meter;
         // Si la parada no trae DNI/CIF pero el cliente ya lo tiene guardado de otra vez, sale solo.
-        $this->customer_tax_id = $stop->customer_tax_id ?: $this->matchingClient($stop)?->tax_id;
+        $client = $this->matchingClient($stop);
+        $this->customer_tax_id = $stop->customer_tax_id ?: $client?->tax_id;
+        // Casilla de factura: la de la parada si ya se marcó, o la del cliente que siempre la pide.
+        $this->invoice_requested = $stop->invoice_requested || (bool) $client?->always_invoice;
         $this->reason = $stop->failure_reason;
         $this->data = $stop->data ?: [];
 
@@ -77,7 +85,13 @@ class StopActionForm extends Form
             'outcome' => ['required', 'in:completed,failed,skipped'],
             'delivered_quantity' => ['nullable', 'numeric', 'min:0', 'required_if:outcome,completed'],
             'counted_in_meter' => ['boolean'],
-            'customer_tax_id' => ['nullable', 'regex:/^[A-Z0-9]{8,12}$/'],
+            'invoice_requested' => ['boolean'],
+            'customer_tax_id' => [
+                'nullable',
+                'regex:/^[A-Z0-9]{8,12}$/',
+                // Para facturar hace falta el DNI/CIF (solo al entregar).
+                Rule::requiredIf(fn () => $this->outcome === 'completed' && $this->invoice_requested),
+            ],
             'reason' => ['nullable', 'string', 'max:500', 'required_if:outcome,failed', 'required_if:outcome,skipped'],
             'reschedule_on' => ['nullable', 'date', 'after:today'],
         ];
@@ -104,6 +118,7 @@ class StopActionForm extends Form
         return [
             'delivered_quantity.required_if' => 'Indica cuántos litros se han entregado.',
             'reason.required_if' => 'Indica el motivo.',
+            'customer_tax_id.required' => 'Para hacer la factura hace falta el DNI/CIF del cliente.',
             'customer_tax_id.regex' => 'El DNI/CIF no es válido: de 8 a 12 letras y números, sin espacios ni guiones.',
             'signature.required' => 'Falta la firma del cliente.',
             'signature.starts_with' => 'La firma no es válida.',
@@ -172,6 +187,7 @@ class StopActionForm extends Form
                 'status' => RouteStopStatus::Completed,
                 'delivered_quantity' => $validated['delivered_quantity'],
                 'counted_in_meter' => $validated['counted_in_meter'] ?? true,
+                'invoice_requested' => $validated['invoice_requested'] ?? false,
                 'failure_reason' => null,
                 'completed_at' => now(),
                 'data' => $cleanData,
@@ -184,6 +200,16 @@ class StopActionForm extends Form
                     'signer_name' => $this->signer_name,
                     'signature' => $this->signature ?: null,
                 ], fn ($v) => $v !== null), auth()->id());
+            }
+
+            // Factura pedida: queda como trabajo pendiente de administración + aviso a oficina
+            // (solo la primera vez: reabrir y volver a cerrar no repite ni duplica).
+            if ($stop->invoice_requested) {
+                $invoice = app(InvoiceService::class)->requestForStop($stop->refresh(), $stop->deliveryNote);
+
+                if ($invoice->wasRecentlyCreated) {
+                    $notifier->invoiceRequested($stop);
+                }
             }
         } else {
             $reason = $validated['reason'];

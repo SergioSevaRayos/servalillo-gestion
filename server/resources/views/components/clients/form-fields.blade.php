@@ -164,6 +164,9 @@
     </div>
 
     @unless ($prospect)
-        <x-ui.checkbox name="is_active" label="{{ __('Cliente activo') }}" wire:model="form.is_active" />
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <x-ui.checkbox name="is_active" label="{{ __('Cliente activo') }}" wire:model="form.is_active" />
+            <x-ui.checkbox name="always_invoice" label="{{ __('Siempre factura') }}" wire:model="form.always_invoice" />
+        </div>
     @endunless
 </div>

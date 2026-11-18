@@ -26,7 +26,7 @@ class RouteStop extends Model implements Auditable
         'route_id', 'position', 'service_kind', 'scheduled_for', 'rescheduled_by', 'customer_name', 'customer_tax_id', 'address',
         'latitude', 'longitude', 'contact_name', 'contact_phone', 'delivery_type_id',
         'status', 'scheduled_window_start', 'scheduled_window_end',
-        'planned_quantity', 'delivered_quantity', 'counted_in_meter', 'completed_at', 'failure_reason', 'data',
+        'planned_quantity', 'delivered_quantity', 'counted_in_meter', 'invoice_requested', 'completed_at', 'failure_reason', 'data',
     ];
 
     protected function casts(): array
@@ -43,6 +43,7 @@ class RouteStop extends Model implements Auditable
             'planned_quantity' => 'decimal:2',
             'delivered_quantity' => 'decimal:2',
             'counted_in_meter' => 'boolean',
+            'invoice_requested' => 'boolean',
             'completed_at' => 'datetime',
             'data' => 'array',
         ];
@@ -73,6 +74,11 @@ class RouteStop extends Model implements Auditable
     public function wasRescheduled(): bool
     {
         return $this->rescheduled_by !== null;
+    }
+
+    public function invoice(): HasOne
+    {
+        return $this->hasOne(Invoice::class);
     }
 
     public function deliveryNote(): HasOne

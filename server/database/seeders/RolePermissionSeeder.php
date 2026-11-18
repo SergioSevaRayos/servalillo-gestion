@@ -29,6 +29,7 @@ class RolePermissionSeeder extends Seeder
         'support.create', 'support.manage',
         'sgra.view',
         'attendance.manage',
+        'invoices.manage',
     ];
 
     public const CHOFER_PERMISSIONS = [

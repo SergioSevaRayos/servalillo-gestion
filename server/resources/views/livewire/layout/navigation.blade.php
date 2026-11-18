@@ -65,6 +65,14 @@ new class extends Component
                                 {{ __('Albaranes') }}
                             </x-nav-link>
                         @endcan
+                        @can('invoices.manage')
+                            <x-nav-link :href="route('invoices.index')" :active="request()->routeIs('invoices.*')" wire:navigate>
+                                {{ __('Facturas') }}
+                                @if (($pendingInvoices = \App\Models\Invoice::query()->pending()->count()) > 0)
+                                    <span class="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">{{ $pendingInvoices }}</span>
+                                @endif
+                            </x-nav-link>
+                        @endcan
                         @can('sgra.view')
                             <x-nav-link :href="route('sgra.index')" :active="request()->routeIs('sgra.index')" wire:navigate>
                                 {{ __('Depósitos') }}
@@ -192,6 +200,11 @@ new class extends Component
                 @can('viewAny', \App\Models\DeliveryNote::class)
                     <x-responsive-nav-link :href="route('delivery-notes.index')" :active="request()->routeIs('delivery-notes.*')" wire:navigate>
                         {{ __('Albaranes') }}
+                    </x-responsive-nav-link>
+                @endcan
+                @can('invoices.manage')
+                    <x-responsive-nav-link :href="route('invoices.index')" :active="request()->routeIs('invoices.*')" wire:navigate>
+                        {{ __('Facturas') }}
                     </x-responsive-nav-link>
                 @endcan
                 @can('sgra.view')

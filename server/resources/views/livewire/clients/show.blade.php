@@ -12,6 +12,9 @@
                 @else
                     <x-ui.badge variant="primary">{{ $client->service_kind->label() }}</x-ui.badge>
                     <x-ui.badge :variant="$client->is_active ? 'success' : 'neutral'">{{ $client->is_active ? __('Activo') : __('Inactivo') }}</x-ui.badge>
+                    @if ($client->always_invoice)
+                        <x-ui.badge variant="primary">{{ __('Siempre factura') }}</x-ui.badge>
+                    @endif
                     @if ($client->isDeliveryDue())
                         <x-ui.badge variant="warning">{{ __('Le toca reparto') }}</x-ui.badge>
                     @endif
