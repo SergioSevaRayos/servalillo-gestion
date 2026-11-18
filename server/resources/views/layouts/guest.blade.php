@@ -23,8 +23,7 @@
             </div>
 
             <a href="/" wire:navigate class="relative z-10 mb-6 flex items-center" title="{{ config('app.name') }}">
-                <img src="{{ asset('images/logo-aguas-del-servalillo.png') }}" alt="Aguas del Servalillo" class="h-20 w-auto sm:h-24 dark:hidden" width="480" height="145">
-<img src="{{ asset('images/logo-aguas-del-servalillo-oscuro.png') }}" alt="" aria-hidden="true" class="h-20 w-auto sm:h-24 hidden dark:block" width="492" height="157">
+                <img src="{{ asset('images/logo-aguas-del-servalillo.png') }}" alt="Aguas del Servalillo" class="h-20 w-auto sm:h-24" width="480" height="145">
             </a>
 
             <div class="surface relative z-10 w-full max-w-md rounded-2xl p-6 sm:p-8">

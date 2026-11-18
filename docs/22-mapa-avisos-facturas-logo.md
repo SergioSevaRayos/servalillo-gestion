@@ -18,9 +18,9 @@ van en el grupo de rutas **"Gestión"** (`role:administrador|mantenimiento`), nu
   depender de rutas/chroot de dompdf), en el acceso (`layouts/guest.blade.php`) y, desde el menú lateral
   (2026-11-18, ver `docs/07`), en la cabecera de la navegación (escritorio y barra móvil): ya no hay barra
   superior con enlaces, así que el logo ancho no desborda nada.
-- **Modo oscuro**: `logo-aguas-del-servalillo-oscuro.png`, variante con un borde blanco fino pegado a las letras
-  (ImageMagick: dilatar el alfa + `colorize` blanco bajo el original). Una placa blanca cuadrada detrás del
-  logo se descartó por fea. Se alternan dos `<img>` con `dark:hidden` / `hidden dark:block`.
+- **Modo oscuro**: se usa el mismo logo, sin variante ni placa. Se probaron una placa blanca cuadrada y un
+  borde blanco fino y el usuario descartó ambos por feos; el original (transparente) se lee bien sobre el fondo
+  oscuro (rojo y azul con contraste suficiente, barra morada visible).
 
 ## DNI/CIF del cliente al entregar (web del chofer)
 - `StopActionForm::$customer_tax_id`, visible con "Entregada". Se **precarga** desde

@@ -74,8 +74,7 @@ new class extends Component
     {{-- ============ Móvil: pill flotante OPACA con logo + campana (el menú es la gota FAB) ============ --}}
     <div class="glass mx-auto flex h-16 max-w-7xl items-center justify-between rounded-2xl bg-white px-4 dark:bg-slate-900 sm:px-6 md:hidden">
         <a href="{{ route('home') }}" wire:navigate title="{{ config('app.name') }}" class="flex shrink-0 items-center">
-            <img src="{{ asset('images/logo-aguas-del-servalillo.png') }}" alt="Aguas del Servalillo" class="h-9 w-auto dark:hidden" width="480" height="145">
-<img src="{{ asset('images/logo-aguas-del-servalillo-oscuro.png') }}" alt="" aria-hidden="true" class="h-9 w-auto hidden dark:block" width="492" height="157">
+            <img src="{{ asset('images/logo-aguas-del-servalillo.png') }}" alt="Aguas del Servalillo" class="h-9 w-auto" width="480" height="145">
         </a>
         <div class="flex items-center gap-3">
             <livewire:notifications.bell />
@@ -88,8 +87,7 @@ new class extends Component
              campana no se recorte contra su overflow. --}}
         <div class="flex h-14 shrink-0 items-center justify-between gap-2 px-4">
             <a href="{{ route('home') }}" wire:navigate title="{{ config('app.name') }}" class="flex min-w-0 items-center">
-                <img src="{{ asset('images/logo-aguas-del-servalillo.png') }}" alt="Aguas del Servalillo" class="h-9 w-auto max-w-full dark:hidden" width="480" height="145">
-<img src="{{ asset('images/logo-aguas-del-servalillo-oscuro.png') }}" alt="" aria-hidden="true" class="h-9 w-auto max-w-full hidden dark:block" width="492" height="157">
+                <img src="{{ asset('images/logo-aguas-del-servalillo.png') }}" alt="Aguas del Servalillo" class="h-9 w-auto max-w-full" width="480" height="145">
             </a>
             <livewire:notifications.bell />
         </div>
