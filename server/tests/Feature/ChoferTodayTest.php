@@ -881,3 +881,84 @@ it('un chofer no puede capturar la ubicación de la parada de otro', function ()
         ->call('captureStopCoordinates', $stop->id, 28.1, -16.1)
         ->assertForbidden();
 });
+
+/** Parada en curso de un cliente de la ficha (sin DNI/CIF en la parada, como los esporádicos). */
+function stopOfClient(?string $clientTaxId, ?string $stopTaxId = null): array
+{
+    [$user, $driver, $route] = chofer(['status' => RouteStatus::InProgress, 'started_at' => now()], stops: 1);
+    $client = Client::factory()->create(['name' => 'Autocares Alonso', 'tax_id' => $clientTaxId]);
+    $stop = $route->stops()->first();
+    $stop->update(['customer_name' => 'Autocares Alonso', 'customer_tax_id' => $stopTaxId]);
+
+    return [$user, $client, $stop];
+}
+
+it('el DNI/CIF ya guardado del cliente sale solo al abrir la parada y se pinta en el modal', function () {
+    [$user, $client, $stop] = stopOfClient('B04198628');
+
+    $test = Livewire::actingAs($user)->test(Today::class)->call('openStop', $stop->id);
+
+    $test->assertSet('form.customer_tax_id', 'B04198628');
+    expect($test->html())->toContain('DNI / CIF del cliente');
+});
+
+it('al entregar, el DNI/CIF se guarda en la parada y en la ficha si el cliente no tenía ninguno', function () {
+    [$user, $client, $stop] = stopOfClient(null);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->assertSet('form.customer_tax_id', null)
+        ->set('form.delivered_quantity', 300)
+        ->set('form.channel', 'physical')
+        ->set('form.customer_tax_id', '12.345.678-z') // se normaliza antes de validar
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    expect($stop->fresh()->customer_tax_id)->toBe('12345678Z')
+        ->and($client->fresh()->tax_id)->toBe('12345678Z')
+        ->and($stop->fresh()->deliveryNote->customer_snapshot['tax_id'])->toBe('12345678Z');
+});
+
+it('nunca pisa el DNI/CIF que la ficha del cliente ya tenía', function () {
+    [$user, $client, $stop] = stopOfClient('B04198628');
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->set('form.delivered_quantity', 300)
+        ->set('form.channel', 'physical')
+        ->set('form.customer_tax_id', 'A11111111')
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    expect($client->fresh()->tax_id)->toBe('B04198628')
+        ->and($stop->fresh()->customer_tax_id)->toBe('A11111111');
+});
+
+it('un DNI/CIF con formato inválido se rechaza y el mensaje llega al HTML', function () {
+    [$user, $client, $stop] = stopOfClient(null);
+
+    $test = Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->set('form.delivered_quantity', 300)
+        ->set('form.channel', 'physical')
+        ->set('form.customer_tax_id', '123')
+        ->call('saveStop')
+        ->assertHasErrors('form.customer_tax_id');
+
+    expect($test->html())->toContain('El DNI/CIF no es válido')
+        ->and($stop->fresh()->status)->not->toBe(RouteStopStatus::Completed);
+});
+
+it('el DNI/CIF es opcional: entregar sin él sigue funcionando', function () {
+    [$user, $client, $stop] = stopOfClient(null);
+
+    Livewire::actingAs($user)->test(Today::class)
+        ->call('openStop', $stop->id)
+        ->set('form.delivered_quantity', 300)
+        ->set('form.channel', 'physical')
+        ->call('saveStop')
+        ->assertHasNoErrors();
+
+    expect($stop->fresh()->status)->toBe(RouteStopStatus::Completed)
+        ->and($client->fresh()->tax_id)->toBeNull();
+});

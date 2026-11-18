@@ -542,6 +542,11 @@
                         <x-ui.input name="form.delivered_quantity" type="number" step="any" inputmode="decimal"
                             label="{{ __('Litros entregados') }}" wire:model="form.delivered_quantity" />
 
+                        {{-- DNI/CIF: sale precargado si el cliente ya lo tenía guardado de otra vez. --}}
+                        <x-ui.input name="form.customer_tax_id" autocapitalize="characters" autocomplete="off"
+                            label="{{ __('DNI / CIF del cliente') }}" wire:model="form.customer_tax_id"
+                            :help="__('Si el cliente ya lo tenía guardado sale solo; si no, se guarda ahora para la próxima vez.')" />
+
                         {{-- Algunas entregas no salen de la cisterna que mide el contador del camión
                              (p. ej. un repostaje aparte) — si se marca "No pasa por el contador", estos
                              litros no se descuentan al cuadrar la jornada (Today::endDay()). --}}

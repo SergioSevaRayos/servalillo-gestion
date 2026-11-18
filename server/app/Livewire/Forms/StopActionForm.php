@@ -3,6 +3,7 @@
 namespace App\Livewire\Forms;
 
 use App\Enums\RouteStopStatus;
+use App\Models\Client;
 use App\Models\RouteStop;
 use App\Services\DeliveryNoteService;
 use App\Services\DeliveryTypeSchemaValidator;
@@ -26,6 +27,9 @@ class StopActionForm extends Form
 
     /** Si esta entrega pasa por el contador de litros del camión (por defecto sí). */
     public bool $counted_in_meter = true;
+
+    /** DNI/NIF/CIF del cliente (se precarga si ya se guardó alguna vez; ver setStop()). */
+    public ?string $customer_tax_id = null;
 
     /** Motivo obligatorio para failed / skipped. */
     public ?string $reason = null;
@@ -55,6 +59,8 @@ class StopActionForm extends Form
             ? (float) $stop->delivered_quantity
             : ($stop->planned_quantity !== null ? (float) $stop->planned_quantity : null);
         $this->counted_in_meter = $stop->counted_in_meter;
+        // Si la parada no trae DNI/CIF pero el cliente ya lo tiene guardado de otra vez, sale solo.
+        $this->customer_tax_id = $stop->customer_tax_id ?: $this->matchingClient($stop)?->tax_id;
         $this->reason = $stop->failure_reason;
         $this->data = $stop->data ?: [];
 
@@ -71,6 +77,7 @@ class StopActionForm extends Form
             'outcome' => ['required', 'in:completed,failed,skipped'],
             'delivered_quantity' => ['nullable', 'numeric', 'min:0', 'required_if:outcome,completed'],
             'counted_in_meter' => ['boolean'],
+            'customer_tax_id' => ['nullable', 'regex:/^[A-Z0-9]{8,12}$/'],
             'reason' => ['nullable', 'string', 'max:500', 'required_if:outcome,failed', 'required_if:outcome,skipped'],
             'reschedule_on' => ['nullable', 'date', 'after:today'],
         ];
@@ -97,6 +104,7 @@ class StopActionForm extends Form
         return [
             'delivered_quantity.required_if' => 'Indica cuántos litros se han entregado.',
             'reason.required_if' => 'Indica el motivo.',
+            'customer_tax_id.regex' => 'El DNI/CIF no es válido: de 8 a 12 letras y números, sin espacios ni guiones.',
             'signature.required' => 'Falta la firma del cliente.',
             'signature.starts_with' => 'La firma no es válida.',
             'signer_name.required' => 'Indica quién firma.',
@@ -109,8 +117,38 @@ class StopActionForm extends Form
         return app(DeliveryNoteService::class)->channelRequiresSignature($this->channel);
     }
 
+    /**
+     * Quita espacios, puntos y guiones y pasa a mayúsculas ("12.345.678-z" → "12345678Z");
+     * vacío → null. Se hace ANTES de validar, igual que ClientForm::save(): un valor con
+     * separadores de sobra se limpia solo en vez de rebotar como error.
+     */
+    public static function normalizeTaxId(?string $value): ?string
+    {
+        $clean = strtoupper(preg_replace('/[\s.\-]/', '', (string) $value));
+
+        return $clean === '' ? null : $clean;
+    }
+
+    /**
+     * Cliente de la ficha que corresponde a la parada (mismo emparejamiento que
+     * Chofer\Today::captureStopCoordinates(): CIF si lo hay, si no nombre exacto — no existe
+     * route_stops.client_id, ver "Gestión de clientes").
+     */
+    private function matchingClient(RouteStop $stop): ?Client
+    {
+        return Client::query()
+            ->when(
+                $stop->customer_tax_id,
+                fn ($q) => $q->where('tax_id', $stop->customer_tax_id),
+                fn ($q) => $q->where('name', $stop->customer_name),
+            )
+            ->first();
+    }
+
     public function apply(DeliveryTypeSchemaValidator $schemaValidator, DeliveryNoteService $notes, RouteChangeNotifier $notifier): void
     {
+        $this->customer_tax_id = self::normalizeTaxId($this->customer_tax_id);
+
         $validated = $this->validate();
         $stop = $this->stop;
 
@@ -119,7 +157,18 @@ class StopActionForm extends Form
                 ? $schemaValidator->validate($stop->deliveryType, $this->data)
                 : [];
 
+            // DNI/CIF: se guarda en la parada (llega al albarán) y, si la ficha del cliente no
+            // tenía ninguno, también ahí — así la próxima vez sale precargado. Nunca pisa uno
+            // ya existente (mismo criterio que las coordenadas).
+            if ($taxId = $validated['customer_tax_id'] ?? null) {
+                $client = $this->matchingClient($stop);
+                if ($client && blank($client->tax_id)) {
+                    $client->update(['tax_id' => $taxId]);
+                }
+            }
+
             $stop->update([
+                'customer_tax_id' => $validated['customer_tax_id'] ?? $stop->customer_tax_id,
                 'status' => RouteStopStatus::Completed,
                 'delivered_quantity' => $validated['delivered_quantity'],
                 'counted_in_meter' => $validated['counted_in_meter'] ?? true,
