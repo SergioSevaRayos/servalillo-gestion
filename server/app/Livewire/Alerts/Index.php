@@ -6,6 +6,7 @@ use App\Enums\AlertType;
 use App\Livewire\Forms\AlertRulesForm;
 use App\Models\AlertEvent;
 use App\Models\AlertRule;
+use App\Models\Device;
 use App\Services\AlertEvaluator;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Layout;
@@ -122,6 +123,8 @@ class Index extends Component
 
         return view('livewire.alerts.index', [
             'types' => AlertType::cases(),
+            // Dispositivos entre los que elegir (el nombre del chofer es lo que reconoce quien configura).
+            'devices' => Device::query()->with('driver.user')->orderBy('label')->get(),
             'active' => AlertEvent::query()->open()->latest('opened_at')->get(),
             'history' => $this->historyQuery()->latest('resolved_at')->paginate(15),
             'resolvedTotal' => AlertEvent::query()->whereNotNull('resolved_at')->count(),

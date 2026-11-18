@@ -13,7 +13,7 @@ class AlertRule extends Model implements Auditable
 {
     use AuditableTrait;
 
-    protected $fillable = ['type', 'enabled', 'threshold', 'time_of_day', 'updated_by'];
+    protected $fillable = ['type', 'enabled', 'threshold', 'time_of_day', 'device_ids', 'updated_by'];
 
     protected function casts(): array
     {
@@ -21,7 +21,14 @@ class AlertRule extends Model implements Auditable
             'type' => AlertType::class,
             'enabled' => 'boolean',
             'threshold' => 'integer',
+            'device_ids' => 'array',
         ];
+    }
+
+    /** ¿Este aviso vale para ese dispositivo? Sin selección (`device_ids` null) vale para todos. */
+    public function appliesToDevice(int $deviceId): bool
+    {
+        return $this->device_ids === null || in_array($deviceId, array_map('intval', $this->device_ids), true);
     }
 
     /** Garantiza una fila por tipo (valores por defecto si faltan) y las devuelve indexadas por tipo. */

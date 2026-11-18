@@ -33,6 +33,12 @@ enum AlertType: string
         };
     }
 
+    /** true = el aviso se evalúa por dispositivo (se puede limitar a algunos); false = por ruta del día. */
+    public function usesDevices(): bool
+    {
+        return in_array($this, [self::GpsSilence, self::LowBattery, self::Speeding], true);
+    }
+
     /** true = se configura con una hora (HH:MM); false = con un umbral numérico. */
     public function usesTime(): bool
     {

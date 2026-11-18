@@ -463,3 +463,121 @@ it('el historial explica la retención automática', function () {
 
     expect($test->html())->toContain('se borran solos a los 30 días')->toContain('nunca se borran');
 });
+
+it('un aviso limitado a un dispositivo solo vigila ese, no los demás', function () {
+    [$r1, $d1] = onRoute(minutesSilent: 20);
+    [$r2, $d2] = onRoute(minutesSilent: 20);
+
+    AlertRule::forType(AlertType::GpsSilence)->update(['device_ids' => [$d1->id]]);
+    evaluate();
+
+    $abiertos = AlertEvent::open()->where('rule_type', AlertType::GpsSilence)->get();
+    expect($abiertos)->toHaveCount(1)
+        ->and($abiertos->first()->subject_id)->toBe($d1->id);
+
+    // Sin selección (null) vale para todos, como siempre.
+    AlertRule::forType(AlertType::GpsSilence)->update(['device_ids' => null]);
+    evaluate();
+    expect(AlertEvent::open()->where('rule_type', AlertType::GpsSilence)->count())->toBe(2);
+});
+
+it('la selección es independiente por tipo de aviso', function () {
+    [$route, $device] = onRoute(minutesSilent: 20);
+    position($device, ['battery_level' => 5]);
+
+    $otro = Device::factory()->create();
+    AlertRule::forType(AlertType::GpsSilence)->update(['device_ids' => [$otro->id]]); // silencio: otro dispositivo
+    // batería: sin selección (todos)
+
+    evaluate();
+
+    expect(AlertEvent::open()->where('rule_type', AlertType::GpsSilence)->count())->toBe(0)
+        ->and(AlertEvent::open()->where('rule_type', AlertType::LowBattery)->count())->toBe(1);
+});
+
+it('si se quita un dispositivo de la selección su aviso abierto se resuelve', function () {
+    [$route, $device] = onRoute(minutesSilent: 20);
+    evaluate();
+    expect(AlertEvent::open()->count())->toBeGreaterThan(0);
+
+    $otro = Device::factory()->create();
+    AlertRule::forType(AlertType::GpsSilence)->update(['device_ids' => [$otro->id]]);
+    evaluate();
+
+    expect(AlertEvent::open()->where('rule_type', AlertType::GpsSilence)->count())->toBe(0);
+});
+
+it('los avisos de jornada no dependen de la selección de dispositivos', function () {
+    [$route] = onRoute(status: RouteStatus::Published);
+    RouteStop::factory()->for($route, 'route')->create(['status' => RouteStopStatus::Pending]);
+
+    // Aunque alguien guardase una selección en una regla de jornada, se ignora (usan la ruta, no el dispositivo).
+    AlertRule::forType(AlertType::ShiftNotStarted)->update(['device_ids' => [999999]]);
+    evaluate();
+
+    expect(AlertEvent::open()->where('rule_type', AlertType::ShiftNotStarted)->count())->toBe(1);
+});
+
+it('la pantalla guarda "Solo algunos dispositivos" con los marcados y vuelve a cargarlos', function () {
+    [$route, $d1] = onRoute();
+    [$route2, $d2] = onRoute();
+
+    Livewire::actingAs($this->admin)->test(Index::class)
+        ->set('form.items.gps_silence.scope', 'some')
+        ->set('form.items.gps_silence.device_ids', [(string) $d1->id])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(AlertRule::forType(AlertType::GpsSilence)->device_ids)->toBe([$d1->id])
+        ->and(AlertRule::forType(AlertType::LowBattery)->device_ids)->toBeNull();
+
+    Livewire::actingAs($this->admin)->test(Index::class)
+        ->assertSet('form.items.gps_silence.scope', 'some')
+        ->assertSet('form.items.gps_silence.device_ids', [(string) $d1->id])
+        ->assertSet('form.items.low_battery.scope', 'all');
+
+    // Volver a "Todos" borra la selección.
+    Livewire::actingAs($this->admin)->test(Index::class)
+        ->set('form.items.gps_silence.scope', 'all')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(AlertRule::forType(AlertType::GpsSilence)->device_ids)->toBeNull();
+});
+
+it('"Solo algunos" sin marcar ningún dispositivo se rechaza con un mensaje visible', function () {
+    $test = Livewire::actingAs($this->admin)->test(Index::class)
+        ->set('form.items.speeding.scope', 'some')
+        ->set('form.items.speeding.device_ids', [])
+        ->call('save')
+        ->assertHasErrors('form.items.speeding.device_ids');
+
+    expect($test->html())->toContain('Marca al menos un dispositivo');
+    expect(AlertRule::forType(AlertType::Speeding)->device_ids)->toBeNull();
+});
+
+it('un id de dispositivo que no existe se rechaza', function () {
+    Livewire::actingAs($this->admin)->test(Index::class)
+        ->set('form.items.gps_silence.scope', 'some')
+        ->set('form.items.gps_silence.device_ids', ['987654'])
+        ->call('save')
+        ->assertHasErrors('form.items.gps_silence.device_ids.0');
+});
+
+it('la lista de dispositivos solo aparece al elegir "algunos" y nombra al chofer', function () {
+    [$route, $device] = onRoute();
+    $nombre = $route->driver->user->name;
+
+    $test = Livewire::actingAs($this->admin)->test(Index::class);
+    expect($test->html())->not->toContain($nombre);
+
+    $test->set('form.items.gps_silence.scope', 'some');
+    expect($test->html())->toContain($nombre)->toContain('Solo algunos dispositivos');
+});
+
+it('los avisos de jornada no muestran selector de dispositivos', function () {
+    $html = Livewire::actingAs($this->admin)->test(Index::class)->html();
+
+    // 3 avisos por dispositivo (señal, batería, velocidad) → 3 selectores "Aplicar a", no 5.
+    expect(substr_count($html, 'Aplicar a'))->toBe(3);
+});

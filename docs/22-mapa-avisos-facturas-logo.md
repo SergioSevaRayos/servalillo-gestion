@@ -95,6 +95,21 @@ van en el grupo de rutas **"Gestión"** (`role:administrador|mantenimiento`), nu
   **Gotcha de tests**: como la pantalla evalúa al abrirse, los avisos "activos" de fixture sin dispositivo real se
   cierran como resueltos; los tests de borrado llaman a `evaluatorJustRan()` para evitarlo.
 
+### Avisos por dispositivo (2026-11-18)
+- `alert_rules.device_ids` (jsonb, nullable): **null = el aviso vale para todos los dispositivos** (comportamiento de
+  siempre); un array de ids = solo esos. `AlertRule::appliesToDevice()`; `AlertEvaluator::devicesOnRoute($now, $rule)`
+  filtra con `whereIn('id', ...)`. Solo los avisos que se evalúan **por dispositivo** (`AlertType::usesDevices()`:
+  señal GPS, batería baja, velocidad) tienen selector "Aplicar a: Todos / Solo algunos dispositivos"; los de jornada
+  (sin empezar / sin cerrar) se evalúan por **ruta** y lo ignoran. La selección es **independiente por tipo**.
+- UI (`/avisos` → Configuración): select `Todos|Solo algunos` (`wire:model.live`) y, con "algunos", una casilla por
+  dispositivo con el nombre del chofer (+ etiqueta del dispositivo; los inactivos se marcan). Validación en
+  `AlertRulesForm`: "algunos" exige marcar ≥ 1 y cada id debe existir. Volver a "Todos" borra la selección.
+- Si se **quita** un dispositivo de la selección, su aviso abierto se resuelve en la siguiente pasada (el evaluador ya
+  no lo encuentra) y llega el "Resuelto" de siempre. Los valores de las casillas viajan como strings en el form
+  (grupo de checkboxes de Livewire) y se convierten a int al guardar.
+- El mapa de flota (`Map::staleMinutes()`) sigue usando el umbral de minutos de "señal GPS" para pintar "sin señal",
+  **independientemente** de a qué dispositivos se limite el aviso (el mapa muestra a toda la flota).
+
 ### Gestión del historial de avisos (2026-11-18)
 - **Antes no había ningún tope**: la pantalla enseñaba solo los últimos 15 resueltos, pero las filas de
   `alert_events` no se borraban nunca (tabla creciendo sin límite).

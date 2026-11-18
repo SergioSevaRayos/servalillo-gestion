@@ -55,6 +55,33 @@
                                 label="{{ __('Umbral') }} ({{ $type->unit() }})" wire:model="form.items.{{ $type->value }}.threshold" />
                         @endif
                     </div>
+
+                    {{-- Solo los avisos que se evalúan por dispositivo: todos o solo algunos. --}}
+                    @if ($type->usesDevices())
+                        @php $scope = $form->items[$type->value]['scope'] ?? 'all'; @endphp
+                        <div class="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
+                            <x-ui.select name="scope_{{ $type->value }}" label="{{ __('Aplicar a') }}" wire:model.live="form.items.{{ $type->value }}.scope">
+                                <option value="all">{{ __('Todos los dispositivos') }}</option>
+                                <option value="some">{{ __('Solo algunos dispositivos') }}</option>
+                            </x-ui.select>
+
+                            @if ($scope === 'some')
+                                <div class="mt-2 space-y-1.5">
+                                    @forelse ($devices as $device)
+                                        <x-ui.checkbox name="dev_{{ $type->value }}_{{ $device->id }}"
+                                            value="{{ $device->id }}"
+                                            wire:model="form.items.{{ $type->value }}.device_ids"
+                                            label="{{ $device->driver?->user?->name ?? $device->label }}{{ $device->driver ? ' · '.$device->label : '' }}{{ $device->is_active ? '' : ' ('.__('inactivo').')' }}" />
+                                    @empty
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ __('Todavía no hay ningún dispositivo enrolado.') }}</p>
+                                    @endforelse
+                                </div>
+                                @error('form.items.'.$type->value.'.device_ids')
+                                    <p class="mt-1.5 text-sm text-rose-600 dark:text-rose-400">{{ $message }}</p>
+                                @enderror
+                            @endif
+                        </div>
+                    @endif
                 </div>
             @endforeach
         </div>

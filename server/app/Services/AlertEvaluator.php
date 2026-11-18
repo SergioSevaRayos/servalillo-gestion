@@ -95,9 +95,9 @@ class AlertEvaluator
     private function detect(AlertType $type, AlertRule $rule, Carbon $now): ?Collection
     {
         return match ($type) {
-            AlertType::GpsSilence => $this->gpsSilence((int) $rule->threshold, $now),
-            AlertType::LowBattery => $this->lowBattery((int) $rule->threshold, $now),
-            AlertType::Speeding => $this->speeding((int) $rule->threshold, $now),
+            AlertType::GpsSilence => $this->gpsSilence((int) $rule->threshold, $now, $rule),
+            AlertType::LowBattery => $this->lowBattery((int) $rule->threshold, $now, $rule),
+            AlertType::Speeding => $this->speeding((int) $rule->threshold, $now, $rule),
             AlertType::ShiftNotStarted => $this->shiftNotStarted((string) $rule->time_of_day, $now),
             AlertType::ShiftNotClosed => $this->shiftNotClosed((string) $rule->time_of_day, $now),
         };
@@ -105,8 +105,8 @@ class AlertEvaluator
 
     // --- Detectores -----------------------------------------------------------------------
 
-    /** Dispositivos de choferes con ruta operativa hoy (los únicos de los que se espera señal). */
-    private function devicesOnRoute(Carbon $now): Collection
+    /** Dispositivos de choferes con ruta operativa hoy (los únicos de los que se espera señal), filtrados por la selección del aviso. */
+    private function devicesOnRoute(Carbon $now, AlertRule $rule): Collection
     {
         $driverIds = RouteDay::query()
             ->forDate($now->toDateString())
@@ -117,10 +117,12 @@ class AlertEvaluator
             ->with('driver.user')
             ->where('is_active', true)
             ->whereIn('driver_id', $driverIds)
+            // Si el aviso se limitó a algunos dispositivos, solo esos; sin selección, todos.
+            ->when($rule->device_ids !== null, fn ($q) => $q->whereIn('id', array_map('intval', $rule->device_ids)))
             ->get();
     }
 
-    private function gpsSilence(int $minutes, Carbon $now): ?Collection
+    private function gpsSilence(int $minutes, Carbon $now, AlertRule $rule): ?Collection
     {
         if (! TrackingWindow::isActive($now)) {
             return null; // el tracking está pausado: nadie "pierde" señal.
@@ -129,7 +131,7 @@ class AlertEvaluator
         $limit = $now->copy()->subMinutes($minutes);
         $found = collect();
 
-        foreach ($this->devicesOnRoute($now) as $device) {
+        foreach ($this->devicesOnRoute($now, $rule) as $device) {
             if ($device->last_seen_at !== null && $device->last_seen_at->gte($limit)) {
                 continue;
             }
@@ -145,7 +147,7 @@ class AlertEvaluator
         return $found;
     }
 
-    private function lowBattery(int $percent, Carbon $now): ?Collection
+    private function lowBattery(int $percent, Carbon $now, AlertRule $rule): ?Collection
     {
         if (! TrackingWindow::isActive($now)) {
             return null;
@@ -153,7 +155,7 @@ class AlertEvaluator
 
         $found = collect();
 
-        foreach ($this->devicesOnRoute($now) as $device) {
+        foreach ($this->devicesOnRoute($now, $rule) as $device) {
             $last = $this->latestPositions($device, 1)->first();
 
             // Solo con una lectura reciente: si no llega nada, el aviso de "sin señal" ya cubre el caso.
@@ -170,7 +172,7 @@ class AlertEvaluator
         return $found;
     }
 
-    private function speeding(int $kmh, Carbon $now): ?Collection
+    private function speeding(int $kmh, Carbon $now, AlertRule $rule): ?Collection
     {
         if (! TrackingWindow::isActive($now)) {
             return null;
@@ -179,7 +181,7 @@ class AlertEvaluator
         $found = collect();
         $recent = $now->copy()->subMinutes(10);
 
-        foreach ($this->devicesOnRoute($now) as $device) {
+        foreach ($this->devicesOnRoute($now, $rule) as $device) {
             $last = $this->latestPositions($device, 2);
 
             // Dos lecturas seguidas por encima del límite y recientes: un pico suelto no cuenta.
