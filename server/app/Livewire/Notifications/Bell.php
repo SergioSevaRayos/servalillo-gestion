@@ -13,6 +13,13 @@ use Livewire\Component;
  */
 class Bell extends Component
 {
+    /**
+     * Hacia dónde se abre el desplegable: `right` (alineado al borde derecho de la campana, para la
+     * barra móvil donde la campana está a la derecha) o `left` (alineado al izquierdo, para el menú
+     * lateral: con `right` el panel de 20 rem se salía por el lateral izquierdo de la ventana).
+     */
+    public string $align = 'right';
+
     /** @return Collection<int, DatabaseNotification> */
     #[Computed]
     public function items(): Collection

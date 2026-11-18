@@ -9,7 +9,7 @@
 @endphp
 
 <div wire:poll.30s>
-    <x-dropdown align="right" width="w-80">
+    <x-dropdown :align="$align === 'left' ? 'left' : 'right'" width="w-80">
         <x-slot name="trigger">
             <button type="button"
                 class="relative grid h-9 w-9 place-items-center rounded-full text-slate-600 transition hover:bg-slate-900/5 dark:text-slate-300 dark:hover:bg-white/10"

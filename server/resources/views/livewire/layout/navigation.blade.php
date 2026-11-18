@@ -89,7 +89,7 @@ new class extends Component
             <a href="{{ route('home') }}" wire:navigate title="{{ config('app.name') }}" class="flex min-w-0 items-center">
                 <img src="{{ asset('images/logo-aguas-del-servalillo.png') }}" alt="Aguas del Servalillo" class="h-9 w-auto max-w-full" width="480" height="145">
             </a>
-            <livewire:notifications.bell />
+            <livewire:notifications.bell align="left" />
         </div>
 
         {{-- Enlaces: scroll VERTICAL propio si no caben (portátil bajo); nunca horizontal. --}}
