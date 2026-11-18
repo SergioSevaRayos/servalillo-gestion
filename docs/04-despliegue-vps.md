@@ -294,6 +294,36 @@ Recompila el APK release apuntando al dominio (§8).
 
 ---
 
+## Proxy SGRA (dashboard y MQTT del NAS de casa)
+
+Desde el 14/10/2026 el router de casa no reenvía puertos (y no hay acceso a él), así que el VPS
+hace de puerta de entrada pública de SGRA y lo reenvía por Tailscale al NAS (`100.97.218.44`):
+
+| Público (VPS `2.28.64.188`) | → NAS por Tailscale | Config |
+|---|---|---|
+| `https://sgra.geosafety.es` (80/443) | `:8090` dashboard | `server/deploy/nginx-sgra.conf` |
+| `http://sgra-aljibe.duckdns.org:8090` | `:8090` dashboard | ídem (`listen 8090`) |
+| `sgra-aljibe.duckdns.org:1883` (TCP) | `:1883` Mosquitto | `server/deploy/nginx-sgra-mqtt.conf` (módulo stream) |
+
+- DNS: `A sgra` → `2.28.64.188` en Hostinger. DuckDNS `sgra-aljibe` fijado a mano a `2.28.64.188`
+  y el contenedor `duckdns` del NAS **desactivado** (si no, vuelve a poner la IP de casa).
+- El firmware (Nodo B LoRa, SIM7600E) usa el nombre DuckDNS → no hubo que reflashear.
+- Puertos abiertos: UFW `1883/tcp` y `8090/tcp`, y lo mismo en el firewall `servalillo-fw` de Hetzner.
+
+```bash
+sudo apt -y install libnginx-mod-stream
+sudo mkdir -p /etc/nginx/stream.d
+sudo cp server/deploy/nginx-sgra-mqtt.conf /etc/nginx/stream.d/sgra-mqtt.conf
+printf '\nstream {\n    include /etc/nginx/stream.d/*.conf;\n}\n' | sudo tee -a /etc/nginx/nginx.conf
+sudo cp server/deploy/nginx-sgra.conf /etc/nginx/sites-available/sgra
+sudo ln -sf /etc/nginx/sites-available/sgra /etc/nginx/sites-enabled/sgra
+sudo nginx -t && sudo systemctl reload nginx
+sudo ufw allow 1883/tcp && sudo ufw allow 8090/tcp
+sudo certbot --nginx -d sgra.geosafety.es
+```
+
+---
+
 ## Día a día: redeploy
 
 ```bash

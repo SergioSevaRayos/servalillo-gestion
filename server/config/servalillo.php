@@ -151,7 +151,7 @@ return [
     'sgra' => [
         'enabled' => (bool) env('SGRA_ENABLED', false),
         'base_url' => rtrim((string) env('SGRA_BASE_URL', 'http://100.97.218.44:8090'), '/'),
-        'public_url' => rtrim((string) env('SGRA_PUBLIC_URL', 'http://sgra-aljibe.duckdns.org:8090'), '/'),
+        'public_url' => rtrim((string) env('SGRA_PUBLIC_URL', 'https://sgra.geosafety.es'), '/'),
         'username' => (string) env('SGRA_DASH_USER', ''),
         'password' => (string) env('SGRA_DASH_PASSWORD', ''),
         'timeout' => (int) env('SGRA_TIMEOUT', 5),
