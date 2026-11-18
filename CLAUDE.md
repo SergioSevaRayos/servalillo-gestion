@@ -139,6 +139,7 @@ correspondiente ANTES de tocar el área.** Cada archivo conserva el texto origin
 | Tiempo de permanencia, geocercas, paradas no programadas, `StopDwellService` | `docs/17-permanencia-en-parada.md` |
 | Terminal vinculado (chofer sustituto) y captura de coordenadas por el chofer | `docs/18-terminal-sustituto-y-coordenadas.md` |
 | Depósitos SGRA (`SgraClient`, Tailscale) | `docs/19-sgra.md` |
+| Mapa de flota `/mapa`, Avisos `/avisos`, DNI/CIF al entregar, Facturas `/facturas`, logotipo, fichaje visible solo para mantenimiento | `docs/22-mapa-avisos-facturas-logo.md` |
 
 ### Reglas transversales que se deben recordar siempre
 - Cualquier `ui/*` de campo nuevo: el error de validación se busca con la clave de `wire:model`
@@ -149,6 +150,8 @@ correspondiente ANTES de tocar el área.** Cada archivo conserva el texto origin
 - Tras editar el `.env` de producción a mano: `config:cache` + `systemctl reload php8.4-fpm` (`docs/21`).
 - `RouteStop.route_id` apunta a `RouteDay`, no a la `Route` permanente (`docs/08`).
 - Las tablas `attendances`/`attendance_corrections` nunca se purgan (`docs/20`).
+- Mantenimiento lo ve todo siempre aunque un módulo esté apagado (`User::attendanceVisible()`); pantallas compartidas con administrador van en el grupo "Gestión", no bajo `/mantenimiento` (`docs/22`).
+- Pint: formatear **solo los archivos tocados** (`pint <rutas>`), nunca `pint` a secas: reformatea ficheros ajenos.
 
 - Código y comentarios de dominio en **español**; nombres de clases/métodos en inglés estándar Laravel.
 - Regla de negocio: **1 camión = 1 ruta permanente vigente a la vez** (`Route::overlaps()`, sin fechas
