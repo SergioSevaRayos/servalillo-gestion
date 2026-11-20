@@ -1,5 +1,5 @@
-<div wire:poll.45s x-on:stops-reordered.window="$wire.call('reorderStops', $event.detail.fromRouteId, $event.detail.fromIds, $event.detail.toRouteId, $event.detail.toIds)">
-    <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+<div class="md:-mb-8 md:flex md:h-[calc(100vh-2rem)] md:flex-col" wire:poll.45s x-on:stops-reordered.window="$wire.call('reorderStops', $event.detail.fromRouteId, $event.detail.fromIds, $event.detail.toRouteId, $event.detail.toIds)">
+    <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 md:shrink-0">
         <div class="inline-flex shrink-0 rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-800">
             @foreach ($kinds as $k)
                 <button type="button" wire:click="setKind('{{ $k->value }}')" @class([
@@ -50,9 +50,9 @@
         altura fija (header + botón fijos, lista con su propio scroll interno) y el scroll para
         moverse entre columnas es siempre horizontal, nunca vertical.
     --}}
-    <div class="themed-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 md:mx-0 md:snap-none md:px-0">
+    <div class="themed-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 md:mx-0 md:min-h-0 md:flex-1 md:snap-none md:px-0 md:pb-2">
         {{-- Columna fija: Sin asignar --}}
-        <div id="col-unassigned" class="flex h-[65vh] w-[88vw] max-w-sm shrink-0 snap-start flex-col md:h-[calc(100vh-14rem)] md:w-80 md:max-w-none md:shrink">
+        <div id="col-unassigned" class="flex h-[65vh] w-[88vw] max-w-sm shrink-0 snap-start flex-col md:h-auto md:w-80 md:max-w-none md:shrink">
             <div class="glass mb-2 flex shrink-0 items-center justify-between rounded-2xl px-4 py-3">
                 <div>
                     <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ __('Sin asignar') }}</p>
@@ -83,7 +83,7 @@
 
         {{-- Una columna por ruta del día --}}
         @foreach ($routes as $route)
-            <div id="col-{{ $route->id }}" class="flex h-[65vh] w-[88vw] max-w-sm shrink-0 snap-start flex-col md:h-[calc(100vh-14rem)] md:w-80 md:max-w-none md:shrink">
+            <div id="col-{{ $route->id }}" class="flex h-[65vh] w-[88vw] max-w-sm shrink-0 snap-start flex-col md:h-auto md:w-80 md:max-w-none md:shrink">
                 <div class="glass mb-2 shrink-0 rounded-2xl px-4 py-3">
                     <div class="flex items-center justify-between">
                         <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ $route->truck->code }} · {{ $route->driver->user->name }}</p>
@@ -100,12 +100,12 @@
                     <p class="text-xs text-slate-400">{{ __(':n paradas', ['n' => $route->stops->count()]) }}</p>
                     <div class="mt-1.5 flex flex-wrap gap-1">
                         <button type="button" wire:click="showRouteMap({{ $route->id }})"
-                            wire:target="showRouteMap" wire:loading.attr="disabled"
+                            wire:target="showRouteMap({{ $route->id }})" wire:loading.attr="disabled"
                             class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-900/5 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-white/10">
-                            <svg wire:loading.remove wire:target="showRouteMap" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+                            <svg wire:loading.remove wire:target="showRouteMap({{ $route->id }})" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" />
                             </svg>
-                            <svg wire:loading wire:target="showRouteMap" class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                            <svg wire:loading wire:target="showRouteMap({{ $route->id }})" class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
                             </svg>
@@ -113,12 +113,12 @@
                         </button>
                         @can('reorderStops', $route)
                             <button type="button" wire:click="startOptimize({{ $route->id }})"
-                                wire:target="startOptimize" wire:loading.attr="disabled"
+                                wire:target="startOptimize({{ $route->id }})" wire:loading.attr="disabled"
                                 class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:opacity-50 dark:text-primary-400 dark:hover:bg-primary-500/10">
-                                <svg wire:loading.remove wire:target="startOptimize" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <svg wire:loading.remove wire:target="startOptimize({{ $route->id }})" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                                     <path fill-rule="evenodd" d="M11.3 1.046a1 1 0 0 1 .7 1.19L10.42 8H15a1 1 0 0 1 .8 1.6l-7 9.333A1 1 0 0 1 7 18.333L8.58 12H4a1 1 0 0 1-.8-1.6l7-9.333a1 1 0 0 1 1.1-.021Z" clip-rule="evenodd" />
                                 </svg>
-                                <svg wire:loading wire:target="startOptimize" class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                <svg wire:loading wire:target="startOptimize({{ $route->id }})" class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
                                 </svg>

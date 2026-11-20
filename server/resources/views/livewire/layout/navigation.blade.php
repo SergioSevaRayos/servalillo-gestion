@@ -50,11 +50,13 @@ new class extends Component
         $groups[] = [__('Sistema'), array_filter([
             $user->isMaintenance() ? [__('Mantenimiento'), 'maintenance.index', ['maintenance.*']] : null,
             $user->hasRole('administrador') ? [__('Soporte / incidencias'), 'support.index', ['support.*']] : null,
+            [__('Manual de uso'), 'manual', ['manual']],
         ])];
     } else {
         $groups[] = [null, array_filter([
             [__('Mi ruta'), 'chofer.today', ['chofer.*']],
             $user->attendanceVisible() && $user->canPunchAttendance() ? [__('Fichar'), 'attendance.index', ['attendance.index']] : null,
+            [__('Manual de uso'), 'manual', ['manual']],
         ])];
     }
 

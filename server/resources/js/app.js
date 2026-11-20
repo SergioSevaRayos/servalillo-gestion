@@ -4,6 +4,7 @@ import SignaturePad from 'signature_pad';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import * as THREE from 'three';
+import './tour';
 
 function applyThemeClass(value) {
     const isDark = value === 'dark'

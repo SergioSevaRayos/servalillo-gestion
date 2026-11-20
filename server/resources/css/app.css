@@ -356,3 +356,57 @@ body.menu-open {
         max-height: calc(100vh - 7.5rem);
     }
 }
+
+/* Tour guiado (Driver.js): popover con los tokens del proyecto, claro/oscuro y botones táctiles. */
+.driver-popover.servalillo-tour {
+    @apply rounded-2xl border border-slate-200 bg-white p-5 text-slate-700 shadow-soft-md
+           dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300;
+}
+.driver-popover.servalillo-tour .driver-popover-title {
+    @apply text-base font-semibold text-slate-900 dark:text-white;
+}
+.driver-popover.servalillo-tour .driver-popover-description {
+    @apply mt-1 text-sm text-slate-600 dark:text-slate-300;
+}
+.driver-popover.servalillo-tour .driver-popover-progress-text {
+    @apply text-xs text-slate-400;
+}
+.driver-popover.servalillo-tour .driver-popover-footer button {
+    @apply rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 [text-shadow:none]
+           dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200;
+}
+.driver-popover.servalillo-tour .driver-popover-footer .driver-popover-next-btn {
+    @apply border-primary-600 bg-primary-600 text-white dark:border-primary-500 dark:bg-primary-600 dark:text-white;
+}
+.driver-popover.servalillo-tour .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: theme('colors.white'); }
+.dark .driver-popover.servalillo-tour .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: theme('colors.slate.900'); }
+.driver-popover.servalillo-tour .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: theme('colors.white'); }
+.dark .driver-popover.servalillo-tour .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: theme('colors.slate.900'); }
+.driver-popover.servalillo-tour .driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: theme('colors.white'); }
+.dark .driver-popover.servalillo-tour .driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: theme('colors.slate.900'); }
+.driver-popover.servalillo-tour .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: theme('colors.white'); }
+.dark .driver-popover.servalillo-tour .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: theme('colors.slate.900'); }
+
+/* Manual de uso (Markdown renderizado): sin plugin typography, estilos propios. */
+.manual { @apply text-sm leading-relaxed text-slate-700 dark:text-slate-300; }
+.manual h1 { @apply mb-4 text-2xl font-semibold tracking-tight text-slate-900 dark:text-white; }
+.manual h2 { @apply mb-3 mt-10 scroll-mt-6 border-b border-slate-200 pb-2 text-xl font-semibold text-slate-900 first:mt-0 dark:border-slate-800 dark:text-white; }
+.manual h3 { @apply mb-2 mt-6 text-base font-semibold text-slate-900 dark:text-white; }
+.manual p { @apply my-3; }
+.manual ul { @apply my-3 list-disc space-y-1 pl-6; }
+.manual ol { @apply my-3 list-decimal space-y-1 pl-6; }
+.manual strong { @apply font-semibold text-slate-900 dark:text-white; }
+.manual a { @apply text-primary-600 underline-offset-2 hover:underline dark:text-primary-400; }
+.manual code { @apply rounded bg-slate-100 px-1.5 py-0.5 text-[0.85em] dark:bg-slate-800; }
+.manual blockquote { @apply my-4 rounded-r-lg border-l-4 border-primary-400 bg-primary-500/5 px-4 py-2; }
+.manual img { @apply my-4 h-auto max-w-full rounded-xl border border-slate-200 shadow-soft transition-shadow dark:border-slate-700; }
+.manual a:has(> img) { @apply block w-fit max-w-full cursor-zoom-in; }
+.manual a:has(> img):hover img { @apply shadow-soft-md; }
+/* Capturas de móvil (manual del chofer): estrechas y centradas, como una pantalla de teléfono. */
+.manual a:has(> img[src*="/manual/chofer/"]) { @apply mx-auto; }
+.manual img[src*="/manual/chofer/"] { @apply w-72 max-w-full; }
+/* Capturas de escritorio: tope de ancho para no ocupar todo el artículo en pantallas grandes. */
+.manual img[src*="/manual/administracion/"] { @apply max-w-[46rem]; }
+.manual table { @apply my-4 w-full text-left text-sm; }
+.manual th { @apply border-b border-slate-200 px-3 py-2 font-semibold text-slate-900 dark:border-slate-700 dark:text-white; }
+.manual td { @apply border-b border-slate-100 px-3 py-2 dark:border-slate-800; }

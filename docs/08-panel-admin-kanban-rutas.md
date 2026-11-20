@@ -170,7 +170,7 @@
   lo insidioso). Si añades una clase nueva solo referenciada desde JS, o bien confirma que ya aparece
   también en algún `.blade.php`, o recuerda que ahora sí se escanea `resources/js/`.
 - Comportamiento Trello real: el tablero no crece verticalmente. Cada columna es `flex flex-col` con
-  altura fija (`h-[65vh] md:h-[calc(100vh-14rem)]`), cabecera y botón "+ Añadir parada" con `shrink-0`,
+  altura fija en móvil (`h-[65vh]`) y, en escritorio, **toda la altura disponible hasta el borde inferior de la ventana** (2026-11-20: la raíz del tablero es `md:h-[calc(100vh-2rem)] md:-mb-8 md:flex md:flex-col` — resta el `py-8` superior de `<main>` y cancela el inferior —, la barra de filtros `md:shrink-0`, el contenedor de columnas `md:flex-1 md:min-h-0` y cada columna `md:h-auto` para que se estire; así los botones «+ Añadir parada» y la barra de scroll horizontal quedan pegados abajo y la página no hace scroll), cabecera y botón "+ Añadir parada" con `shrink-0`,
   y la `<ul data-stop-list>` con `flex-1 min-h-0 overflow-y-auto` (el `min-h-0` es imprescindible: sin
   él, un hijo flex no encoge por debajo de su contenido y `overflow-y-auto` no llega a activarse nunca).
   El scroll para moverse entre columnas sigue siendo horizontal, en el contenedor de columnas.

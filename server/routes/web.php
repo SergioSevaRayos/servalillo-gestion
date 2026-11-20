@@ -25,6 +25,7 @@ use App\Livewire\Maintenance\Overview as MaintenanceOverview;
 use App\Livewire\Maintenance\Settings as MaintenanceSettings;
 use App\Livewire\Maintenance\Support as MaintenanceSupport;
 use App\Livewire\Maintenance\SystemLog as MaintenanceSystemLog;
+use App\Livewire\Manual\Show;
 use App\Livewire\Routes\Board as RoutesBoard;
 use App\Livewire\Routes\History as RoutesHistory;
 use App\Livewire\Routes\Index as RoutesIndex;
@@ -166,6 +167,13 @@ Route::middleware(['auth', 'role:chofer'])->prefix('chofer')->name('chofer.')->g
 | Perfil (todos los usuarios autenticados)
 */
 Route::view('profile', 'profile')->middleware('auth')->name('profile');
+
+/*
+| Manual de uso: `manual` abre el de tu rol; administrador/mantenimiento pueden abrir también el del chofer.
+*/
+Route::get('manual/{type?}', Show::class)
+    ->whereIn('type', array_keys(Show::MANUALS))
+    ->middleware('auth')->name('manual');
 
 /*
 | Banco de pruebas de la API del tracker (Bloque 10/11) — para validar el pipeline

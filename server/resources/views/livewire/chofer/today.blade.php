@@ -7,16 +7,20 @@
 
 {{-- Web operativa del chofer: siempre .surface, nunca .glass (uso al aire libre, alto contraste).
      wire:poll: refresco automático — lo que cambie oficina aparece solo, sin recargar. --}}
-<div class="mx-auto max-w-2xl" wire:poll.15s>
+<div class="mx-auto max-w-2xl" wire:poll.15s data-tour-auto="chofer">
     <div class="flex items-baseline justify-between gap-3">
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ __('Mi ruta') }}</h1>
-        <button type="button" wire:click="goToday" @disabled($this->isToday()) @class([
-            'text-sm font-semibold transition-colors',
-            'text-primary-600 hover:text-primary-800 dark:text-primary-400' => ! $this->isToday(),
-            'cursor-default text-slate-300 dark:text-slate-600' => $this->isToday(),
-        ])>
-            {{ __('Hoy') }}
-        </button>
+        <div class="flex items-center gap-3">
+            <button type="button" wire:click="goToday" @disabled($this->isToday()) @class([
+                'text-sm font-semibold transition-colors',
+                'text-primary-600 hover:text-primary-800 dark:text-primary-400' => ! $this->isToday(),
+                'cursor-default text-slate-300 dark:text-slate-600' => $this->isToday(),
+            ])>
+                {{ __('Hoy') }}
+            </button>
+            <button type="button" x-on:click="window.startTour('chofer')" aria-label="{{ __('Ver la guía') }}" title="{{ __('Ver la guía') }}"
+                class="grid h-7 w-7 place-items-center rounded-full border border-slate-300 text-sm font-semibold text-slate-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-slate-600 dark:text-slate-400 dark:hover:border-primary-500">?</button>
+        </div>
     </div>
     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $selected->isoFormat('dddd, D [de] MMMM') }}</p>
 
@@ -24,7 +28,7 @@
          más centrado se ajusta solo (mismo "imán" que el dial de litros). Se mueve arrastrando,
          con la rueda del ratón encima, con las flechas o tocando un día. La lógica está en
          resources/js/app.js (dayCarousel). --}}
-    <div class="mt-3 flex items-center justify-center gap-1.5" wire:ignore
+    <div class="mt-3 flex items-center justify-center gap-1.5" wire:ignore data-tour="dia"
         x-data="dayCarousel({ initial: @js($this->date), today: @js(today()->toDateString()) })">
         <button type="button" x-on:click="nudge(-1)" aria-label="{{ __('Día anterior') }}"
             class="day-carousel__arrow">‹</button>
@@ -126,7 +130,7 @@
             @endif
 
             {{-- Control de jornada --}}
-            <div class="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+            <div class="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800" data-tour="jornada">
                 @if (! $this->started)
                     @if ($this->isToday())
                         <x-ui.button class="w-full justify-center" size="lg" wire:click="openStartDay">
@@ -157,7 +161,7 @@
 
         {{-- Navegar la ruta en Google Maps (paradas pendientes, orden actual; sin origin → GPS del móvil) --}}
         @if ($this->operable() && $this->navRouteUrl)
-            <a href="{{ $this->navRouteUrl }}" target="_blank" rel="noopener"
+            <a href="{{ $this->navRouteUrl }}" target="_blank" rel="noopener" data-tour="navegar"
                 class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-primary-700 active:bg-primary-800">
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -168,7 +172,7 @@
 
         {{-- Acciones de la ruta — icono encima de la etiqueta (nunca en línea: con dos palabras
              el texto envolvía y quedaba descuadrado respecto al icono). --}}
-        <div class="{{ $this->operable() && $this->navRouteUrl ? 'mt-2' : 'mt-4' }} flex flex-wrap gap-2">
+        <div class="{{ $this->operable() && $this->navRouteUrl ? 'mt-2' : 'mt-4' }} flex flex-wrap gap-2" data-tour="acciones">
             <button type="button" wire:click="showRouteMap" wire:target="showRouteMap"
                 wire:loading.attr="disabled"
                 class="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-medium leading-tight text-slate-600 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-500">
@@ -225,7 +229,7 @@
                         && $stop->latitude !== null && $stop->longitude !== null;
                 @endphp
                 <div class="flex items-stretch gap-2" wire:key="stop-row-{{ $stop->id }}" data-stop-row>
-                    <div class="min-w-0 flex-1">
+                    <div class="min-w-0 flex-1" @if ($loop->first) data-tour="parada" @endif>
                         <x-chofer.stop-card
                             :stop="$stop"
                             :index="$loop->iteration"
@@ -279,7 +283,7 @@
         {{-- Añadir un cliente que ha llamado como parada nueva (al final de la ruta). Si la jornada
              ya está terminada, añadirlo la reabre (ver Today::addClientStop). --}}
         @if ($this->operable())
-            <button type="button" wire:click="openAddStop"
+            <button type="button" wire:click="openAddStop" data-tour="anadir"
                 class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 py-3 text-sm font-medium text-slate-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-primary-500 dark:hover:text-primary-300">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                 {{ $this->finished ? __('Añadir cliente (reabre la jornada)') : __('Añadir cliente (ha llamado)') }}
@@ -428,7 +432,17 @@
         @if ($this->form->stop)
             @php $s = $this->form->stop; @endphp
             <div class="p-6">
-                <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ $s->customer_name }}</h3>
+                <div class="flex items-start justify-between gap-3">
+                    <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ $s->customer_name }}</h3>
+                    <button type="button" x-on:click="window.startTour('parada')" aria-label="{{ __('Ver la guía') }}" title="{{ __('Ver la guía') }}"
+                        class="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-slate-300 text-sm font-semibold text-slate-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-slate-600 dark:text-slate-400 dark:hover:border-primary-500">?</button>
+                </div>
+                <div data-tour="parada-cliente"
+                    @if (! ($s->latitude && $s->longitude))
+                        data-tour-title="{{ __('Ubicación sin guardar') }}"
+                        data-tour-text="{{ __('Este cliente aún no tiene ubicación. Cuando estés en el sitio, pulsa «Capturar ubicación»: se guarda con el GPS del móvil para las próximas veces.') }}"
+                    @endif
+                >
                 <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{{ $s->address ?: '—' }}</p>
                 <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
                     @if ($s->contact_phone)
@@ -482,9 +496,10 @@
                         </button>
                     @endif
                 </div>
+                </div>
 
                 @if ($s->deliveryType && $s->planned_quantity)
-                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400" data-tour="parada-pedido">
                         {{ __('Pedido: :qty L de :type', ['qty' => number_format($s->planned_quantity, 0, ',', '.'), 'type' => $s->deliveryType->name]) }}
                     </p>
                 @endif
@@ -492,7 +507,7 @@
                 <x-stop-dwell :stop="$s" variant="line" />
 
                 {{-- Selector de resultado --}}
-                <div class="mt-4 grid grid-cols-3 gap-2">
+                <div class="mt-4 grid grid-cols-3 gap-2" data-tour="parada-resultado">
                     @foreach (['completed' => __('Entregada'), 'failed' => __('Fallida'), 'skipped' => __('Cancelada')] as $value => $label)
                         <button
                             type="button"
@@ -512,7 +527,7 @@
 
                         {{-- Cómo se entrega el albarán: primera decisión, condiciona el resto del formulario. --}}
                         @if (! $s->deliveryNote)
-                            <div>
+                            <div data-tour="parada-albaran">
                                 <x-input-label :value="__('Cómo se entrega el albarán')" />
                                 <div class="mt-1 grid grid-cols-2 gap-2">
                                     @foreach (['email' => __('Enviar por email'), 'physical' => __('Entrega en mano')] as $value => $label)
@@ -534,21 +549,27 @@
                                 @endif
                             </div>
                         @else
-                            <p class="rounded-lg bg-slate-100 p-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                            <p class="rounded-lg bg-slate-100 p-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400" data-tour="parada-albaran"
+                                data-tour-title="{{ __('Albarán ya creado') }}"
+                                data-tour-text="{{ __('Esta parada ya tiene albarán: aquí ves su número y su estado. No hay que volver a elegir cómo entregarlo.') }}">
                                 {{ __('Albarán :n · :estado', ['n' => $s->deliveryNote->number, 'estado' => $s->deliveryNote->status->label()]) }}
                             </p>
                         @endif
 
-                        <x-ui.input name="form.delivered_quantity" type="number" step="any" inputmode="decimal"
-                            label="{{ __('Litros entregados') }}" wire:model="form.delivered_quantity" />
+                        <div data-tour="parada-litros">
+                            <x-ui.input name="form.delivered_quantity" type="number" step="any" inputmode="decimal"
+                                label="{{ __('Litros entregados') }}" wire:model="form.delivered_quantity" />
+                        </div>
 
                         {{-- DNI/CIF: sale precargado si el cliente ya lo tenía guardado de otra vez. --}}
-                        <x-ui.input name="form.customer_tax_id" autocapitalize="characters" autocomplete="off"
-                            label="{{ __('DNI / CIF del cliente') }}" wire:model="form.customer_tax_id"
-                            :help="__('Si el cliente ya lo tenía guardado sale solo; si no, se guarda ahora para la próxima vez.')" />
+                        <div data-tour="parada-dni">
+                            <x-ui.input name="form.customer_tax_id" autocapitalize="characters" autocomplete="off"
+                                label="{{ __('DNI / CIF del cliente') }}" wire:model="form.customer_tax_id"
+                                :help="__('Si el cliente ya lo tenía guardado sale solo; si no, se guarda ahora para la próxima vez.')" />
+                        </div>
 
                         {{-- Factura: la hace administración; aquí solo se pide. Exige el DNI/CIF de arriba. --}}
-                        <div>
+                        <div data-tour="parada-factura">
                             <x-ui.checkbox name="form.invoice_requested" wire:model.live="form.invoice_requested"
                                 label="{{ __('El cliente quiere factura') }}" />
                             @if ($this->form->invoice_requested)
@@ -559,7 +580,7 @@
                         {{-- Algunas entregas no salen de la cisterna que mide el contador del camión
                              (p. ej. un repostaje aparte) — si se marca "No pasa por el contador", estos
                              litros no se descuentan al cuadrar la jornada (Today::endDay()). --}}
-                        <div>
+                        <div data-tour="parada-contador">
                             <x-input-label :value="__('Contador de litros')" />
                             <button type="button"
                                 wire:click="$set('form.counted_in_meter', {{ $this->form->counted_in_meter ? 'false' : 'true' }})"
@@ -579,7 +600,8 @@
                             @endunless
                         </div>
 
-                        @if ($s->deliveryType)
+                        @if ($s->deliveryType && count($s->deliveryType->fields()))
+                            <div class="space-y-4" data-tour="parada-campos">
                             @foreach ($s->deliveryType->fields() as $field)
                                 <div>
                                     @switch($field['type'])
@@ -607,22 +629,37 @@
                                     @endswitch
                                 </div>
                             @endforeach
+                            </div>
                         @endif
 
                         {{-- Campos del albarán, según el canal elegido arriba. --}}
                         @if (! $s->deliveryNote)
                             @if ($needsSignature)
-                                <x-ui.input name="form.recipient_email" type="email" label="{{ __('Email del cliente') }}" wire:model="form.recipient_email" />
-                                <x-ui.input name="form.signer_name" label="{{ __('Nombre de quien firma') }}" wire:model="form.signer_name" />
-                                <x-ui.signature-pad wire:model="form.signature" sync-on="stop-action" />
+                                <div class="space-y-4" data-tour="parada-firma"
+                                    data-tour-title="{{ __('Firma del cliente') }}"
+                                    data-tour-text="{{ __('Escribe el email del cliente y el nombre de quien firma, y pídele que firme con el dedo en el recuadro. El albarán se le envía por correo.') }}">
+                                    <x-ui.input name="form.recipient_email" type="email" label="{{ __('Email del cliente') }}" wire:model="form.recipient_email" />
+                                    <x-ui.input name="form.signer_name" label="{{ __('Nombre de quien firma') }}" wire:model="form.signer_name" />
+                                    <x-ui.signature-pad wire:model="form.signature" sync-on="stop-action" />
+                                </div>
                             @else
-                                <x-ui.input name="form.signer_name" label="{{ __('Recibido por (opcional)') }}" wire:model="form.signer_name" />
+                                <div data-tour="parada-firma"
+                                    data-tour-title="{{ __('Recibido por') }}"
+                                    data-tour-text="{{ __('Opcional: nombre de quien recibe la copia en mano. El cliente firma el papel, no la pantalla.') }}">
+                                    <x-ui.input name="form.signer_name" label="{{ __('Recibido por (opcional)') }}" wire:model="form.signer_name" />
+                                </div>
                             @endif
                         @endif
                     @else
-                        <x-ui.textarea name="form.reason" label="{{ $this->form->outcome === 'failed' ? __('Motivo del fallo') : __('Motivo de la cancelación') }}" wire:model="form.reason" rows="3" />
+                        <div data-tour="parada-motivo"
+                            data-tour-title="{{ $this->form->outcome === 'failed' ? __('Motivo del fallo') : __('Motivo de la cancelación') }}"
+                            data-tour-text="{{ $this->form->outcome === 'failed'
+                                ? __('Explica por qué no se pudo entregar (cliente ausente, sin acceso, avería…). Es obligatorio y lo verá la oficina.')
+                                : __('Explica por qué se cancela (el cliente la anula, ya no la necesita…). Es obligatorio y lo verá la oficina.') }}">
+                            <x-ui.textarea name="form.reason" label="{{ $this->form->outcome === 'failed' ? __('Motivo del fallo') : __('Motivo de la cancelación') }}" wire:model="form.reason" rows="3" />
+                        </div>
 
-                        <div>
+                        <div data-tour="parada-reprogramar">
                             <x-ui.date-input name="form.reschedule_on" wire:model="form.reschedule_on"
                                 :min="now()->addDay()->toDateString()"
                                 label="{{ __('Reprogramar para otro día (opcional)') }}"
@@ -630,7 +667,7 @@
                         </div>
                     @endif
 
-                    <div class="flex items-center justify-between gap-3 pt-2">
+                    <div class="flex items-center justify-between gap-3 pt-2" data-tour="parada-guardar">
                         @if ($s->status !== RouteStopStatus::Pending)
                             <x-ui.button type="button" variant="ghost" size="sm" wire:click="reopenStop"
                                 class="!text-slate-600 dark:!text-slate-300">{{ __('Reabrir parada') }}</x-ui.button>

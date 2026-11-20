@@ -140,6 +140,7 @@ correspondiente ANTES de tocar el área.** Cada archivo conserva el texto origin
 | Terminal vinculado (chofer sustituto) y captura de coordenadas por el chofer | `docs/18-terminal-sustituto-y-coordenadas.md` |
 | Depósitos SGRA (`SgraClient`, Tailscale) | `docs/19-sgra.md` |
 | Mapa de flota `/mapa`, Avisos `/avisos`, DNI/CIF al entregar, Facturas `/facturas`, logotipo, fichaje visible solo para mantenimiento | `docs/22-mapa-avisos-facturas-logo.md` |
+| Manual de uso (`/manual`, Markdown + capturas con `npm run manual:capturas`), tours Driver.js | `docs/23-manual-de-uso.md` |
 
 ### Reglas transversales que se deben recordar siempre
 - Cualquier `ui/*` de campo nuevo: el error de validación se busca con la clave de `wire:model`
