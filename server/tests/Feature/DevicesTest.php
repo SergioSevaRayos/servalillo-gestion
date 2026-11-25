@@ -222,24 +222,6 @@ it('liberar quita las restricciones y pide la liberación al terminal', function
         ->and($device->protectionState())->toBe('pending');
 });
 
-it('aplicar a todos copia las restricciones a los terminales activos, no la clave', function () {
-    $source = Device::factory()->create();
-    $other = Device::factory()->create();
-    $inactive = Device::factory()->inactive()->create();
-
-    Livewire::actingAs(makeUser('mantenimiento'))
-        ->test(Devices::class)
-        ->call('editSecurity', $source->id)
-        ->set('security.block_screen_capture', true)
-        ->set('security.block_factory_reset', true)
-        ->call('applySecurityToAll');
-
-    expect($other->fresh()->block_screen_capture)->toBeTrue()
-        ->and($other->fresh()->block_factory_reset)->toBeTrue()
-        ->and($other->fresh()->hasUnlockPin())->toBeFalse()
-        ->and($inactive->fresh()->block_screen_capture)->toBeFalse();
-});
-
 it('un chofer no puede tocar la protección', function () {
     $device = Device::factory()->create();
 

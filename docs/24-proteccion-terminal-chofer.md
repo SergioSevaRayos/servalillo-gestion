@@ -38,9 +38,9 @@ protección gestionada en remoto por administrador y mantenimiento.
   "Protección" y modal **Seguridad** (`DeviceSecurityForm`):
   - las 4 restricciones, con lo aplicado en el móvil debajo de cada una;
   - la clave (obligatoria la primera vez; en blanco = se mantiene);
-  - **Liberar terminal**;
-  - **Aplicar a todos**: copia las restricciones a todos los activos, uno a uno para que quede en la
-    auditoría, y nunca copia la clave.
+  - **Liberar terminal**.
+  - La protección se configura **terminal a terminal**: hubo un "Aplicar a todos" y se quitó a
+    petición del usuario (2026-11-25).
 - **APK**:
   - Plugin local `mobile/packages/device_policy/` (Kotlin, `AdminReceiver` + `DevicePolicyPlugin`).
     Tiene que ser un plugin y no un `MethodChannel` en `MainActivity`, para que se registre también en
@@ -118,8 +118,8 @@ protección gestionada en remoto por administrador y mantenimiento.
     el móvil tenga red; los datos de la empresa están en la web, no en el móvil.
 - API: `policies.lost_mode` + `policies.lost_message` (null si no está perdido). Lo aplicado llega en
   `reported_policies.lost_mode` (`LostDeviceService::confirmed()`), y la tarjeta muestra "Perdido ·
-  pendiente de bloquear" o "Perdido · bloqueado". `lost_mode` **no** está en `Device::POLICIES`: ni
-  "Aplicar a todos" lo copia ni cuenta para `protectionState()`.
+  pendiente de bloquear" o "Perdido · bloqueado". `lost_mode` **no** está en `Device::POLICIES`: no
+  cuenta para `protectionState()`.
 - APK:
   - `setDeviceOwnerLockScreenInfo(mensaje)` + `lockNow()` en cada sincronización mientras siga perdido;
     sin mensaje, lo quita. `lockNow` exige `<force-lock/>` en `device_admin.xml` (añadido en la

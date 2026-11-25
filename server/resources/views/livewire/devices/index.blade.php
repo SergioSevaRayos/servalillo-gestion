@@ -323,11 +323,6 @@
                             wire:confirm="{{ __('¿Liberar este terminal? Se quitarán todas las restricciones y la APK dejará de ser administradora del móvil (se podrá desinstalar y restablecer). Hazlo antes de retirar o reutilizar el móvil.') }}"
                             class="!text-rose-600 hover:!bg-rose-50 dark:!text-rose-400 dark:hover:!bg-rose-500/10"
                         >{{ __('Liberar terminal') }}</x-ui.button>
-                        <x-ui.button
-                            variant="ghost" size="sm" type="button"
-                            wire:click="applySecurityToAll"
-                            wire:confirm="{{ __('¿Aplicar estas restricciones a todos los terminales activos? La clave de cada uno no cambia.') }}"
-                        >{{ __('Aplicar a todos') }}</x-ui.button>
                     @endif
                 </div>
                 <div class="flex justify-end gap-3">

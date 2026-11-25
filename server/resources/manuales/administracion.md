@@ -100,7 +100,6 @@ También pones la **clave del terminal** (de 4 a 8 números). La app la pide par
 
 Al **Guardar**, el móvil lo aplica en unos minutos y la ventana te muestra, debajo de cada opción, si ya está **aplicado en el móvil**.
 
-- **Aplicar a todos**: copia las restricciones marcadas a todos los móviles activos (la clave de cada uno no cambia).
 - **Liberar terminal**: quita todas las restricciones y la app deja de administrar el móvil. Hazlo **siempre antes de retirar, vender o reutilizar un móvil**, porque con la protección puesta no se puede restablecer desde los Ajustes. Para volver a protegerlo, el servicio técnico tendrá que repetir el alta.
 
 > Importante: para poder proteger un móvil hay que darlo de alta antes con el **código QR** (una sola vez por móvil, ver abajo). Un móvil que solo tiene la app instalada a mano aparece como **Sin administración** y no se le puede bloquear nada. La protección solo funciona en móviles Android.

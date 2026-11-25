@@ -241,35 +241,6 @@ class Index extends Component
         $this->dispatch('toast', message: 'Liberación pedida. El terminal la aplicará en la próxima sincronización.', variant: 'success');
     }
 
-    /** Copia las restricciones del terminal abierto a todos los dispositivos activos (la clave no). */
-    public function applySecurityToAll(): void
-    {
-        $source = $this->security->editing;
-        abort_unless($source instanceof Device, 404);
-        $this->authorize('update', $source);
-
-        $policies = collect(array_keys(Device::POLICIES))
-            ->mapWithKeys(fn (string $column) => [$column => (bool) $this->security->{$column}])
-            ->all();
-        $wantsAny = in_array(true, $policies, true);
-
-        $count = 0;
-        // Uno a uno (no un update masivo) para que quede en la auditoría.
-        Device::query()->where('is_active', true)->each(function (Device $device) use ($policies, $wantsAny, &$count) {
-            $device->fill($policies);
-            if ($wantsAny) {
-                $device->release_requested = false;
-            }
-            $device->save();
-            $count++;
-        });
-
-        unset($this->devices);
-        $this->security->setDevice($source->fresh());
-
-        $this->dispatch('toast', message: "Restricciones aplicadas a {$count} terminales.", variant: 'success');
-    }
-
     /** Abre el modal del modo perdido (robo o pérdida, docs/24). */
     public function editLostMode(int $deviceId): void
     {
