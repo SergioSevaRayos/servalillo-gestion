@@ -1,5 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Actualización automática como Device Owner (PackageInstaller, sin preguntar). docs/24. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application>
+        <receiver
+            android:name=".InstallResultReceiver"
+            android:exported="false" />
+
         <!--
             Receptor de administración del dispositivo. El alta como Device Owner se hace una vez
             por terminal: por código QR desde /dispositivos (móvil recién restablecido) o con

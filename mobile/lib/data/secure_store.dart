@@ -62,6 +62,7 @@ class SecureStore {
   static const String _kSuspendedUntil = 'policies_suspended_until';
   static const String _kPinFailures = 'pin_failures';
   static const String _kPinLockedUntil = 'pin_locked_until';
+  static const String _kUpdateAttempt = 'last_update_attempt';
 
   Future<String?> get installIdentifier => _kv.read(_kInstallId);
   Future<void> setInstallIdentifier(String v) => _kv.write(_kInstallId, v);
@@ -126,6 +127,20 @@ class SecureStore {
   Future<DateTime?> get pinLockedUntil => _readTime(_kPinLockedUntil);
   Future<void> setPinLockedUntil(DateTime? t) =>
       _writeTime(_kPinLockedUntil, t);
+
+  /// Último intento de actualización automática: versionCode y hora (para no reintentar en bucle).
+  Future<({int code, DateTime at})?> get lastUpdateAttempt async {
+    final String? raw = await _kv.read(_kUpdateAttempt);
+    final List<String> parts = (raw ?? '').split('|');
+    if (parts.length != 2) return null;
+    final int? code = int.tryParse(parts[0]);
+    final DateTime? at = DateTime.tryParse(parts[1]);
+    if (code == null || at == null) return null;
+    return (code: code, at: at);
+  }
+
+  Future<void> setLastUpdateAttempt(int code, DateTime at) =>
+      _kv.write(_kUpdateAttempt, '$code|${at.toUtc().toIso8601String()}');
 
   Future<DateTime?> _readTime(String key) async {
     final String? raw = await _kv.read(key);

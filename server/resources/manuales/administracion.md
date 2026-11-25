@@ -82,7 +82,7 @@ En **Dispositivos** (menú *Datos*) están los móviles de los chofers con la ap
 - **Desactivar / Reactivar** detiene o reanuda el envío de posiciones; **Revocar** obliga a la app a volver a darse de alta; **Eliminar** borra el móvil y todas sus posiciones.
 - **Seguridad** abre la protección del terminal (ver abajo).
 - **Dar de alta un móvil** (arriba a la derecha) muestra el código QR para preparar un móvil nuevo (ver abajo).
-- **Descargar APK del tracker** descarga la app de seguimiento, con su versión y fecha, para instalarla en un móvil nuevo o actualizar uno que ya la tenga. Para instalarla, pasa el fichero al móvil y ábrelo; Android pedirá permitir instalar apps de esa fuente. Una actualización se instala encima sin perder nada, aunque el móvil esté protegido. No la compartas fuera de la empresa: la app lleva dentro el acceso al servidor.
+- **La app se actualiza sola.** Debajo del botón ves la versión publicada. Los móviles dados de alta con el código QR comprueban cada pocos minutos si hay una versión nueva, la descargan y se instalan solos, sin preguntar ni perder nada; la columna *App* de cada móvil muestra la versión que tiene. El enlace **Descargar APK para instalarla a mano** solo hace falta si el servicio técnico tiene que dar de alta un móvil con el ordenador. No compartas la app fuera de la empresa: lleva dentro el acceso al servidor.
 
 La columna **Protección** resume el estado de cada móvil: **Protegido** (aplica lo que has pedido), **Pendiente** (aún no lo ha confirmado; los móviles se sincronizan cada pocos minutos), **Sin administración** (el móvil no ha pasado el alta del servicio técnico y no puede aplicar nada), **Sin proteger** o **Liberado**.
 

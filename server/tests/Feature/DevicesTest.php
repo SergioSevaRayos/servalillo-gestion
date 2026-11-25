@@ -296,18 +296,19 @@ it('sin APK publicada la descarga da 404 y la pantalla lo indica', function () {
     Livewire::actingAs(makeUser('mantenimiento'))
         ->test(Devices::class)
         ->assertSee('Aún no se ha publicado ninguna APK')
-        ->assertDontSee('Descargar APK del tracker');
+        ->assertDontSee('para instalarla a mano');
 });
 
-it('la pantalla muestra el botón de descarga con la versión', function () {
+it('la pantalla muestra la versión publicada y el enlace de descarga manual', function () {
     Storage::fake('local');
     Storage::disk('local')->put(TrackerApk::FILE, 'APK-BYTES');
     Storage::disk('local')->put(TrackerApk::META, json_encode(['version' => '1.1.0', 'built_at' => '2026-11-25T10:00:00+01:00']));
 
     Livewire::actingAs(makeUser('administrador'))
         ->test(Devices::class)
-        ->assertSee('Descargar APK del tracker')
-        ->assertSee('Versión 1.1.0');
+        ->assertSee('1.1.0')
+        ->assertSee('los móviles se actualizan solos')
+        ->assertSee('para instalarla a mano');
 });
 
 it('un chofer no puede descargar la APK', function () {

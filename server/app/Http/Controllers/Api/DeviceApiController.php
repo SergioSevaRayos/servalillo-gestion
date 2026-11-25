@@ -7,6 +7,7 @@ use App\Http\Requests\Api\RegisterDeviceRequest;
 use App\Http\Requests\Api\ReportDeviceStateRequest;
 use App\Models\Device;
 use App\Services\DevicePinHasher;
+use App\Services\TrackerApk;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -53,7 +54,7 @@ class DeviceApiController extends Controller
      * config de tracking vigente. No aborta si `is_active` es false — devuelve 200 con
      * `is_active: false` para que la app pare con elegancia en vez de tratarlo como error.
      */
-    public function show(Request $request): JsonResponse
+    public function show(Request $request, TrackerApk $apk): JsonResponse
     {
         $device = $request->user();
 
@@ -80,6 +81,9 @@ class DeviceApiController extends Controller
                 'salt' => $device->unlock_pin_salt,
                 'iterations' => DevicePinHasher::ITERATIONS,
             ] : null,
+            // Última APK publicada: si su version_code es mayor que el suyo, la app se descarga
+            // GET /api/device/apk, comprueba la sha256 y se instala sola (solo como Device Owner).
+            'app_update' => $apk->updateInfo(),
             'server_time' => now()->toIso8601String(),
         ]);
     }

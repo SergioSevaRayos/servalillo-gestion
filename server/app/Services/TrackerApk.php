@@ -30,7 +30,7 @@ class TrackerApk
     }
 
     /**
-     * @return array{version: ?string, built_at: ?Carbon, size: int, sha256: ?string}|null
+     * @return array{version: ?string, version_code: ?int, built_at: ?Carbon, size: int, sha256: ?string}|null
      */
     public function info(): ?array
     {
@@ -43,9 +43,34 @@ class TrackerApk
 
         return [
             'version' => is_string($meta['version'] ?? null) ? $meta['version'] : null,
+            // versionCode de Android (el "+N" de mobile/pubspec.yaml): la APK lo compara con el suyo
+            // para actualizarse sola (docs/24).
+            'version_code' => is_numeric($meta['version_code'] ?? null) ? (int) $meta['version_code'] : null,
             'built_at' => isset($meta['built_at']) ? Carbon::parse($meta['built_at']) : Carbon::createFromTimestamp($disk->lastModified(self::FILE)),
             'size' => $disk->size(self::FILE),
             'sha256' => is_string($meta['sha256'] ?? null) ? $meta['sha256'] : null,
+        ];
+    }
+
+    /**
+     * Lo que la APK necesita para decidir si se actualiza sola (GET /api/device → app_update).
+     * Null si no hay APK publicada o no se sabe su versionCode/huella.
+     *
+     * @return array{version: ?string, version_code: int, sha256: string, size: int}|null
+     */
+    public function updateInfo(): ?array
+    {
+        $info = $this->info();
+
+        if (! $info || $info['version_code'] === null || $info['sha256'] === null) {
+            return null;
+        }
+
+        return [
+            'version' => $info['version'],
+            'version_code' => $info['version_code'],
+            'sha256' => $info['sha256'],
+            'size' => $info['size'],
         ];
     }
 

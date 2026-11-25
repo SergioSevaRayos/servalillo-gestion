@@ -1,3 +1,4 @@
+import 'app_update_info.dart';
 import 'device_policies.dart';
 import 'tracking_config.dart';
 
@@ -13,6 +14,7 @@ class DeviceStatus {
     required this.serverTime,
     this.policies = DevicePolicies.none,
     this.unlock,
+    this.appUpdate,
   });
 
   final int deviceId;
@@ -27,6 +29,9 @@ class DeviceStatus {
 
   /// Clave de la APK (hash + sal), o null si no tiene.
   final UnlockConfig? unlock;
+
+  /// Última APK publicada, para la actualización automática (docs/24).
+  final AppUpdateInfo? appUpdate;
 
   bool get isAssigned => driverName != null;
 
@@ -48,5 +53,6 @@ class DeviceStatus {
           )
         : DevicePolicies.none,
     unlock: UnlockConfig.fromJson(json['unlock']),
+    appUpdate: AppUpdateInfo.fromJson(json['app_update']),
   );
 }

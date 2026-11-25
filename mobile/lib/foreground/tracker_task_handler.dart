@@ -10,6 +10,9 @@ import '../data/app_database.dart';
 import '../data/position_queue.dart';
 import '../data/secure_store.dart';
 import '../services/enrolment_service.dart';
+import 'package:path_provider/path_provider.dart';
+
+import '../services/app_update_service.dart';
 import '../services/location_sampler.dart';
 import '../services/policy_sync_service.dart';
 import '../services/sync_service.dart';
@@ -26,6 +29,7 @@ void startCallback() {
 class TrackerTaskHandler extends TaskHandler {
   TrackerController? _controller;
   PolicySyncService? _policies;
+  AppUpdateService? _updates;
   DateTime? _lastPolicySync;
   http.Client? _client;
 
@@ -63,6 +67,13 @@ class TrackerTaskHandler extends TaskHandler {
         api: api,
         port: const NativeDevicePolicyPort(),
         appVersion: AppConfig.appVersion,
+      );
+
+      _updates = AppUpdateService(
+        store: store,
+        api: api,
+        installer: const NativeAppInstallerPort(),
+        cacheDir: getTemporaryDirectory,
       );
 
       _controller = TrackerController(
@@ -114,7 +125,12 @@ class TrackerTaskHandler extends TaskHandler {
     if (policies == null) return;
     _lastPolicySync = DateTime.now();
     try {
-      await policies.sync();
+      final PolicySyncResult result = await policies.sync();
+      // Actualización automática (docs/24): con la misma consulta de /api/device.
+      final AppUpdateService? updates = _updates;
+      if (updates != null && result.status != null) {
+        await updates.maybeUpdate(result.status!.appUpdate, result.applied);
+      }
     } catch (e, st) {
       debugPrintStack(stackTrace: st, label: 'PolicySyncService: $e');
     }

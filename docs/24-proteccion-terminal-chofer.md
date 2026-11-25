@@ -58,9 +58,11 @@ protección gestionada en remoto por administrador y mantenimiento.
     "Sin administración".
 
 ## Descarga de la APK desde la web
-- Botón **"Descargar APK del tracker"** en `/dispositivos` → `GET /dispositivos/apk` (`devices.apk`,
+- Enlace discreto **"Descargar APK (… MB) para instalarla a mano"** bajo "Dar de alta un móvil" en
+  `/dispositivos` (antes era un botón; con el alta por QR y la actualización automática solo hace falta
+  para un alta por adb) → `GET /dispositivos/apk` (`devices.apk`,
   `TrackerApkController`, permiso `devices.manage` + `DevicePolicy@viewAny`). Si no hay APK publicada
-  devuelve 404, y la pantalla lo indica en lugar del botón.
+  devuelve 404, y la pantalla lo indica en lugar del enlace.
 - La APK **no va en git** (~60 MB). Está en `storage/app/private/apk/servalillo-tracker.apk`
   (disco `local`) junto a `tracker.json` (`version`, `built_at`, `sha256`), y la lee
   `App\Services\TrackerApk`.
@@ -75,6 +77,34 @@ protección gestionada en remoto por administrador y mantenimiento.
   liberarse y reinstalarse.
 - La APK lleva dentro `ENROLMENT_SECRET`: por eso la descarga solo está disponible para quien
   gestiona dispositivos.
+
+## Actualización automática de la APK
+- `GET /api/device` añade `app_update {version, version_code, sha256, size}|null`
+  (`TrackerApk::updateInfo()`; null si no hay APK publicada o su `tracker.json` no trae
+  `version_code`/`sha256`).
+- `GET /api/device/apk` (`TrackerApkController@device`, `auth:sanctum` + `abilities:gps:ingest`).
+  **Sin `throttle`**: el middleware de throttle llama a `getAuthIdentifier()`, que `Device` no tiene
+  (no es `Authenticatable`), y da 500.
+- APK: `AppUpdateService.maybeUpdate()` se ejecuta tras cada `PolicySyncService.sync()` del servicio en
+  1er plano (cada 5 min, con la misma consulta). Si el `version_code` publicado es **mayor** que el
+  instalado (`DevicePolicyChannel.versionCode()`) y la app es Device Owner:
+  1. descarga en streaming a la caché (`TrackerApi.downloadApk`);
+  2. comprueba la sha256;
+  3. llama a `installApk`: `PackageInstaller` con `USER_ACTION_NOT_REQUIRED`, que solo funciona
+     **sin preguntar** como Device Owner (permiso `REQUEST_INSTALL_PACKAGES` en el plugin).
+
+  Al instalarse, Android reinicia la app y el servicio vuelve solo (`autoRunOnMyPackageReplaced`).
+  El resultado lo deja en el log `InstallResultReceiver` (`adb logcat -s ServalilloUpdate`).
+- Si un intento falla, no se repite **la misma versión** hasta pasadas 6 h
+  (`SecureStore.lastUpdateAttempt`); una versión aún más nueva sí se intenta enseguida.
+- Sin Device Owner no se descarga nada, porque no podría instalarse sola: el móvil se queda en su
+  versión y hay que actualizarlo a mano (enlace discreto "Descargar APK…" en `/dispositivos`).
+- **Para publicar una versión nueva**: subir el `+N` de `version:` en `mobile/pubspec.yaml` (es el
+  versionCode, `publish-apk.sh` lo lee y lo escribe en `tracker.json`) y `APP_VERSION` en
+  `dart_define.production.json`, y ejecutar `bash server/deploy/publish-apk.sh`. **Sin subir el `+N`,
+  los móviles no se actualizan.**
+- Las versiones anteriores a la 1.3.0 no tienen este código: el primer salto a 1.3.0 tiene que llegar
+  por el QR (alta) o a mano.
 
 ## Alta de cada terminal por código QR (lo normal; sin ordenador)
 Android Enterprise "QR provisioning": en la pantalla de bienvenida de un móvil **recién restablecido**
@@ -132,6 +162,7 @@ lo permite si el móvil **no tiene ninguna cuenta** (ni la de Google).
 
 ## Tests
 - Servidor: `tests/Feature/DevicesTest.php` (antes `MaintenanceDevicesTest`), `tests/Feature/DeviceProvisioningTest.php`,
+  `tests/Feature/Api/DeviceStateTest.php` (también `app_update` y `/api/device/apk`),
   `tests/Feature/Api/DeviceStateTest.php` y `tests/Unit/DevicePinHasherTest.php`.
-- APK: `mobile/test/policy_sync_service_test.dart` (con un plugin falso) y
+- APK: `mobile/test/policy_sync_service_test.dart` (con un plugin falso), `mobile/test/app_update_service_test.dart` y
   `mobile/test/pin_verifier_test.dart`.

@@ -7,23 +7,21 @@
             </p>
         </div>
 
-        {{-- Descarga de la APK tracker para instalarla o actualizarla en un móvil (docs/24). --}}
+        {{-- Alta por QR (lo normal). La app se actualiza sola en los móviles dados de alta; la
+             descarga manual queda como enlace discreto, solo para un alta por adb (docs/24). --}}
         <div class="shrink-0 sm:text-right">
             @if ($apk = $this->apk)
-                <div class="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <x-ui.button wire:click="openProvisioning" class="w-full justify-center sm:w-auto">
-                        {{ __('Dar de alta un móvil') }}
-                    </x-ui.button>
-                    <x-ui.button variant="secondary" href="{{ route('devices.apk') }}" download class="w-full justify-center sm:w-auto">
-                        {{ __('Descargar APK del tracker') }}
-                    </x-ui.button>
-                </div>
+                <x-ui.button wire:click="openProvisioning" class="w-full justify-center sm:w-auto">
+                    {{ __('Dar de alta un móvil') }}
+                </x-ui.button>
                 <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                    @if ($apk['version']) {{ __('Versión :v', ['v' => $apk['version']]) }} · @endif
-                    {{ $apk['built_at']?->format('d/m/Y') }} · {{ number_format($apk['size'] / 1048576, 1, ',', '.') }} MB
+                    {{ __('App') }} @if ($apk['version']) {{ $apk['version'] }} @endif · {{ $apk['built_at']?->format('d/m/Y') }} · {{ __('los móviles se actualizan solos') }}
                 </p>
+                <a href="{{ route('devices.apk') }}" download class="mt-0.5 inline-block text-xs text-slate-400 underline-offset-2 hover:text-primary-600 hover:underline dark:hover:text-primary-400">
+                    {{ __('Descargar APK (:mb MB) para instalarla a mano', ['mb' => number_format($apk['size'] / 1048576, 1, ',', '.')]) }}
+                </a>
             @else
-                <p class="text-xs text-slate-400">{{ __('Aún no se ha publicado ninguna APK para descargar.') }}</p>
+                <p class="text-xs text-slate-400">{{ __('Aún no se ha publicado ninguna APK.') }}</p>
             @endif
         </div>
     </div>

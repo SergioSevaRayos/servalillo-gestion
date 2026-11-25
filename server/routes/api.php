@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\DeviceApiController;
 use App\Http\Controllers\Api\GpsController;
+use App\Http\Controllers\TrackerApkController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -24,6 +25,10 @@ Route::get('device', [DeviceApiController::class, 'show'])
 
 // La APK informa de la protección que tiene aplicada (Device Owner, restricciones). docs/24.
 Route::post('device/state', [DeviceApiController::class, 'state'])
+    ->middleware(['auth:sanctum', 'abilities:gps:ingest']);
+
+// Descarga de la última APK publicada para que la app se actualice sola (docs/24).
+Route::get('device/apk', [TrackerApkController::class, 'device'])
     ->middleware(['auth:sanctum', 'abilities:gps:ingest']);
 
 // Lote de posiciones (offline-friendly). Solo tokens de dispositivo con la habilidad.

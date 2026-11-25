@@ -2,6 +2,8 @@
 
 use App\Models\Device;
 use App\Services\DevicePinHasher;
+use App\Services\TrackerApk;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use OwenIt\Auditing\Models\Audit;
 
@@ -119,4 +121,60 @@ it('la clave nunca se audita', function () {
         ->flatMap(fn ($a) => array_keys(array_merge((array) $a->old_values, (array) $a->new_values)));
 
     expect($values)->not->toContain('unlock_pin_hash')->not->toContain('unlock_pin_salt');
+});
+
+// --- Actualización automática de la APK (docs/24) ---
+
+it('sin APK publicada app_update es null', function () {
+    Storage::fake('local');
+    $device = Device::factory()->create();
+
+    $this->withToken(stateToken($device))->getJson('/api/device')
+        ->assertOk()
+        ->assertJsonPath('app_update', null);
+});
+
+it('con APK publicada anuncia su versionCode y su huella', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put(TrackerApk::FILE, 'APK-BYTES');
+    Storage::disk('local')->put(TrackerApk::META, json_encode([
+        'version' => '1.3.0', 'version_code' => 3, 'sha256' => hash('sha256', 'APK-BYTES'),
+    ]));
+    $device = Device::factory()->create();
+
+    $this->withToken(stateToken($device))->getJson('/api/device')
+        ->assertOk()
+        ->assertJsonPath('app_update.version', '1.3.0')
+        ->assertJsonPath('app_update.version_code', 3)
+        ->assertJsonPath('app_update.sha256', hash('sha256', 'APK-BYTES'))
+        ->assertJsonPath('app_update.size', 9);
+});
+
+it('sin versionCode en el tracker.json no anuncia actualización', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put(TrackerApk::FILE, 'APK-BYTES');
+    Storage::disk('local')->put(TrackerApk::META, json_encode(['version' => '1.2.0', 'sha256' => 'x']));
+    $device = Device::factory()->create();
+
+    $this->withToken(stateToken($device))->getJson('/api/device')->assertJsonPath('app_update', null);
+});
+
+it('el dispositivo descarga la APK con su token', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put(TrackerApk::FILE, 'APK-BYTES');
+    $device = Device::factory()->create();
+
+    $this->withToken(stateToken($device))->get('/api/device/apk')
+        ->assertOk()
+        ->assertHeader('content-type', 'application/vnd.android.package-archive');
+});
+
+it('la descarga de la APK por API exige token de dispositivo', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put(TrackerApk::FILE, 'APK-BYTES');
+
+    $this->getJson('/api/device/apk')->assertUnauthorized();
+
+    Sanctum::actingAs(makeUser('administrador'), ['gps:ingest']);
+    $this->getJson('/api/device/apk')->assertForbidden();
 });

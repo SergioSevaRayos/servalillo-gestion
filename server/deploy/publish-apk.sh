@@ -32,10 +32,14 @@ fi
 [ -f "$DEFINES" ] || { echo "Falta $DEFINES."; exit 1; }
 
 VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("APP_VERSION",""))' "$DEFINES")"
+# versionCode de Android = el "+N" de `version:` en pubspec.yaml. La APK instalada lo compara con
+# este para actualizarse sola: SÚBELO en cada versión nueva o los móviles no se actualizarán.
+VERSION_CODE="$(sed -n 's/^version: *[^+]*+\([0-9]*\).*/\1/p' mobile/pubspec.yaml)"
+[ -n "$VERSION_CODE" ] || { echo "No encuentro el versionCode (+N) en mobile/pubspec.yaml."; exit 1; }
 APK="mobile/build/app/outputs/flutter-apk/app-release.apk"
 
 if [ "${NO_BUILD:-0}" != "1" ]; then
-  say "flutter build apk --release ($DEFINES, versión ${VERSION:-?})"
+  say "flutter build apk --release ($DEFINES, versión ${VERSION:-?}, versionCode $VERSION_CODE)"
   export JAVA_HOME="${JAVA_HOME:-$HOME/tools/jdk-17.0.20.1+1}"
   ( cd mobile && flutter build apk --release --dart-define-from-file="${DEFINES#mobile/}" )
 fi
@@ -45,7 +49,7 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 cp "$APK" "$STAGE/servalillo-tracker.apk"
 SHA="$(sha256sum "$STAGE/servalillo-tracker.apk" | cut -d' ' -f1)"
-printf '{"version":"%s","built_at":"%s","sha256":"%s"}\n' "$VERSION" "$(date -Iseconds)" "$SHA" > "$STAGE/tracker.json"
+printf '{"version":"%s","version_code":%s,"built_at":"%s","sha256":"%s"}\n' "$VERSION" "$VERSION_CODE" "$(date -Iseconds)" "$SHA" > "$STAGE/tracker.json"
 
 if [ "${LOCAL:-0}" = "1" ]; then
   DEST="server/storage/app/private/apk"

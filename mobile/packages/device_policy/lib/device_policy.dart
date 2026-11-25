@@ -32,6 +32,18 @@ class DevicePolicyChannel {
   /// Quita todas las restricciones y deja de ser administradora del dispositivo.
   Future<Map<String, bool>> release() => _call('release');
 
+  /// versionCode de la app instalada (el "+N" de pubspec.yaml).
+  Future<int> versionCode() async =>
+      (await _channel.invokeMethod<int>('versionCode')) ?? 0;
+
+  /// Instala una APK descargada sin preguntar (solo Device Owner). Si va bien, Android reinicia
+  /// la app. Devuelve false si no se pudo lanzar (no es Device Owner, fichero inexistente…).
+  Future<bool> installApk(String path) async =>
+      (await _channel.invokeMethod<bool>('installApk', <String, String>{
+        'path': path,
+      })) ??
+      false;
+
   Future<Map<String, bool>> _call(String method, [Object? args]) async {
     final Map<Object?, Object?>? raw = await _channel
         .invokeMethod<Map<Object?, Object?>>(method, args);

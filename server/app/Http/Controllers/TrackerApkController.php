@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Device;
 use App\Services\TrackerApk;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
@@ -27,6 +28,18 @@ class TrackerApkController extends Controller
      */
     public function provision(TrackerApk $apk): BinaryFileResponse
     {
+        abort_unless($apk->exists(), 404);
+
+        return $this->send($apk);
+    }
+
+    /**
+     * Descarga para la actualización automática de la APK (docs/24): token del dispositivo
+     * (`auth:sanctum` + `gps:ingest`), no sesión de usuario.
+     */
+    public function device(Request $request, TrackerApk $apk): BinaryFileResponse
+    {
+        abort_unless($request->user() instanceof Device, 403);
         abort_unless($apk->exists(), 404);
 
         return $this->send($apk);

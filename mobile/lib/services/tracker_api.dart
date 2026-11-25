@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -113,6 +114,43 @@ class TrackerApi {
     if (res.statusCode >= 200 && res.statusCode < 300) return;
     _throwForAuthCodes(res);
     throw _transient(res);
+  }
+
+  /// `GET /api/device/apk`: descarga la última APK a [dest] en streaming (~60 MB; sin el timeout
+  /// corto del resto de llamadas). Para la actualización automática (docs/24).
+  Future<void> downloadApk({required String token, required File dest}) async {
+    final http.StreamedResponse res;
+    try {
+      res = await _client
+          .send(
+            http.Request('GET', _uri('device/apk'))
+              ..headers.addAll(<String, String>{
+                'Authorization': 'Bearer $token',
+              }),
+          )
+          .timeout(_timeout);
+    } on SocketException {
+      throw const TransientNetworkError('Sin conexión.');
+    } on TimeoutException {
+      throw const TransientNetworkError('Timeout.');
+    } on http.ClientException {
+      throw const TransientNetworkError();
+    }
+
+    if (res.statusCode == 401) throw const TokenRevoked();
+    if (res.statusCode == 403) throw const DeviceDeactivated();
+    if (res.statusCode != 200) {
+      throw TransientNetworkError('HTTP ${res.statusCode}.');
+    }
+
+    final IOSink sink = dest.openWrite();
+    try {
+      await res.stream.timeout(const Duration(minutes: 2)).pipe(sink);
+    } catch (_) {
+      await sink.close().catchError((_) {});
+      if (await dest.exists()) await dest.delete();
+      throw const TransientNetworkError('Descarga interrumpida.');
+    }
   }
 
   // --- helpers ---

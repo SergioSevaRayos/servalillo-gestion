@@ -1,9 +1,14 @@
 package es.servalillo.device_policy
 
+import android.app.PendingIntent
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageInstaller
+import android.os.Build
 import android.os.UserManager
+import java.io.File
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -57,11 +62,53 @@ class DevicePolicyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     }
                     result.success(state())
                 }
+                "versionCode" -> result.success(versionCode())
+                "installApk" -> result.success(installApk(call.argument<String>("path") ?: ""))
                 else -> result.notImplemented()
             }
         } catch (e: SecurityException) {
             result.error("security", e.message, null)
         }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun versionCode(): Long {
+        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else info.versionCode.toLong()
+    }
+
+    /**
+     * Actualización automática (docs/24): instala la APK descargada sin preguntar al usuario, cosa
+     * que Android solo permite al Device Owner. Al terminar, Android reinicia la app (y el servicio,
+     * por `autoRunOnMyPackageReplaced`). Devuelve false si no se pudo lanzar.
+     */
+    private fun installApk(path: String): Boolean {
+        val file = File(path)
+        if (!isOwner() || !file.exists()) return false
+
+        val installer = context.packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        params.setAppPackageName(context.packageName)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
+
+        val sessionId = installer.createSession(params)
+        installer.openSession(sessionId).use { session ->
+            session.openWrite("tracker.apk", 0, file.length()).use { out ->
+                file.inputStream().use { it.copyTo(out) }
+                session.fsync(out)
+            }
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+            val intent = Intent(context, InstallResultReceiver::class.java)
+            val pending = PendingIntent.getBroadcast(context, sessionId, intent, flags)
+            session.commit(pending.intentSender)
+        }
+        return true
     }
 
     private fun apply(screenCapture: Boolean, uninstall: Boolean, factoryReset: Boolean, safeBoot: Boolean) {
