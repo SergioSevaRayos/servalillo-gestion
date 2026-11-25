@@ -97,6 +97,21 @@ Cuando acabes todas las paradas, pulsa **Terminar jornada** y anota la lectura f
 
 > Si después de terminar la jornada te llama un cliente y lo añades, la jornada se **reabre** automáticamente.
 
+## Si pierdes el móvil o te lo roban
+
+El móvil de empresa da acceso a los datos de los clientes. Si lo pierdes o te lo roban, actúa enseguida:
+
+1. **Avisa a la oficina cuanto antes**, desde otro teléfono. No esperes a ver si aparece: cuanto antes avises, antes queda protegido.
+2. La oficina **bloquea el móvil desde la web**. En ese momento se cierra tu sesión de la aplicación en todos los dispositivos, y en cuanto el móvil tenga cobertura se bloquea la pantalla y aparece un mensaje para que quien lo encuentre llame a la empresa. El móvil sigue enviando su posición, así que la oficina puede ver dónde está.
+3. **Para seguir trabajando**, entra en la aplicación desde otro móvil con tu usuario y contraseña de siempre. Si la oficina te ha cambiado la contraseña por seguridad, te dará la nueva.
+4. **Si lo recuperas**, no intentes desbloquearlo ni restablecerlo: llévalo a la oficina o avisa para que lo desbloqueen desde la web.
+
+Para que el móvil esté protegido si se pierde:
+
+- **No le quites el PIN** de la pantalla de bloqueo ni lo compartas, y no lo apuntes en ningún sitio del propio móvil.
+- **No lo dejes desbloqueado** y a la vista, por ejemplo en la cabina del camión.
+- Si notas que alguien ha usado el móvil sin permiso, avisa también a la oficina.
+
 ## Preguntas frecuentes
 
 **No me deja tocar las paradas.** Comprueba que has empezado la jornada y que estás viendo el día de hoy.
@@ -104,3 +119,7 @@ Cuando acabes todas las paradas, pulsa **Terminar jornada** y anota la lectura f
 **He quitado una parada sin querer.** Avisa a la oficina: pueden volver a colocarla en tu ruta.
 
 **Quiero volver a ver la guía.** Pulsa el botón **?**: junto a «Hoy» para la pantalla de la ruta, y dentro de una parada para el formulario de cierre.
+
+**No puedo hacer capturas de pantalla.** Es a propósito: el móvil de empresa no permite capturas ni grabaciones de pantalla, para proteger los datos de los clientes. Si necesitas enseñar algo a la oficina, explícaselo por teléfono o pídeles que lo miren desde la web.
+
+**La app de seguimiento me pide una clave.** Es la clave del servicio técnico; no la necesitas para trabajar. La aplicación de reparto se usa desde Chrome, como siempre.

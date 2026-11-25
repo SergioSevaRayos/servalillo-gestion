@@ -113,6 +113,14 @@ Si avisan de que un móvil se ha perdido o lo han robado, abre **Acciones → Mo
 - **En cuanto el móvil tenga conexión** (lo comprueba cada 5 minutos) se bloquea la pantalla y aparece tu mensaje en la pantalla de bloqueo; para usarlo hace falta el PIN. Mientras siga perdido se vuelve a bloquear en cada comprobación.
 - **Sigue enviando su posición**, también de noche: usa **Localizar** para verlo en el mapa.
 
+**Si un chofer avisa de robo o pérdida, sigue estos pasos:**
+
+1. **Activa el modo perdido** en ese móvil (Acciones → Modo perdido) sin esperar a ver si aparece.
+2. **Cambia la contraseña del chofer** en **Usuarios**. Es lo más seguro: si tenía la contraseña guardada en Chrome, quien tenga el móvil podría volver a entrar. Dale la nueva al chofer para que siga trabajando desde otro móvil.
+3. **Localiza el móvil** (Acciones → Localizar) para ver dónde está, si tiene cobertura.
+4. **Si aparece**: comprueba que está en buen estado y pulsa **Acciones → Desactivar modo perdido**.
+5. **Si no aparece**: déjalo en modo perdido (así, si se enciende, se bloquea y sigue enviando su posición). Cuando lo des por perdido, puedes eliminarlo de la lista y dar de alta un móvil nuevo con el código QR.
+
 La tarjeta muestra **Perdido · pendiente de bloquear** hasta que el móvil confirma el bloqueo, y **Perdido · bloqueado** después. Si el móvil está apagado o sin cobertura, el bloqueo se aplica cuando vuelva a conectarse. Cuando aparezca, **Acciones → Desactivar modo perdido**. Solo funciona en móviles dados de alta con el código QR; en los demás solo se cierran las sesiones de la web.
 
 ### Dar de alta un móvil (código QR)
