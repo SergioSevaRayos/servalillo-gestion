@@ -28,108 +28,114 @@
         </div>
     </div>
 
-    <x-ui.table>
-        <thead>
-            <tr>
-                <th>{{ __('Chofer') }}</th>
-                <th>{{ __('Identificador') }}</th>
-                <th>{{ __('Plataforma') }}</th>
-                <th>{{ __('Versión') }}</th>
-                <th>{{ __('Última señal') }}</th>
-                <th class="text-right">{{ __('Posiciones') }}</th>
-                <th>{{ __('Estado') }}</th>
-                <th>{{ __('Protección') }}</th>
-                <th class="text-right">{{ __('Acciones') }}</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse ($this->devices as $device)
-                <tr wire:key="device-{{ $device->id }}">
-                    <td data-label="{{ __('Chofer') }}">
-                        <select
-                            wire:key="device-driver-{{ $device->id }}-{{ $device->driver_id ?? 'none' }}"
-                            wire:change="assign({{ $device->id }}, $event.target.value)"
-                            class="rounded-lg border-slate-300 text-sm shadow-soft-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                        >
-                            <option value="">{{ __('— Sin asignar —') }}</option>
-                            @foreach ($this->drivers as $driver)
-                                <option value="{{ $driver->id }}" @selected($device->driver_id === $driver->id)>{{ $driver->user?->name }}</option>
-                            @endforeach
-                        </select>
-                        @unless ($device->driver_id)
-                            <x-ui.badge variant="warning" class="ml-2">{{ __('Sin asignar') }}</x-ui.badge>
-                        @endunless
-                    </td>
-                    <td data-label="{{ __('Identificador') }}" class="font-mono text-xs text-slate-500 dark:text-slate-400">{{ \Illuminate\Support\Str::limit($device->install_identifier, 28) }}</td>
-                    <td data-label="{{ __('Plataforma') }}" class="capitalize text-slate-600 dark:text-slate-300">{{ $device->platform }}</td>
-                    <td data-label="{{ __('Versión') }}" class="tabular-nums text-slate-600 dark:text-slate-300">{{ $device->app_version ?: '—' }}</td>
-                    <td data-label="{{ __('Última señal') }}" class="whitespace-nowrap text-slate-500 dark:text-slate-400">
-                        @if ($device->last_seen_at)
-                            <span title="{{ $device->last_seen_at->format('d/m/Y H:i') }}">{{ $device->last_seen_at->diffForHumans() }}</span>
-                        @else
-                            <span class="text-amber-600 dark:text-amber-400">{{ __('nunca') }}</span>
-                        @endif
-                    </td>
-                    <td data-label="{{ __('Posiciones') }}" class="text-right tabular-nums text-slate-600 dark:text-slate-300">{{ number_format($device->positions_count, 0, ',', '.') }}</td>
-                    <td data-label="{{ __('Estado') }}">
-                        <x-ui.badge :variant="$device->is_active ? 'success' : 'neutral'">
-                            {{ $device->is_active ? __('Activo') : __('Desactivado') }}
-                        </x-ui.badge>
-                    </td>
-                    <td data-label="{{ __('Protección') }}">
-                        @php
-                            $state = $device->protectionState();
-                            [$variant, $text] = match ($state) {
-                                'protected' => ['success', __('Protegido')],
-                                'pending' => ['warning', $device->release_requested ? __('Liberando…') : __('Pendiente')],
-                                'unmanaged' => ['danger', __('Sin administración')],
-                                'released' => ['neutral', __('Liberado')],
-                                default => ['neutral', $device->reported_device_owner ? __('Sin restricciones') : __('Sin proteger')],
-                            };
-                        @endphp
-                        <x-ui.badge :variant="$variant">{{ $text }}</x-ui.badge>
-                        @if ($device->policies_reported_at)
-                            <span class="mt-0.5 block text-xs text-slate-400" title="{{ $device->policies_reported_at->format('d/m/Y H:i') }}">
-                                {{ __('sincronizado :t', ['t' => $device->policies_reported_at->diffForHumans()]) }}
-                            </span>
-                        @endif
-                    </td>
-                    <td data-label="{{ __('Acciones') }}" class="text-right">
-                        <div class="flex flex-wrap justify-end gap-2">
-                            <x-ui.button variant="ghost" size="sm" wire:click="editSecurity({{ $device->id }})">
-                                {{ __('Seguridad') }}
+    {{-- Una tarjeta por móvil (son pocos): la tabla de 9 columnas quedaba ancha, con las acciones
+         apiladas y scroll horizontal. Las acciones van en el desplegable "Acciones". --}}
+    <div class="space-y-3">
+        @forelse ($this->devices as $device)
+            @php
+                $state = $device->protectionState();
+                [$protVariant, $protText] = match ($state) {
+                    'protected' => ['success', __('Protegido')],
+                    'pending' => ['warning', $device->release_requested ? __('Liberando…') : __('Pendiente')],
+                    'unmanaged' => ['danger', __('Sin administración')],
+                    'released' => ['neutral', __('Liberado')],
+                    default => ['neutral', $device->reported_device_owner ? __('Sin restricciones') : __('Sin proteger')],
+                };
+                $itemClass = 'block w-full px-4 py-2 text-start text-sm text-slate-700 transition hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/10';
+            @endphp
+
+            <x-ui.card :padded="false" wire:key="device-{{ $device->id }}" class="p-4">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <select
+                                wire:key="device-driver-{{ $device->id }}-{{ $device->driver_id ?? 'none' }}"
+                                wire:change="assign({{ $device->id }}, $event.target.value)"
+                                aria-label="{{ __('Chofer') }}"
+                                class="w-full rounded-lg border-slate-300 text-sm font-medium shadow-soft-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:w-64"
+                            >
+                                <option value="">{{ __('— Sin asignar —') }}</option>
+                                @foreach ($this->drivers as $driver)
+                                    <option value="{{ $driver->id }}" @selected($device->driver_id === $driver->id)>{{ $driver->user?->name }}</option>
+                                @endforeach
+                            </select>
+
+                            @unless ($device->driver_id)
+                                <x-ui.badge variant="warning">{{ __('Sin asignar') }}</x-ui.badge>
+                            @endunless
+                            <x-ui.badge :variant="$device->is_active ? 'success' : 'neutral'">
+                                {{ $device->is_active ? __('Activo') : __('Desactivado') }}
+                            </x-ui.badge>
+                            <x-ui.badge :variant="$protVariant">{{ $protText }}</x-ui.badge>
+                        </div>
+
+                        <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-4">
+                            <div>
+                                <dt class="text-slate-400">{{ __('Última señal') }}</dt>
+                                <dd class="mt-0.5 text-slate-700 dark:text-slate-200">
+                                    @if ($device->last_seen_at)
+                                        <span title="{{ $device->last_seen_at->format('d/m/Y H:i') }}">{{ $device->last_seen_at->diffForHumans() }}</span>
+                                    @else
+                                        <span class="text-amber-600 dark:text-amber-400">{{ __('nunca') }}</span>
+                                    @endif
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="text-slate-400">{{ __('App') }}</dt>
+                                <dd class="mt-0.5 capitalize text-slate-700 dark:text-slate-200">{{ $device->platform }} · {{ $device->app_version ?: '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-slate-400">{{ __('Posiciones') }}</dt>
+                                <dd class="mt-0.5 tabular-nums text-slate-700 dark:text-slate-200">{{ number_format($device->positions_count, 0, ',', '.') }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-slate-400">{{ __('Protección sincronizada') }}</dt>
+                                <dd class="mt-0.5 text-slate-700 dark:text-slate-200">
+                                    @if ($device->policies_reported_at)
+                                        <span title="{{ $device->policies_reported_at->format('d/m/Y H:i') }}">{{ $device->policies_reported_at->diffForHumans() }}</span>
+                                    @else
+                                        —
+                                    @endif
+                                </dd>
+                            </div>
+                        </dl>
+                        <p class="mt-2 truncate font-mono text-[11px] text-slate-400" title="{{ $device->install_identifier }}">{{ $device->install_identifier }}</p>
+                    </div>
+
+                    <x-dropdown align="right" width="w-52">
+                        <x-slot name="trigger">
+                            <x-ui.button variant="secondary" size="sm" class="w-full sm:w-auto">
+                                {{ __('Acciones') }}
+                                <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" /></svg>
                             </x-ui.button>
+                        </x-slot>
+                        <x-slot name="content">
+                            <button type="button" class="{{ $itemClass }}" wire:click="editSecurity({{ $device->id }})">{{ __('Seguridad') }}</button>
                             @if ($device->positions_count > 0)
-                                <x-ui.button variant="ghost" size="sm" wire:click="locate({{ $device->id }})">
-                                    {{ __('Localizar') }}
-                                </x-ui.button>
+                                <button type="button" class="{{ $itemClass }}" wire:click="locate({{ $device->id }})">{{ __('Localizar') }}</button>
                             @endif
-                            <x-ui.button variant="ghost" size="sm" wire:click="toggleActive({{ $device->id }})">
+                            <button type="button" class="{{ $itemClass }}" wire:click="toggleActive({{ $device->id }})">
                                 {{ $device->is_active ? __('Desactivar') : __('Reactivar') }}
-                            </x-ui.button>
-                            <x-ui.button
-                                variant="ghost" size="sm"
+                            </button>
+                            <div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>
+                            <button type="button" class="{{ $itemClass }}"
                                 wire:click="revoke({{ $device->id }})"
                                 wire:confirm="{{ __('¿Revocar el acceso de este dispositivo? La APK tendrá que volver a enrolarse.') }}"
-                            >{{ __('Revocar') }}</x-ui.button>
-                            <x-ui.button
-                                variant="ghost" size="sm"
+                            >{{ __('Revocar acceso') }}</button>
+                            <button type="button" class="{{ $itemClass }} !text-rose-600 dark:!text-rose-400"
                                 wire:click="delete({{ $device->id }})"
                                 wire:confirm="{{ __('¿Eliminar el dispositivo y todas sus posiciones GPS? No se puede deshacer.') }}"
-                                class="!text-rose-600 hover:!bg-rose-50 dark:!text-rose-400 dark:hover:!bg-rose-500/10"
-                            >{{ __('Eliminar') }}</x-ui.button>
-                        </div>
-                    </td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="9" class="py-10 text-center text-sm text-slate-400">
-                        {{ __('Ningún dispositivo enrolado todavía.') }}
-                    </td>
-                </tr>
-            @endforelse
-        </tbody>
-    </x-ui.table>
+                            >{{ __('Eliminar') }}</button>
+                        </x-slot>
+                    </x-dropdown>
+                </div>
+            </x-ui.card>
+        @empty
+            <x-ui.card class="py-10 text-center text-sm text-slate-400">
+                {{ __('Ningún dispositivo enrolado todavía.') }}
+            </x-ui.card>
+        @endforelse
+    </div>
 
     <x-device-map-modal />
 
