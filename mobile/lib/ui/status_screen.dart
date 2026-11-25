@@ -7,8 +7,10 @@ import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../data/secure_store.dart';
 import '../foreground/foreground_service.dart';
+import '../models/device_policies.dart';
 import '../models/device_status.dart';
 import '../services/enrolment_service.dart';
+import '../services/policy_sync_service.dart';
 import '../services/tracker_api.dart';
 import 'permission_flow.dart';
 
@@ -28,8 +30,17 @@ class _StatusScreenState extends State<StatusScreen>
     store: _store,
     api: _api,
   );
+  late final PolicySyncService _policySync = PolicySyncService(
+    store: _store,
+    api: _api,
+    port: const NativeDevicePolicyPort(),
+    appVersion: AppConfig.appVersion,
+  );
 
   PermissionsState? _perms;
+  AppliedPolicies? _applied;
+  bool _hasPin = false;
+  DateTime? _suspendedUntil;
   EnrolState _enrolState = EnrolState.none;
   int? _deviceId;
   String? _enrolError;
@@ -115,7 +126,11 @@ class _StatusScreenState extends State<StatusScreen>
     final String? token = await _store.token;
     if (token == null) return;
     try {
-      final DeviceStatus status = await _api.fetchDevice(token: token);
+      // Consulta el estado y, de paso, aplica la protección del terminal (docs/24).
+      final PolicySyncResult sync = await _policySync.sync();
+      await _loadProtection(sync.applied);
+      final DeviceStatus? status = sync.status;
+      if (status == null) return;
       if (!mounted) return;
       setState(() => _serverStatus = status);
       await _store.setConfig(status.tracking);
@@ -127,6 +142,58 @@ class _StatusScreenState extends State<StatusScreen>
     } catch (_) {
       // silencioso: es solo para la pantalla
     }
+  }
+
+  Future<void> _loadProtection([AppliedPolicies? applied]) async {
+    final AppliedPolicies a =
+        applied ?? await const NativeDevicePolicyPort().state();
+    final bool hasPin = await _store.unlock != null;
+    final DateTime? until = await _store.suspendedUntil;
+    if (!mounted) return;
+    setState(() {
+      _applied = a;
+      _hasPin = hasPin;
+      _suspendedUntil = until != null && until.isAfter(DateTime.now())
+          ? until
+          : null;
+    });
+  }
+
+  Future<void> _suspendProtection() async {
+    final AppliedPolicies a = await _policySync.suspend(
+      const Duration(minutes: 30),
+    );
+    await _loadProtection(a);
+  }
+
+  Future<void> _resumeProtection() async {
+    await _store.setSuspendedUntil(null);
+    await _loadProtection(await _policySync.applyStored());
+  }
+
+  Future<void> _releaseLocally() async {
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('¿Liberar este terminal?'),
+        content: const Text(
+          'Se quitarán todas las restricciones y la app dejará de administrar el móvil. '
+          'Para volver a protegerlo hará falta repetir el alta con el ordenador (adb).',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Liberar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _loadProtection(await _policySync.releaseLocally());
   }
 
   Future<void> _maybeStartService() async {
@@ -202,6 +269,11 @@ class _StatusScreenState extends State<StatusScreen>
 
             _statusCard(),
             const SizedBox(height: 12),
+
+            if (_applied != null) ...<Widget>[
+              _protectionCard(_applied!),
+              const SizedBox(height: 12),
+            ],
 
             if (p != null && !p.allGranted) ...<Widget>[
               _permissionsCard(p),
@@ -311,6 +383,70 @@ class _StatusScreenState extends State<StatusScreen>
             _lastSentAt == null ? 'nunca' : _relative(_lastSentAt!),
           ),
           _row('En cola', _pending.toString()),
+        ],
+      ),
+    );
+  }
+
+  /// Protección del terminal (docs/24). Las acciones solo aparecen si el terminal tiene clave
+  /// (es decir, si se ha entrado por PinGate): sin clave el chofer no debe poder tocarlas.
+  Widget _protectionCard(AppliedPolicies a) {
+    final DevicePolicies p = a.policies;
+    String yn(bool v) => v ? 'bloqueado' : 'permitido';
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            'Protección del terminal',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          _row(
+            'Administra el móvil',
+            a.deviceOwner ? 'sí' : 'no (falta el alta con adb)',
+            ok: a.deviceOwner,
+          ),
+          if (a.deviceOwner) ...<Widget>[
+            _row('Capturas de pantalla', yn(p.blockScreenCapture)),
+            _row('Desinstalar la app', yn(p.blockUninstall)),
+            _row('Restablecer de fábrica', yn(p.blockFactoryReset)),
+            _row('Modo seguro', yn(p.blockSafeBoot)),
+          ],
+          if (_suspendedUntil != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Restricciones quitadas hasta las '
+                '${_suspendedUntil!.hour.toString().padLeft(2, '0')}:'
+                '${_suspendedUntil!.minute.toString().padLeft(2, '0')}.',
+                style: TextStyle(color: Colors.amber.shade900),
+              ),
+            ),
+          if (a.deviceOwner && _hasPin) ...<Widget>[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                if (_suspendedUntil == null)
+                  OutlinedButton(
+                    onPressed: _suspendProtection,
+                    child: const Text('Quitar restricciones 30 min'),
+                  )
+                else
+                  OutlinedButton(
+                    onPressed: _resumeProtection,
+                    child: const Text('Volver a proteger'),
+                  ),
+                TextButton(
+                  onPressed: _releaseLocally,
+                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  child: const Text('Liberar terminal'),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

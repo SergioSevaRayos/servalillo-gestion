@@ -1,0 +1,19 @@
+name: device_policy
+description: "Plugin local: la APK tracker como Device Owner de Android (bloqueo de capturas, desinstalación, reset y modo seguro). Ver docs/24."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.11.1
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: es.servalillo.device_policy
+        pluginClass: DevicePolicyPlugin

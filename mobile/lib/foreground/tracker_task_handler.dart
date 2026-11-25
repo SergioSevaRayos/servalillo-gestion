@@ -11,6 +11,7 @@ import '../data/position_queue.dart';
 import '../data/secure_store.dart';
 import '../services/enrolment_service.dart';
 import '../services/location_sampler.dart';
+import '../services/policy_sync_service.dart';
 import '../services/sync_service.dart';
 import '../services/tracker_api.dart';
 import '../services/tracker_controller.dart';
@@ -24,7 +25,12 @@ void startCallback() {
 
 class TrackerTaskHandler extends TaskHandler {
   TrackerController? _controller;
+  PolicySyncService? _policies;
+  DateTime? _lastPolicySync;
   http.Client? _client;
+
+  /// Cada cuánto se consulta la protección del terminal (docs/24).
+  static const Duration _policyInterval = Duration(minutes: 5);
   bool _busy = false;
   int _skip = 0;
 
@@ -52,6 +58,13 @@ class TrackerTaskHandler extends TaskHandler {
       // Por si el servicio arrancó en boot antes de que la UI enrolara.
       await EnrolmentService(store: store, api: api).ensureEnrolled();
 
+      _policies = PolicySyncService(
+        store: store,
+        api: api,
+        port: const NativeDevicePolicyPort(),
+        appVersion: AppConfig.appVersion,
+      );
+
       _controller = TrackerController(
         queue: queue,
         store: store,
@@ -77,6 +90,13 @@ class TrackerTaskHandler extends TaskHandler {
   @override
   void onRepeatEvent(DateTime timestamp) {
     if (_busy) return;
+    // La protección se sincroniza aunque haya que saltar ticks del GPS o sea de noche.
+    if (_skip > 0 && _policyDue()) {
+      _busy = true;
+      _syncPolicies().whenComplete(() => _busy = false);
+      _skip--;
+      return;
+    }
     if (_skip > 0) {
       _skip--;
       return;
@@ -85,9 +105,27 @@ class TrackerTaskHandler extends TaskHandler {
     _runTick().whenComplete(() => _busy = false);
   }
 
+  bool _policyDue() =>
+      _lastPolicySync == null ||
+      DateTime.now().difference(_lastPolicySync!) >= _policyInterval;
+
+  Future<void> _syncPolicies() async {
+    final PolicySyncService? policies = _policies;
+    if (policies == null) return;
+    _lastPolicySync = DateTime.now();
+    try {
+      await policies.sync();
+    } catch (e, st) {
+      debugPrintStack(stackTrace: st, label: 'PolicySyncService: $e');
+    }
+  }
+
   Future<void> _runTick() async {
     final controller = _controller;
     if (controller == null) return;
+
+    // Antes del tick del GPS, que corta en la pausa nocturna.
+    if (_policyDue()) await _syncPolicies();
 
     try {
       final TickResult result = await controller.tick();

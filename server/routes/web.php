@@ -4,6 +4,7 @@ use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\DeliveryNoteController;
 use App\Http\Controllers\RouteTerminalController;
 use App\Http\Controllers\ThemeController;
+use App\Http\Controllers\TrackerApkController;
 use App\Livewire\Alerts\Index as AlertsIndex;
 use App\Livewire\Attendance\Index as AttendanceIndex;
 use App\Livewire\Attendance\Manage as AttendanceManage;
@@ -13,12 +14,12 @@ use App\Livewire\Clients\Index as ClientsIndex;
 use App\Livewire\Clients\Show as ClientsShow;
 use App\Livewire\Dashboard\Index as DashboardIndex;
 use App\Livewire\DeliveryNotes\Index as DeliveryNotesIndex;
+use App\Livewire\Devices\Index as DevicesIndex;
 use App\Livewire\Drivers\Diary as DriversDiary;
 use App\Livewire\Drivers\Index as DriversIndex;
 use App\Livewire\Fleet\Map as FleetMap;
 use App\Livewire\Invoices\Index as InvoicesIndex;
 use App\Livewire\Maintenance\Audits as MaintenanceAudits;
-use App\Livewire\Maintenance\Devices as MaintenanceDevices;
 use App\Livewire\Maintenance\Errors as MaintenanceErrors;
 use App\Livewire\Maintenance\LoginLogs as MaintenanceLoginLogs;
 use App\Livewire\Maintenance\Overview as MaintenanceOverview;
@@ -106,6 +107,12 @@ Route::middleware(['auth', 'role:administrador|mantenimiento'])->group(function 
 
     Route::get('albaranes', DeliveryNotesIndex::class)->middleware('permission:delivery_notes.view')->name('delivery-notes.index');
 
+    // Móviles con la APK tracker: asignación al chofer y protección del terminal (docs/24).
+    // Aquí y no bajo /mantenimiento porque también lo usa administrador.
+    Route::get('dispositivos', DevicesIndex::class)->middleware('permission:devices.manage')->name('devices.index');
+    // La APK tracker para instalarla en los móviles (la publica server/deploy/publish-apk.sh).
+    Route::get('dispositivos/apk', [TrackerApkController::class, 'download'])->middleware('permission:devices.manage')->name('devices.apk');
+
     // Dónde está la flota ahora mismo (última posición GPS de cada dispositivo).
     Route::get('mapa', FleetMap::class)->middleware('permission:devices.manage')->name('fleet.map');
 
@@ -150,7 +157,6 @@ Route::middleware(['auth', 'role:mantenimiento'])->prefix('mantenimiento')->name
     Route::get('log', MaintenanceSystemLog::class)->middleware('permission:system_logs.view')->name('logs');
     Route::get('accesos', MaintenanceLoginLogs::class)->middleware('permission:system_logs.view')->name('logins');
     Route::get('soporte', MaintenanceSupport::class)->middleware('permission:support.manage')->name('support');
-    Route::get('dispositivos', MaintenanceDevices::class)->middleware('permission:devices.manage')->name('devices');
     Route::get('ajustes', MaintenanceSettings::class)->name('settings');
 });
 

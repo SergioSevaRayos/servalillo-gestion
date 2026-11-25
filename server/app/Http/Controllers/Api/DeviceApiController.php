@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\RegisterDeviceRequest;
+use App\Http\Requests\Api\ReportDeviceStateRequest;
 use App\Models\Device;
+use App\Services\DevicePinHasher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -67,7 +69,54 @@ class DeviceApiController extends Controller
                 ? ['name' => $device->driver->user->name]
                 : null,
             'tracking' => $device->trackingConfig(),
+            // Protección del terminal (docs/24). La APK las aplica como Device Owner.
+            'policies' => [
+                ...$device->desiredPolicies(),
+                'release' => $device->release_requested,
+            ],
+            // Solo hash + sal: la APK verifica la clave sin conexión, nunca la recibe en claro.
+            'unlock' => $device->hasUnlockPin() ? [
+                'hash' => $device->unlock_pin_hash,
+                'salt' => $device->unlock_pin_salt,
+                'iterations' => DevicePinHasher::ITERATIONS,
+            ] : null,
             'server_time' => now()->toIso8601String(),
         ]);
+    }
+
+    /**
+     * La APK informa de lo que tiene aplicado de verdad (si es Device Owner y qué restricciones).
+     * Si se había pedido "liberar terminal" y ya no es administradora, se da por cerrado.
+     */
+    public function state(ReportDeviceStateRequest $request): JsonResponse
+    {
+        $device = $request->user();
+
+        abort_unless($device instanceof Device, 403);
+
+        $owner = $request->boolean('device_owner');
+        $applied = collect(Device::POLICIES)
+            ->mapWithKeys(fn (string $key) => [$key => (bool) $request->input("applied.{$key}", false)])
+            ->all();
+
+        $device->fill([
+            'reported_device_owner' => $owner,
+            'reported_policies' => $applied,
+            'policies_reported_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+
+        if ($request->filled('app_version')) {
+            $device->app_version = $request->string('app_version')->value();
+        }
+
+        if ($device->release_requested && ! $owner) {
+            $device->release_requested = false;
+            $device->released_at = now();
+        }
+
+        $device->save();
+
+        return response()->json(['ok' => true]);
     }
 }

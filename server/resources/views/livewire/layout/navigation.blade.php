@@ -38,6 +38,7 @@ new class extends Component
             $user->can('viewAny', \App\Models\Client::class) ? [__('Clientes'), 'clients.index', ['clients.*']] : null,
             $user->can('viewAny', \App\Models\Driver::class) ? [__('Chofers'), 'drivers.index', ['drivers.index']] : null,
             $user->can('viewAny', \App\Models\Truck::class) ? [__('Camiones'), 'trucks.index', ['trucks.index']] : null,
+            $user->can('devices.manage') ? [__('Dispositivos'), 'devices.index', ['devices.index']] : null,
             $user->can('sgra.view') ? [__('Depósitos'), 'sgra.index', ['sgra.index']] : null,
             $user->can('viewAny', \App\Models\User::class) ? [__('Usuarios'), 'users.index', ['users.index']] : null,
         ])];

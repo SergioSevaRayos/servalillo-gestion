@@ -1,22 +1,29 @@
 <?php
 
-namespace App\Livewire\Maintenance;
+namespace App\Livewire\Devices;
 
+use App\Livewire\Forms\DeviceSecurityForm;
 use App\Models\Device;
 use App\Models\Driver;
 use App\Models\GpsPosition;
+use App\Services\TrackerApk;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 /**
- * Panel de Mantenimiento (Bloque 10): dispositivos con la APK "tracker" instalada.
- * El técnico asigna cada dispositivo a un chofer, revoca su acceso o lo desactiva.
+ * Dispositivos con la APK "tracker" instalada (Bloque 10). Se asigna cada dispositivo a un chofer,
+ * se revoca su acceso o se desactiva, y se gestiona la protección del terminal (docs/24).
+ *
+ * Va en el grupo Gestión (/dispositivos), no bajo /mantenimiento: lo usan administrador y
+ * mantenimiento (permiso `devices.manage`).
  */
 #[Layout('layouts.app')]
-class Devices extends Component
+class Index extends Component
 {
+    public DeviceSecurityForm $security;
+
     public function mount(): void
     {
         $this->authorize('viewAny', Device::class);
@@ -30,6 +37,13 @@ class Devices extends Component
             ->withCount('positions')
             ->orderByRaw('last_seen_at DESC NULLS LAST')
             ->get();
+    }
+
+    /** La APK publicada para descargar (versión, fecha, tamaño) o null. */
+    #[Computed]
+    public function apk(): ?array
+    {
+        return app(TrackerApk::class)->info();
     }
 
     #[Computed]
@@ -139,6 +153,80 @@ class Devices extends Component
         );
     }
 
+    /** Abre el modal "Seguridad" del terminal. */
+    public function editSecurity(int $deviceId): void
+    {
+        $device = Device::findOrFail($deviceId);
+        $this->authorize('update', $device);
+
+        $this->security->setDevice($device);
+        $this->dispatch('open-modal', 'device-security');
+    }
+
+    public function saveSecurity(): void
+    {
+        $device = $this->security->editing;
+        abort_unless($device instanceof Device, 404);
+        $this->authorize('update', $device);
+
+        $this->security->save();
+        unset($this->devices);
+
+        $this->dispatch('close-modal', 'device-security');
+        $this->dispatch('toast', message: 'Protección guardada. El terminal la aplicará en unos minutos.', variant: 'success');
+    }
+
+    /**
+     * Pide al terminal que quite todas las restricciones y deje de ser administrador del
+     * dispositivo. Necesario para reutilizar o retirar un móvil (el reset de fábrica está bloqueado).
+     */
+    public function release(int $deviceId): void
+    {
+        $device = Device::findOrFail($deviceId);
+        $this->authorize('update', $device);
+
+        $device->forceFill([
+            'block_screen_capture' => false,
+            'block_uninstall' => false,
+            'block_factory_reset' => false,
+            'block_safe_boot' => false,
+            'release_requested' => true,
+        ])->save();
+        unset($this->devices);
+
+        $this->dispatch('close-modal', 'device-security');
+        $this->dispatch('toast', message: 'Liberación pedida. El terminal la aplicará en la próxima sincronización.', variant: 'success');
+    }
+
+    /** Copia las restricciones del terminal abierto a todos los dispositivos activos (la clave no). */
+    public function applySecurityToAll(): void
+    {
+        $source = $this->security->editing;
+        abort_unless($source instanceof Device, 404);
+        $this->authorize('update', $source);
+
+        $policies = collect(array_keys(Device::POLICIES))
+            ->mapWithKeys(fn (string $column) => [$column => (bool) $this->security->{$column}])
+            ->all();
+        $wantsAny = in_array(true, $policies, true);
+
+        $count = 0;
+        // Uno a uno (no un update masivo) para que quede en la auditoría.
+        Device::query()->where('is_active', true)->each(function (Device $device) use ($policies, $wantsAny, &$count) {
+            $device->fill($policies);
+            if ($wantsAny) {
+                $device->release_requested = false;
+            }
+            $device->save();
+            $count++;
+        });
+
+        unset($this->devices);
+        $this->security->setDevice($source->fresh());
+
+        $this->dispatch('toast', message: "Restricciones aplicadas a {$count} terminales.", variant: 'success');
+    }
+
     public function delete(int $deviceId): void
     {
         $device = Device::findOrFail($deviceId);
@@ -153,6 +241,6 @@ class Devices extends Component
 
     public function render()
     {
-        return view('livewire.maintenance.devices');
+        return view('livewire.devices.index');
     }
 }

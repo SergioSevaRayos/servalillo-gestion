@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Device Owner no necesita políticas "legacy": las restricciones van por DevicePolicyManager. -->
+<device-admin>
+    <uses-policies />
+</device-admin>

@@ -53,7 +53,8 @@
     intervalo fijo) + recálculo de permanencia del día afectado.
 - **Esquema**: `devices.truck_id` (unique, NOT NULL) → **`devices.driver_id`** (nullable, unique,
   `nullOnDelete`). `gps_positions.truck_id` → **nullable**. `Truck::device()` eliminado.
-- **Panel** `/mantenimiento/dispositivos` (`App\Livewire\Maintenance\Devices`, tab, permiso
+- **Panel** (desde 2026-11-25 en **`/dispositivos`**, `App\Livewire\Devices\Index`, grupo Gestión — ver
+  `docs/24`; antes `/mantenimiento/dispositivos`, `Maintenance\Devices`, tab, permiso
   `devices.manage` que ya tienen `mantenimiento` y `administrador`): lista de APKs enroladas (última
   señal, versión, nº posiciones, estado), `<select>` para **asignar/reasignar chofer** (`assign()` —
   avisa si el chofer ya tiene otro dispositivo, el `driver_id` es unique), **revocar** acceso
@@ -62,6 +63,8 @@
   última posición + un rastro de las ≤60 recientes; `<x-device-map-modal>` + `Alpine.data('deviceMap')`
   (mapa Leaflet, círculo de precisión, línea punteada del rastro) — misma infra que `<x-route-map-modal>`
   del Bloque 13.
+- **Protección del terminal** (Device Owner, bloqueo de capturas, clave, `POST /api/device/state`,
+  plugin `mobile/packages/device_policy`): todo en `docs/24-proteccion-terminal-chofer.md`.
 - **`gps:purgar {--dias=}`** (`App\Console\Commands\PurgeGpsPositions`, schedule diario 04:00): borra
   `gps_positions` anteriores a `config('servalillo.gps_retention_days')` en lotes de 5000.
 - `bootstrap/app.php` ya devuelve JSON en `api/*` y loguea toda excepción a `error_logs` → los errores

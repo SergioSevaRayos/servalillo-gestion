@@ -1,0 +1,22 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!--
+            Receptor de administración del dispositivo. El alta como Device Owner se hace una vez
+            por terminal con:
+            adb shell dpm set-device-owner es.servalillo.tracker/es.servalillo.device_policy.AdminReceiver
+            (ver docs/24-proteccion-terminal-chofer.md)
+        -->
+        <receiver
+            android:name=".AdminReceiver"
+            android:label="Servalillo Tracker"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -22,6 +22,10 @@ Route::post('device/register', [DeviceApiController::class, 'register'])
 Route::get('device', [DeviceApiController::class, 'show'])
     ->middleware(['auth:sanctum', 'abilities:gps:ingest']);
 
+// La APK informa de la protección que tiene aplicada (Device Owner, restricciones). docs/24.
+Route::post('device/state', [DeviceApiController::class, 'state'])
+    ->middleware(['auth:sanctum', 'abilities:gps:ingest']);
+
 // Lote de posiciones (offline-friendly). Solo tokens de dispositivo con la habilidad.
 Route::post('gps/batch', [GpsController::class, 'store'])
     ->middleware(['auth:sanctum', 'abilities:gps:ingest']);

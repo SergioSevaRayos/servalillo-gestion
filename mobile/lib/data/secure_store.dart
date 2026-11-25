@@ -1,5 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../models/device_policies.dart';
 import '../models/tracking_config.dart';
 
 /// Almacén clave-valor simple (para poder testear sin el keystore de Android).
@@ -56,6 +57,11 @@ class SecureStore {
   static const String _kState = 'enrol_state';
   static const String _kLastSent = 'last_sent_at';
   static const String _kDropped = 'dropped_count';
+  static const String _kPolicies = 'device_policies';
+  static const String _kUnlock = 'unlock_config';
+  static const String _kSuspendedUntil = 'policies_suspended_until';
+  static const String _kPinFailures = 'pin_failures';
+  static const String _kPinLockedUntil = 'pin_locked_until';
 
   Future<String?> get installIdentifier => _kv.read(_kInstallId);
   Future<void> setInstallIdentifier(String v) => _kv.write(_kInstallId, v);
@@ -94,4 +100,38 @@ class SecureStore {
       int.tryParse(await _kv.read(_kDropped) ?? '0') ?? 0;
   Future<void> addDropped(int n) async =>
       _kv.write(_kDropped, ((await droppedCount) + n).toString());
+
+  // --- Protección del terminal (docs/24) ---
+
+  /// Última política recibida del servidor: se reaplica sin red y al arrancar.
+  Future<DevicePolicies> get policies async =>
+      DevicePolicies.decode(await _kv.read(_kPolicies));
+  Future<void> setPolicies(DevicePolicies p) =>
+      _kv.write(_kPolicies, p.encode());
+
+  Future<UnlockConfig?> get unlock async =>
+      UnlockConfig.decode(await _kv.read(_kUnlock));
+  Future<void> setUnlock(UnlockConfig? c) =>
+      c == null ? _kv.delete(_kUnlock) : _kv.write(_kUnlock, c.encode());
+
+  /// Restricciones quitadas temporalmente por el técnico (con la clave) hasta esta hora.
+  Future<DateTime?> get suspendedUntil => _readTime(_kSuspendedUntil);
+  Future<void> setSuspendedUntil(DateTime? t) =>
+      _writeTime(_kSuspendedUntil, t);
+
+  Future<int> get pinFailures async =>
+      int.tryParse(await _kv.read(_kPinFailures) ?? '0') ?? 0;
+  Future<void> setPinFailures(int n) => _kv.write(_kPinFailures, n.toString());
+
+  Future<DateTime?> get pinLockedUntil => _readTime(_kPinLockedUntil);
+  Future<void> setPinLockedUntil(DateTime? t) =>
+      _writeTime(_kPinLockedUntil, t);
+
+  Future<DateTime?> _readTime(String key) async {
+    final String? raw = await _kv.read(key);
+    return raw == null ? null : DateTime.tryParse(raw);
+  }
+
+  Future<void> _writeTime(String key, DateTime? t) =>
+      t == null ? _kv.delete(key) : _kv.write(key, t.toUtc().toIso8601String());
 }

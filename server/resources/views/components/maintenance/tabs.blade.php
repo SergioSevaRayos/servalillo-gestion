@@ -6,7 +6,6 @@
         'maintenance.logs' => __('Log de la aplicación'),
         'maintenance.logins' => __('Accesos'),
         'maintenance.support' => __('Soporte'),
-        'maintenance.devices' => __('Dispositivos'),
         'maintenance.settings' => __('Ajustes'),
     ];
 @endphp

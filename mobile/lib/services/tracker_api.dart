@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../models/api_exceptions.dart';
+import '../models/device_policies.dart';
 import '../models/device_status.dart';
 import '../models/enrolment_result.dart';
 
@@ -88,6 +89,28 @@ class TrackerApi {
     if (res.statusCode == 200) {
       return DeviceStatus.fromJson(_json(res));
     }
+    _throwForAuthCodes(res);
+    throw _transient(res);
+  }
+
+  /// `POST /api/device/state`: informa de la protección aplicada de verdad (docs/24).
+  Future<void> reportState({
+    required String token,
+    required AppliedPolicies applied,
+    String? appVersion,
+  }) async {
+    final http.Response res = await _send(
+      () => _client.post(
+        _uri('device/state'),
+        headers: _headers(token: token),
+        body: jsonEncode(<String, dynamic>{
+          ...applied.toReport(),
+          'app_version': ?appVersion,
+        }),
+      ),
+    );
+
+    if (res.statusCode >= 200 && res.statusCode < 300) return;
     _throwForAuthCodes(res);
     throw _transient(res);
   }

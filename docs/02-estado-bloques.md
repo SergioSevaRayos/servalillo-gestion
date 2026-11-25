@@ -997,6 +997,13 @@ a un dashboard distinto al planificar repartos.
 
 ---
 
+## Protección del terminal del chofer (2026-11-25)
+La APK tracker pasa a ser **Device Owner** y aplica, en remoto desde la web, el bloqueo de capturas de
+pantalla, la desinstalación, el reset de fábrica desde Ajustes y el modo seguro, con una clave por
+terminal para abrir la APK. Dispositivos se mueve a `/dispositivos` (grupo Gestión, administrador +
+mantenimiento). Detalle, procedimiento de alta por `adb` y límites en
+`docs/24-proteccion-terminal-chofer.md`.
+
 ## Punto de continuación (última sesión: 2026-09-11)
 
 **Estado:** app en producción en `https://geosafety.es`, desplegada varias veces esta sesión

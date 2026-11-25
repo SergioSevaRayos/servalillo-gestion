@@ -73,6 +73,36 @@ Reglas que vigilan la flota y avisan cuando algo se sale de lo normal: silencio 
 
 ![Mapa de la flota](/images/manual/administracion/08-mapa.png)
 
+## Dispositivos y protección del terminal
+
+En **Dispositivos** (menú *Datos*) están los móviles de los chofers con la app de seguimiento (tracker) instalada. Cada móvil aparece solo la primera vez que se abre la app. Desde aquí:
+
+- **Asignas el chofer** de cada móvil con el desplegable (un chofer solo puede tener un móvil).
+- **Localizar** abre el mapa con su última posición y el recorrido reciente.
+- **Desactivar / Reactivar** detiene o reanuda el envío de posiciones; **Revocar** obliga a la app a volver a darse de alta; **Eliminar** borra el móvil y todas sus posiciones.
+- **Seguridad** abre la protección del terminal (ver abajo).
+- **Descargar APK del tracker** (arriba a la derecha) descarga la app de seguimiento, con su versión y fecha, para instalarla en un móvil nuevo o actualizar uno que ya la tenga. Para instalarla, pasa el fichero al móvil y ábrelo; Android pedirá permitir instalar apps de esa fuente. Una actualización se instala encima sin perder nada, aunque el móvil esté protegido. No la compartas fuera de la empresa: la app lleva dentro el acceso al servidor.
+
+La columna **Protección** resume el estado de cada móvil: **Protegido** (aplica lo que has pedido), **Pendiente** (aún no lo ha confirmado; los móviles se sincronizan cada pocos minutos), **Sin administración** (el móvil no ha pasado el alta del servicio técnico y no puede aplicar nada), **Sin proteger** o **Liberado**.
+
+### Protección del terminal
+
+Con **Seguridad** decides qué no puede hacer el chofer en ese móvil. Las restricciones afectan a **todo el móvil**, no solo a la app:
+
+- **Bloquear capturas de pantalla**: ni capturas ni grabaciones de pantalla. Al intentarlo, el móvil avisa de que no se permite por la política de seguridad.
+- **Impedir desinstalar la app** de seguimiento.
+- **Impedir restablecer de fábrica** desde los Ajustes del móvil.
+- **Impedir el modo seguro** (arrancar el móvil sin apps de terceros).
+
+También pones la **clave del terminal** (de 4 a 8 números). La app la pide para abrirse en el móvil y, ya dentro, permite al técnico **quitar las restricciones 30 minutos** o **liberar el terminal**, aunque no haya internet. Tras 5 intentos fallidos la app se bloquea 5 minutos. Si el móvil ya tiene clave, deja el campo en blanco para mantenerla. La clave no se guarda en ningún sitio en claro: si se olvida, pon una nueva desde aquí.
+
+Al **Guardar**, el móvil lo aplica en unos minutos y la ventana te muestra, debajo de cada opción, si ya está **aplicado en el móvil**.
+
+- **Aplicar a todos**: copia las restricciones marcadas a todos los móviles activos (la clave de cada uno no cambia).
+- **Liberar terminal**: quita todas las restricciones y la app deja de administrar el móvil. Hazlo **siempre antes de retirar, vender o reutilizar un móvil**, porque con la protección puesta no se puede restablecer desde los Ajustes. Para volver a protegerlo, el servicio técnico tendrá que repetir el alta.
+
+> Importante: para poder proteger un móvil, el servicio técnico tiene que hacer antes un **alta especial** con el ordenador (una sola vez por móvil). Mientras no se haga, el móvil aparece como **Sin administración**. La protección solo funciona en móviles Android.
+
 ## Chofers, camiones y usuarios
 
 - **Chofers**: alta de choferes (se crea a la vez su usuario de acceso), con acceso al **diario** de incidencias de cada uno.

@@ -94,9 +94,16 @@ Al abrir la app por primera vez, pulsar el botón de permisos y conceder, **en e
 
 Cuando las 4 estén concedidas y el dispositivo esté enrolado, el servicio arranca solo.
 
+## Protección del terminal (Device Owner)
+
+Para bloquear capturas, desinstalación, etc., cada móvil necesita un alta única con
+`adb shell dpm set-device-owner es.servalillo.tracker/es.servalillo.device_policy.AdminReceiver`
+(sin cuentas en el móvil). Procedimiento completo y límites en
+`docs/24-proteccion-terminal-chofer.md`.
+
 ## Asignar el dispositivo a un chofer
 
-`soporte@servalillo.test` → **Mantenimiento → Dispositivos**. El dispositivo aparece enrolado "en
+`soporte@servalillo.test` (o un administrador) → **Dispositivos** (menú Datos). El dispositivo aparece enrolado "en
 blanco". Asignarle un chofer; a partir de ahí las posiciones traen `driver_id` y, si ese chofer tiene
 ruta ese día, `truck_id` / `route_id`.
 

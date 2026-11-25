@@ -1,3 +1,4 @@
+import 'device_policies.dart';
 import 'tracking_config.dart';
 
 /// Respuesta de `GET /api/device` (Bloque 10/11): para mostrar el chofer asignado y detectar
@@ -10,6 +11,8 @@ class DeviceStatus {
     required this.driverName,
     required this.tracking,
     required this.serverTime,
+    this.policies = DevicePolicies.none,
+    this.unlock,
   });
 
   final int deviceId;
@@ -18,6 +21,12 @@ class DeviceStatus {
   final String? driverName;
   final TrackingConfig tracking;
   final DateTime? serverTime;
+
+  /// Protección del terminal pedida desde la web (docs/24).
+  final DevicePolicies policies;
+
+  /// Clave de la APK (hash + sal), o null si no tiene.
+  final UnlockConfig? unlock;
 
   bool get isAssigned => driverName != null;
 
@@ -33,5 +42,11 @@ class DeviceStatus {
     serverTime: json['server_time'] is String
         ? DateTime.tryParse(json['server_time'] as String)
         : null,
+    policies: json['policies'] is Map
+        ? DevicePolicies.fromJson(
+            (json['policies'] as Map).cast<String, dynamic>(),
+          )
+        : DevicePolicies.none,
+    unlock: UnlockConfig.fromJson(json['unlock']),
   );
 }

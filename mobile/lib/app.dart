@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
+import 'ui/pin_gate.dart';
 import 'ui/status_screen.dart';
 
 class TrackerApp extends StatelessWidget {
@@ -16,7 +17,8 @@ class TrackerApp extends StatelessWidget {
         useMaterial3: true,
       ),
       // WithForegroundTask mantiene viva la comunicación con el isolate del servicio.
-      home: const WithForegroundTask(child: StatusScreen()),
+      // PinGate pide la clave del terminal si la web le ha puesto una (docs/24).
+      home: const WithForegroundTask(child: PinGate(child: StatusScreen())),
     );
   }
 }
