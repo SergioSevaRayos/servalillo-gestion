@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Device Owner no necesita políticas "legacy": las restricciones van por DevicePolicyManager. -->
+<!-- Las restricciones van por DevicePolicyManager (Device Owner). force-lock lo exige lockNow(),
+     que usa el modo perdido (docs/24). -->
 <device-admin>
-    <uses-policies />
+    <uses-policies>
+        <force-lock />
+    </uses-policies>
 </device-admin>

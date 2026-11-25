@@ -57,7 +57,7 @@
   `docs/24`; antes `/mantenimiento/dispositivos`, `Maintenance\Devices`, tab, permiso
   `devices.manage` que ya tienen `mantenimiento` y `administrador`): lista de APKs enroladas (última
   señal, versión, nº posiciones, estado), `<select>` para **asignar/reasignar chofer** (`assign()` —
-  avisa si el chofer ya tiene otro dispositivo, el `driver_id` es unique), **revocar** acceso
+  avisa si el chofer ya tiene otro dispositivo, el `driver_id` es unique), **revocar** acceso (quitado del menú el 2026-11-25, ver `docs/24`)
   (`$device->tokens()->delete()`), **activar/desactivar**, **eliminar** (borra sus `gps_positions` por
   cascade), y **"Localizar"** (`locate()`, solo si tiene posiciones): emite `open-device-map` con la
   última posición + un rastro de las ≤60 recientes; `<x-device-map-modal>` + `Alpine.data('deviceMap')`

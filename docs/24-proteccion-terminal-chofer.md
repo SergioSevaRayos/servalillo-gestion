@@ -106,6 +106,32 @@ protección gestionada en remoto por administrador y mantenimiento.
 - Las versiones anteriores a la 1.3.0 no tienen este código: el primer salto a 1.3.0 tiene que llegar
   por el QR (alta) o a mano.
 
+## Modo perdido (robo o pérdida)
+- Objetivo: **proteger la información de la empresa**. Administración o mantenimiento
+  (`DevicePolicy@update`): Acciones → "Modo perdido" (`editLostMode`/`enableLostMode`,
+  `DeviceLostModeForm`) y "Desactivar modo perdido" (`disableLostMode`). Lógica en
+  `App\Services\LostDeviceService`:
+  - `enable()` pone `lost_mode`, `lost_message` y `lost_mode_at`, y **reactiva** el dispositivo
+    (`is_active=true`: desactivado, el servicio de la APK está parado y no recibiría la orden);
+  - además **cierra ya las sesiones web del chofer asignado**: borra sus filas de `sessions`
+    (`SESSION_DRIVER=database` en local y producción) y rota `remember_token`. Esto no depende de que
+    el móvil tenga red; los datos de la empresa están en la web, no en el móvil.
+- API: `policies.lost_mode` + `policies.lost_message` (null si no está perdido). Lo aplicado llega en
+  `reported_policies.lost_mode` (`LostDeviceService::confirmed()`), y la tarjeta muestra "Perdido ·
+  pendiente de bloquear" o "Perdido · bloqueado". `lost_mode` **no** está en `Device::POLICIES`: ni
+  "Aplicar a todos" lo copia ni cuenta para `protectionState()`.
+- APK:
+  - `setDeviceOwnerLockScreenInfo(mensaje)` + `lockNow()` en cada sincronización mientras siga perdido;
+    sin mensaje, lo quita. `lockNow` exige `<force-lock/>` en `device_admin.xml` (añadido en la
+    1.4.0); sin él, se captura el `SecurityException` y el mensaje sigue saliendo cuando el móvil se
+    bloquea solo.
+  - La suspensión de 30 min **no** quita el modo perdido (`DevicePolicies.withoutRestrictions()`).
+  - En modo perdido `TrackerController` **ignora la pausa nocturna** y sigue enviando posición.
+- Por qué no hay borrado remoto: el usuario lo quiso simple, solo bloquear. Con Device Owner sería
+  `wipeData()`.
+- "Revocar acceso" se quitó del menú: la APK se vuelve a dar de alta sola con el secreto que lleva
+  dentro, así que no protegía de nada.
+
 ## Alta de cada terminal por código QR (lo normal; sin ordenador)
 Android Enterprise "QR provisioning": en la pantalla de bienvenida de un móvil **recién restablecido**
 se toca 6 veces, se escanea el QR y Android descarga la APK, comprueba su huella y la deja como Device
@@ -152,7 +178,7 @@ lo permite si el móvil **no tiene ninguna cuenta** (ni la de Google).
   el móvil pierde el tracker y lo detectan los avisos por falta de señal GPS.
 - **Antes de retirar o reutilizar un móvil hay que "Liberar terminal"**: con `block_factory_reset`
   no se puede restablecer desde Ajustes, y con `block_uninstall` no se desinstala la APK.
-- Si el dispositivo se **desactiva o revoca** en el panel, el servicio de la APK se para y deja de
+- Si el dispositivo se **desactiva** en el panel (o se elimina), el servicio de la APK se para y deja de
   sincronizar la protección, aunque las restricciones ya aplicadas siguen en el móvil (persisten tras
   reiniciar). Para liberarlo en ese caso: reactivarlo, o liberarlo desde la APK con la clave.
 - Liberar desde el propio móvil (sin red) deja la web pidiendo restricciones a un móvil que ya no es

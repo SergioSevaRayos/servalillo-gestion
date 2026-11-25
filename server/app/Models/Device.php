@@ -28,6 +28,7 @@ class Device extends Model implements Auditable
         'block_screen_capture', 'block_uninstall', 'block_factory_reset', 'block_safe_boot',
         'release_requested', 'reported_device_owner', 'reported_policies',
         'policies_reported_at', 'released_at',
+        'lost_mode', 'lost_message', 'lost_mode_at',
     ];
 
     /** Restricciones del terminal (docs/24): columna => clave en la API y en `reported_policies`. */
@@ -60,6 +61,8 @@ class Device extends Model implements Auditable
             'reported_policies' => 'array',
             'policies_reported_at' => 'datetime',
             'released_at' => 'datetime',
+            'lost_mode' => 'boolean',
+            'lost_mode_at' => 'datetime',
         ];
     }
 

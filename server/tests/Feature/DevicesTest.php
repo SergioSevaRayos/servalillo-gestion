@@ -6,7 +6,9 @@ use App\Models\Driver;
 use App\Models\GpsPosition;
 use App\Models\User;
 use App\Services\DevicePinHasher;
+use App\Services\LostDeviceService;
 use App\Services\TrackerApk;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -72,18 +74,6 @@ it('desasigna el dispositivo con un valor vacío', function () {
         ->call('assign', $device->id, '');
 
     expect($device->fresh()->driver_id)->toBeNull();
-});
-
-it('revoca el acceso de un dispositivo', function () {
-    $device = Device::factory()->create();
-    $device->createToken('t', ['gps:ingest']);
-
-    Livewire::actingAs(makeUser('mantenimiento'))
-        ->test(Devices::class)
-        ->call('revoke', $device->id)
-        ->assertDispatched('toast');
-
-    expect($device->tokens()->count())->toBe(0);
 });
 
 it('activa y desactiva un dispositivo', function () {
@@ -316,4 +306,85 @@ it('un chofer no puede descargar la APK', function () {
     Storage::disk('local')->put(TrackerApk::FILE, 'APK-BYTES');
 
     $this->actingAs(makeUser('chofer'))->get(route('devices.apk'))->assertForbidden();
+});
+
+// --- Modo perdido (docs/24) ---
+
+it('administrador activa el modo perdido: marca el móvil y cierra las sesiones web del chofer', function () {
+    $driver = choferDriver('Edgar Ortega');
+    $device = Device::factory()->forDriver($driver)->inactive()->create();
+    $userId = $driver->user_id;
+    DB::table('sessions')->insert([
+        ['id' => 'ses-1', 'user_id' => $userId, 'ip_address' => null, 'user_agent' => null, 'payload' => '', 'last_activity' => time()],
+        ['id' => 'ses-2', 'user_id' => $userId, 'ip_address' => null, 'user_agent' => null, 'payload' => '', 'last_activity' => time()],
+        ['id' => 'ses-otro', 'user_id' => null, 'ip_address' => null, 'user_agent' => null, 'payload' => '', 'last_activity' => time()],
+    ]);
+    $rememberBefore = $driver->user->remember_token;
+
+    Livewire::actingAs(makeUser('administrador'))
+        ->test(Devices::class)
+        ->call('editLostMode', $device->id)
+        ->assertDispatched('open-modal', 'device-lost')
+        ->assertSet('lost.message', LostDeviceService::DEFAULT_MESSAGE)
+        ->set('lost.message', 'Llame al 900 000 000')
+        ->call('enableLostMode')
+        ->assertHasNoErrors()
+        ->assertDispatched('close-modal', 'device-lost');
+
+    $device->refresh();
+    expect($device->lost_mode)->toBeTrue()
+        ->and($device->lost_message)->toBe('Llame al 900 000 000')
+        ->and($device->lost_mode_at)->not->toBeNull()
+        ->and($device->is_active)->toBeTrue()
+        ->and(DB::table('sessions')->where('user_id', $userId)->count())->toBe(0)
+        ->and(DB::table('sessions')->where('id', 'ses-otro')->exists())->toBeTrue()
+        ->and($driver->user->fresh()->remember_token)->not->toBe($rememberBefore);
+});
+
+it('el mensaje del modo perdido es obligatorio', function () {
+    $device = Device::factory()->create();
+
+    Livewire::actingAs(makeUser('mantenimiento'))
+        ->test(Devices::class)
+        ->call('editLostMode', $device->id)
+        ->set('lost.message', '')
+        ->call('enableLostMode')
+        ->assertHasErrors(['lost.message' => 'required']);
+
+    expect($device->fresh()->lost_mode)->toBeFalse();
+});
+
+it('desactivar el modo perdido lo quita', function () {
+    $device = Device::factory()->create(['lost_mode' => true, 'lost_message' => 'x', 'lost_mode_at' => now()]);
+
+    Livewire::actingAs(makeUser('mantenimiento'))
+        ->test(Devices::class)
+        ->call('disableLostMode', $device->id);
+
+    expect($device->fresh()->lost_mode)->toBeFalse()
+        ->and($device->fresh()->lost_message)->toBeNull();
+});
+
+it('GET /api/device envía el modo perdido y su mensaje, y el terminal confirma el bloqueo', function () {
+    $device = Device::factory()->create(['lost_mode' => true, 'lost_message' => 'Llame a la empresa']);
+    $token = $device->createToken('tracker', ['gps:ingest'])->plainTextToken;
+
+    $this->withToken($token)->getJson('/api/device')
+        ->assertJsonPath('policies.lost_mode', true)
+        ->assertJsonPath('policies.lost_message', 'Llame a la empresa');
+
+    $this->withToken($token)->postJson('/api/device/state', [
+        'device_owner' => true, 'applied' => ['lost_mode' => true],
+    ])->assertOk();
+
+    expect(app(LostDeviceService::class)->confirmed($device->fresh()))->toBeTrue();
+});
+
+it('sin modo perdido no se envía ningún mensaje', function () {
+    $device = Device::factory()->create(['lost_mode' => false, 'lost_message' => 'viejo']);
+    $token = $device->createToken('tracker', ['gps:ingest'])->plainTextToken;
+
+    $this->withToken($token)->getJson('/api/device')
+        ->assertJsonPath('policies.lost_mode', false)
+        ->assertJsonPath('policies.lost_message', null);
 });

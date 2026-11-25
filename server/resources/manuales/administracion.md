@@ -75,12 +75,13 @@ Reglas que vigilan la flota y avisan cuando algo se sale de lo normal: silencio 
 
 ## Dispositivos y protección del terminal
 
-En **Dispositivos** (menú *Datos*) están los móviles de los chofers con la app de seguimiento (tracker) instalada. Cada móvil aparece solo la primera vez que se abre la app. Desde aquí:
+En **Dispositivos** (menú *Datos*) están los móviles de los chofers con la app de seguimiento (tracker) instalada, uno por tarjeta. Cada móvil aparece solo la primera vez que se abre la app. En cada tarjeta **asignas el chofer** con el desplegable (un chofer solo puede tener un móvil) y, en el botón **Acciones**:
 
-- **Asignas el chofer** de cada móvil con el desplegable (un chofer solo puede tener un móvil).
-- **Localizar** abre el mapa con su última posición y el recorrido reciente.
-- **Desactivar / Reactivar** detiene o reanuda el envío de posiciones; **Revocar** obliga a la app a volver a darse de alta; **Eliminar** borra el móvil y todas sus posiciones.
-- **Seguridad** abre la protección del terminal (ver abajo).
+- **Seguridad**: la protección del terminal (ver abajo).
+- **Localizar**: el mapa con su última posición y el recorrido reciente.
+- **Modo perdido (robo o pérdida)**: bloquea el móvil (ver abajo).
+- **Desactivar / Reactivar seguimiento**: detiene o reanuda el envío de posiciones. Un móvil desactivado tampoco recibe cambios de protección.
+- **Eliminar**: borra el móvil y todas sus posiciones (por ejemplo, al retirarlo, después de liberarlo).
 - **Dar de alta un móvil** (arriba a la derecha) muestra el código QR para preparar un móvil nuevo (ver abajo).
 - **La app se actualiza sola.** Debajo del botón ves la versión publicada. Los móviles dados de alta con el código QR comprueban cada pocos minutos si hay una versión nueva, la descargan y se instalan solos, sin preguntar ni perder nada; la columna *App* de cada móvil muestra la versión que tiene. El enlace **Descargar APK para instalarla a mano** solo hace falta si el servicio técnico tiene que dar de alta un móvil con el ordenador. No compartas la app fuera de la empresa: lleva dentro el acceso al servidor.
 
@@ -103,6 +104,16 @@ Al **Guardar**, el móvil lo aplica en unos minutos y la ventana te muestra, deb
 - **Liberar terminal**: quita todas las restricciones y la app deja de administrar el móvil. Hazlo **siempre antes de retirar, vender o reutilizar un móvil**, porque con la protección puesta no se puede restablecer desde los Ajustes. Para volver a protegerlo, el servicio técnico tendrá que repetir el alta.
 
 > Importante: para poder proteger un móvil hay que darlo de alta antes con el **código QR** (una sola vez por móvil, ver abajo). Un móvil que solo tiene la app instalada a mano aparece como **Sin administración** y no se le puede bloquear nada. La protección solo funciona en móviles Android.
+
+### Modo perdido (robo o pérdida)
+
+Si avisan de que un móvil se ha perdido o lo han robado, abre **Acciones → Modo perdido**, revisa el mensaje y pulsa **Activar modo perdido**:
+
+- **En el acto** se cierran todas las sesiones de la web del chofer de ese móvil: para volver a entrar hará falta su contraseña. Esto protege la información de la empresa aunque el móvil no tenga conexión. El chofer puede entrar normalmente desde otro móvil.
+- **En cuanto el móvil tenga conexión** (lo comprueba cada 5 minutos) se bloquea la pantalla y aparece tu mensaje en la pantalla de bloqueo; para usarlo hace falta el PIN. Mientras siga perdido se vuelve a bloquear en cada comprobación.
+- **Sigue enviando su posición**, también de noche: usa **Localizar** para verlo en el mapa.
+
+La tarjeta muestra **Perdido · pendiente de bloquear** hasta que el móvil confirma el bloqueo, y **Perdido · bloqueado** después. Si el móvil está apagado o sin cobertura, el bloqueo se aplica cuando vuelva a conectarse. Cuando aparezca, **Acciones → Desactivar modo perdido**. Solo funciona en móviles dados de alta con el código QR; en los demás solo se cierran las sesiones de la web.
 
 ### Dar de alta un móvil (código QR)
 

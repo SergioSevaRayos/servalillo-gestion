@@ -9,6 +9,8 @@ class DevicePolicies {
     this.blockFactoryReset = false,
     this.blockSafeBoot = false,
     this.release = false,
+    this.lostMode = false,
+    this.lostMessage,
   });
 
   final bool blockScreenCapture;
@@ -19,7 +21,19 @@ class DevicePolicies {
   /// Se ha pedido "Liberar terminal": quitarlo todo y dejar de ser Device Owner.
   final bool release;
 
+  /// Modo perdido (robo o pérdida): bloquear la pantalla y mostrar [lostMessage]. No lo quita
+  /// la suspensión temporal de 30 min. docs/24.
+  final bool lostMode;
+  final String? lostMessage;
+
   static const DevicePolicies none = DevicePolicies();
+
+  /// Las mismas, sin las restricciones (para la suspensión temporal) pero manteniendo el modo perdido.
+  DevicePolicies withoutRestrictions() => DevicePolicies(
+    release: release,
+    lostMode: lostMode,
+    lostMessage: lostMessage,
+  );
 
   bool get any =>
       blockScreenCapture ||
@@ -33,6 +47,10 @@ class DevicePolicies {
     blockFactoryReset: json['block_factory_reset'] == true,
     blockSafeBoot: json['block_safe_boot'] == true,
     release: json['release'] == true,
+    lostMode: json['lost_mode'] == true,
+    lostMessage: json['lost_message'] is String
+        ? json['lost_message'] as String
+        : null,
   );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -41,6 +59,8 @@ class DevicePolicies {
     'block_factory_reset': blockFactoryReset,
     'block_safe_boot': blockSafeBoot,
     'release': release,
+    'lost_mode': lostMode,
+    'lost_message': lostMessage,
   };
 
   String encode() => jsonEncode(toJson());
@@ -80,6 +100,7 @@ class AppliedPolicies {
       'block_uninstall': policies.blockUninstall,
       'block_factory_reset': policies.blockFactoryReset,
       'block_safe_boot': policies.blockSafeBoot,
+      'lost_mode': policies.lostMode,
     },
   };
 }

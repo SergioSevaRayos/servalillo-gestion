@@ -51,12 +51,14 @@ class DevicePolicyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                             factoryReset = call.argument<Boolean>("block_factory_reset") ?: false,
                             safeBoot = call.argument<Boolean>("block_safe_boot") ?: false,
                         )
+                        lostMode(call.argument<String>("lost_message"))
                     }
                     result.success(state())
                 }
                 "release" -> {
                     if (isOwner()) {
                         apply(screenCapture = false, uninstall = false, factoryReset = false, safeBoot = false)
+                        lostMode(null)
                         @Suppress("DEPRECATION")
                         dpm.clearDeviceOwnerApp(context.packageName)
                     }
@@ -118,6 +120,23 @@ class DevicePolicyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         restriction(UserManager.DISALLOW_SAFE_BOOT, safeBoot)
     }
 
+    /**
+     * Modo perdido (docs/24): con mensaje, lo pone en la pantalla de bloqueo y bloquea la pantalla
+     * (hace falta el PIN). Se llama en cada sincronización mientras siga perdido. Sin mensaje, lo quita.
+     */
+    private fun lostMode(message: String?) {
+        if (message.isNullOrBlank()) {
+            dpm.setDeviceOwnerLockScreenInfo(admin, null)
+            return
+        }
+        dpm.setDeviceOwnerLockScreenInfo(admin, message)
+        try {
+            dpm.lockNow()
+        } catch (e: SecurityException) {
+            // Sin <force-lock/> activo: el mensaje sigue saliendo cuando el móvil se bloquee solo.
+        }
+    }
+
     private fun restriction(key: String, enabled: Boolean) {
         if (enabled) dpm.addUserRestriction(admin, key) else dpm.clearUserRestriction(admin, key)
     }
@@ -130,6 +149,7 @@ class DevicePolicyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 "block_uninstall" to false,
                 "block_factory_reset" to false,
                 "block_safe_boot" to false,
+                "lost_mode" to false,
             )
         }
         val restrictions = dpm.getUserRestrictions(admin)
@@ -139,6 +159,7 @@ class DevicePolicyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "block_uninstall" to dpm.isUninstallBlocked(admin, context.packageName),
             "block_factory_reset" to restrictions.getBoolean(UserManager.DISALLOW_FACTORY_RESET),
             "block_safe_boot" to restrictions.getBoolean(UserManager.DISALLOW_SAFE_BOOT),
+            "lost_mode" to !dpm.deviceOwnerLockScreenInfo.isNullOrBlank(),
         )
     }
 }

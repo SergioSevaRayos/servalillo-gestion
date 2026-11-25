@@ -52,8 +52,11 @@ class TrackerController {
 
   Future<TickResult> tick() async {
     final config = await _store.config;
+    // Un móvil en modo perdido sigue enviando su posición también en la pausa nocturna (docs/24).
+    final bool lost = (await _store.policies).lostMode;
 
-    if (isWithinPause(_clock.now(), config.pauseStart, config.pauseEnd)) {
+    if (!lost &&
+        isWithinPause(_clock.now(), config.pauseStart, config.pauseEnd)) {
       return TickResult(
         TickAction.paused,
         message: 'En pausa hasta las ${config.pauseEnd}',

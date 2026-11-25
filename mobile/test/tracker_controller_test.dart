@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:servalillo_tracker/core/clock.dart';
 import 'package:servalillo_tracker/data/position_queue.dart';
 import 'package:servalillo_tracker/data/secure_store.dart';
+import 'package:servalillo_tracker/models/device_policies.dart';
 import 'package:servalillo_tracker/models/tracked_position.dart';
 import 'package:servalillo_tracker/models/tracking_config.dart';
 import 'package:servalillo_tracker/services/location_sampler.dart';
@@ -85,6 +86,22 @@ void main() {
     expect(r.action, TickAction.paused);
     expect(sampler.calls, 0);
     expect(r.message, contains('05:00'));
+  });
+
+  test('en modo perdido sigue enviando aunque sea de noche', () async {
+    await store.setPolicies(
+      const DevicePolicies(lostMode: true, lostMessage: 'Perdido'),
+    );
+    final sampler = FakeSampler(pos());
+    final c = controller(
+      sampler: sampler,
+      api: (_) =>
+          http.Response(jsonEncode(<String, dynamic>{'accepted': 1}), 202),
+      now: DateTime(2026, 9, 8, 23, 30),
+    );
+    final r = await c.tick();
+    expect(r.action, TickAction.tracking);
+    expect(sampler.calls, 1);
   });
 
   test('fuera de pausa: muestrea, encola y envía', () async {

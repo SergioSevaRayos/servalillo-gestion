@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 /// engine del servicio en primer plano, que es quien aplica las restricciones periódicamente.
 ///
 /// Todos los métodos devuelven el estado REAL que hay aplicado en el móvil:
-/// `{device_owner, block_screen_capture, block_uninstall, block_factory_reset, block_safe_boot}`.
+/// `{device_owner, block_screen_capture, block_uninstall, block_factory_reset, block_safe_boot, lost_mode}`.
 /// Si la APK no es Device Owner, no hacen nada y devuelven todo `false`.
 class DevicePolicyChannel {
   const DevicePolicyChannel();
@@ -22,11 +22,14 @@ class DevicePolicyChannel {
     required bool blockUninstall,
     required bool blockFactoryReset,
     required bool blockSafeBoot,
-  }) => _call('apply', <String, bool>{
+    String? lostMessage,
+  }) => _call('apply', <String, Object?>{
     'block_screen_capture': blockScreenCapture,
     'block_uninstall': blockUninstall,
     'block_factory_reset': blockFactoryReset,
     'block_safe_boot': blockSafeBoot,
+    // Modo perdido: con mensaje bloquea la pantalla y lo muestra; null lo quita.
+    'lost_message': lostMessage,
   });
 
   /// Quita todas las restricciones y deja de ser administradora del dispositivo.

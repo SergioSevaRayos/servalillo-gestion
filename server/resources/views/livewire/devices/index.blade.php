@@ -3,7 +3,7 @@
         <div>
             <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ __('Dispositivos') }}</h1>
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                {{ __('Móviles con la APK de tracking instalada. Cada uno se enrola solo; aquí le asignas el chofer, revocas su acceso o lo desactivas, y gestionas su protección (capturas de pantalla, desinstalación y clave).') }}
+                {{ __('Móviles con la app de seguimiento instalada. Aquí les asignas el chofer, los localizas, gestionas su protección (capturas de pantalla, desinstalación y clave) y los bloqueas si se pierden.') }}
             </p>
         </div>
 
@@ -65,7 +65,20 @@
                                 {{ $device->is_active ? __('Activo') : __('Desactivado') }}
                             </x-ui.badge>
                             <x-ui.badge :variant="$protVariant">{{ $protText }}</x-ui.badge>
+                            @if ($device->lost_mode)
+                                <x-ui.badge variant="danger">
+                                    {{ ($device->reported_policies['lost_mode'] ?? false) ? __('Perdido · bloqueado') : __('Perdido · pendiente de bloquear') }}
+                                </x-ui.badge>
+                            @endif
                         </div>
+                        @if ($device->lost_mode)
+                            <p class="mt-2 text-xs text-rose-600 dark:text-rose-400">
+                                {{ __('Modo perdido desde :t.', ['t' => $device->lost_mode_at?->format('d/m/Y H:i') ?? '—']) }}
+                                @unless ($device->reported_policies['lost_mode'] ?? false)
+                                    {{ __('El móvil se bloqueará en cuanto se conecte (lo comprueba cada 5 minutos).') }}
+                                @endunless
+                            </p>
+                        @endif
 
                         <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-4">
                             <div>
@@ -112,14 +125,19 @@
                             @if ($device->positions_count > 0)
                                 <button type="button" class="{{ $itemClass }}" wire:click="locate({{ $device->id }})">{{ __('Localizar') }}</button>
                             @endif
-                            <button type="button" class="{{ $itemClass }}" wire:click="toggleActive({{ $device->id }})">
-                                {{ $device->is_active ? __('Desactivar') : __('Reactivar') }}
-                            </button>
+                            @if ($device->lost_mode)
+                                <button type="button" class="{{ $itemClass }}"
+                                    wire:click="disableLostMode({{ $device->id }})"
+                                    wire:confirm="{{ __('¿Desactivar el modo perdido? Hazlo solo si el móvil ya ha aparecido.') }}"
+                                >{{ __('Desactivar modo perdido') }}</button>
+                            @else
+                                <button type="button" class="{{ $itemClass }} !text-rose-600 dark:!text-rose-400" wire:click="editLostMode({{ $device->id }})">{{ __('Modo perdido (robo o pérdida)…') }}</button>
+                            @endif
                             <div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>
                             <button type="button" class="{{ $itemClass }}"
-                                wire:click="revoke({{ $device->id }})"
-                                wire:confirm="{{ __('¿Revocar el acceso de este dispositivo? La APK tendrá que volver a enrolarse.') }}"
-                            >{{ __('Revocar acceso') }}</button>
+                                wire:click="toggleActive({{ $device->id }})"
+                                @if ($device->is_active) wire:confirm="{{ __('¿Desactivar el seguimiento? El móvil deja de enviar su posición y de recibir cambios de protección hasta que lo reactives.') }}" @endif
+                            >{{ $device->is_active ? __('Desactivar seguimiento') : __('Reactivar seguimiento') }}</button>
                             <button type="button" class="{{ $itemClass }} !text-rose-600 dark:!text-rose-400"
                                 wire:click="delete({{ $device->id }})"
                                 wire:confirm="{{ __('¿Eliminar el dispositivo y todas sus posiciones GPS? No se puede deshacer.') }}"
@@ -136,6 +154,40 @@
     </div>
 
     <x-device-map-modal />
+
+    {{-- Modo perdido (docs/24): robo o pérdida. --}}
+    <x-modal name="device-lost" max-width="lg">
+        @php $lostDevice = $this->lost->editing; @endphp
+        <form wire:submit="enableLostMode" class="p-6">
+            <h3 class="text-lg font-medium text-slate-900 dark:text-white">
+                {{ __('Modo perdido') }}
+                @if ($lostDevice)
+                    <span class="text-slate-500 dark:text-slate-400">· {{ $lostDevice->driver?->user?->name ?? $lostDevice->label }}</span>
+                @endif
+            </h3>
+
+            <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-600 dark:text-slate-300">
+                <li>{{ __('Se cierran ya todas las sesiones de la web del chofer: para volver a entrar hará falta su contraseña (puede hacerlo desde otro móvil).') }}</li>
+                <li>{{ __('En cuanto el móvil tenga conexión (lo comprueba cada 5 minutos), se bloquea la pantalla y aparece este mensaje. Para usarlo hará falta el PIN.') }}</li>
+                <li>{{ __('Sigue enviando su posición, también de noche: usa "Localizar" para verlo en el mapa.') }}</li>
+            </ul>
+
+            @if ($lostDevice && ! $lostDevice->reported_device_owner)
+                <p class="mt-3 text-sm text-amber-600 dark:text-amber-400">
+                    {{ __('Este móvil no está dado de alta como administrado: no se podrá bloquear la pantalla, pero sí se cerrarán las sesiones de la web.') }}
+                </p>
+            @endif
+
+            <div class="mt-4">
+                <x-ui.textarea name="message" wire:model="lost.message" label="{{ __('Mensaje en la pantalla de bloqueo') }}" rows="3" maxlength="200" />
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cancelar') }}</x-ui.button>
+                <x-ui.button variant="danger" type="submit">{{ __('Activar modo perdido') }}</x-ui.button>
+            </div>
+        </form>
+    </x-modal>
 
     {{-- Alta de un móvil por QR (docs/24): Android descarga la APK y la deja como administradora. --}}
     <x-modal name="device-provisioning" max-width="3xl">

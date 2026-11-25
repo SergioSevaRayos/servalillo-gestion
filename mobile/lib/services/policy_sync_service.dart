@@ -32,6 +32,11 @@ class NativeDevicePolicyPort implements DevicePolicyPort {
           blockUninstall: p.blockUninstall,
           blockFactoryReset: p.blockFactoryReset,
           blockSafeBoot: p.blockSafeBoot,
+          lostMessage: p.lostMode
+              ? ((p.lostMessage?.trim().isNotEmpty ?? false)
+                    ? p.lostMessage
+                    : 'Móvil bloqueado por la empresa.')
+              : null,
         ),
       );
 
@@ -113,7 +118,8 @@ class PolicySyncService {
 
     final DateTime? until = await _store.suspendedUntil;
     if (until != null && _clock.now().isBefore(until)) {
-      return _port.apply(DevicePolicies.none);
+      // La suspensión quita las restricciones, nunca el modo perdido.
+      return _port.apply(desired.withoutRestrictions());
     }
     if (until != null) {
       await _store.setSuspendedUntil(null);

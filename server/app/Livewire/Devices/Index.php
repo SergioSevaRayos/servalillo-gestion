@@ -2,12 +2,14 @@
 
 namespace App\Livewire\Devices;
 
+use App\Livewire\Forms\DeviceLostModeForm;
 use App\Livewire\Forms\DeviceProvisioningForm;
 use App\Livewire\Forms\DeviceSecurityForm;
 use App\Models\Device;
 use App\Models\Driver;
 use App\Models\GpsPosition;
 use App\Services\DeviceProvisioning;
+use App\Services\LostDeviceService;
 use App\Services\TrackerApk;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -28,6 +30,8 @@ class Index extends Component
     public DeviceSecurityForm $security;
 
     public DeviceProvisioningForm $provisioning;
+
+    public DeviceLostModeForm $lost;
 
     /** Caducidad del enlace del QR de alta abierto (ISO 8601), o null si no hay ninguno. */
     public ?string $provisionExpiresAt = null;
@@ -178,17 +182,6 @@ class Index extends Component
         ]);
     }
 
-    /** Revoca los tokens: la APK tendrá que volver a enrolarse. */
-    public function revoke(int $deviceId): void
-    {
-        $device = Device::findOrFail($deviceId);
-        $this->authorize('update', $device);
-
-        $device->tokens()->delete();
-
-        $this->dispatch('toast', message: 'Acceso revocado. El dispositivo tendrá que volver a enrolarse.', variant: 'success');
-    }
-
     public function toggleActive(int $deviceId): void
     {
         $device = Device::findOrFail($deviceId);
@@ -275,6 +268,44 @@ class Index extends Component
         $this->security->setDevice($source->fresh());
 
         $this->dispatch('toast', message: "Restricciones aplicadas a {$count} terminales.", variant: 'success');
+    }
+
+    /** Abre el modal del modo perdido (robo o pérdida, docs/24). */
+    public function editLostMode(int $deviceId): void
+    {
+        $device = Device::with('driver.user')->findOrFail($deviceId);
+        $this->authorize('update', $device);
+
+        $this->lost->setDevice($device);
+        $this->dispatch('open-modal', 'device-lost');
+    }
+
+    public function enableLostMode(): void
+    {
+        $device = $this->lost->editing;
+        abort_unless($device instanceof Device, 404);
+        $this->authorize('update', $device);
+
+        $sessions = $this->lost->save();
+        unset($this->devices);
+
+        $this->dispatch('close-modal', 'device-lost');
+        $this->dispatch('toast',
+            message: 'Modo perdido activado. El móvil se bloqueará en cuanto tenga conexión'
+                .($sessions > 0 ? " y se han cerrado {$sessions} sesiones web del chofer." : '.'),
+            variant: 'success',
+        );
+    }
+
+    public function disableLostMode(int $deviceId): void
+    {
+        $device = Device::findOrFail($deviceId);
+        $this->authorize('update', $device);
+
+        app(LostDeviceService::class)->disable($device);
+        unset($this->devices);
+
+        $this->dispatch('toast', message: 'Modo perdido desactivado. El mensaje desaparecerá de la pantalla de bloqueo en la próxima sincronización.', variant: 'success');
     }
 
     public function delete(int $deviceId): void

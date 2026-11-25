@@ -74,6 +74,9 @@ class DeviceApiController extends Controller
             'policies' => [
                 ...$device->desiredPolicies(),
                 'release' => $device->release_requested,
+                // Modo perdido: bloquear pantalla + mensaje en la pantalla de bloqueo.
+                'lost_mode' => $device->lost_mode,
+                'lost_message' => $device->lost_mode ? $device->lost_message : null,
             ],
             // Solo hash + sal: la APK verifica la clave sin conexión, nunca la recibe en claro.
             'unlock' => $device->hasUnlockPin() ? [
@@ -99,7 +102,7 @@ class DeviceApiController extends Controller
         abort_unless($device instanceof Device, 403);
 
         $owner = $request->boolean('device_owner');
-        $applied = collect(Device::POLICIES)
+        $applied = collect([...array_values(Device::POLICIES), 'lost_mode'])
             ->mapWithKeys(fn (string $key) => [$key => (bool) $request->input("applied.{$key}", false)])
             ->all();
 

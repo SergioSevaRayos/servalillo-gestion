@@ -24,6 +24,7 @@ class ReportDeviceStateRequest extends FormRequest
             'applied.block_uninstall' => ['sometimes', 'boolean'],
             'applied.block_factory_reset' => ['sometimes', 'boolean'],
             'applied.block_safe_boot' => ['sometimes', 'boolean'],
+            'applied.lost_mode' => ['sometimes', 'boolean'],
             'app_version' => ['nullable', 'string', 'max:40'],
         ];
     }

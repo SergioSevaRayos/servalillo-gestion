@@ -186,6 +186,47 @@ void main() {
     expect(reports.single['device_owner'], isFalse);
   });
 
+  test(
+    'modo perdido del servidor → se aplica con su mensaje y se reporta',
+    () async {
+      await store.setToken('tok');
+
+      await service(
+        (_) => http.Response(
+          jsonEncode(
+            deviceJson(
+              policies: <String, dynamic>{
+                'lost_mode': true,
+                'lost_message': 'Llame a la empresa',
+              },
+            ),
+          ),
+          200,
+        ),
+      ).sync();
+
+      expect(port.current.lostMode, isTrue);
+      expect(port.current.lostMessage, 'Llame a la empresa');
+      expect((reports.single['applied'] as Map)['lost_mode'], isTrue);
+    },
+  );
+
+  test('la suspensión temporal no quita el modo perdido', () async {
+    await store.setPolicies(
+      const DevicePolicies(
+        blockScreenCapture: true,
+        lostMode: true,
+        lostMessage: 'Perdido',
+      ),
+    );
+    final svc = service((_) => http.Response('', 503));
+
+    await svc.suspend(const Duration(minutes: 30));
+
+    expect(port.current.blockScreenCapture, isFalse);
+    expect(port.current.lostMode, isTrue);
+  });
+
   test('sin token no llama a la API pero aplica lo guardado', () async {
     await store.setPolicies(const DevicePolicies(blockSafeBoot: true));
     int calls = 0;
