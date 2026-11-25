@@ -146,6 +146,13 @@ Route::get('albaranes/{note}/pdf', [DeliveryNoteController::class, 'pdf'])
     ->middleware('auth')->name('delivery-notes.pdf');
 
 /*
+| Alta de un móvil por QR (docs/24): Android descarga la APK durante la pantalla de bienvenida,
+| sin sesión. Enlace temporal firmado (lo genera /dispositivos → "Dar de alta un móvil").
+*/
+Route::get('alta-movil/apk', [TrackerApkController::class, 'provision'])
+    ->middleware(['signed', 'throttle:20,1'])->name('devices.provision.apk');
+
+/*
 |--------------------------------------------------------------------------
 | Panel exclusivo de Mantenimiento (logs y auditoría)
 |--------------------------------------------------------------------------

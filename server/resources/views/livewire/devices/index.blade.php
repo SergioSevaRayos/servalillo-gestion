@@ -10,9 +10,14 @@
         {{-- Descarga de la APK tracker para instalarla o actualizarla en un móvil (docs/24). --}}
         <div class="shrink-0 sm:text-right">
             @if ($apk = $this->apk)
-                <x-ui.button href="{{ route('devices.apk') }}" download class="w-full justify-center sm:w-auto">
-                    {{ __('Descargar APK del tracker') }}
-                </x-ui.button>
+                <div class="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <x-ui.button wire:click="openProvisioning" class="w-full justify-center sm:w-auto">
+                        {{ __('Dar de alta un móvil') }}
+                    </x-ui.button>
+                    <x-ui.button variant="secondary" href="{{ route('devices.apk') }}" download class="w-full justify-center sm:w-auto">
+                        {{ __('Descargar APK del tracker') }}
+                    </x-ui.button>
+                </div>
                 <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                     @if ($apk['version']) {{ __('Versión :v', ['v' => $apk['version']]) }} · @endif
                     {{ $apk['built_at']?->format('d/m/Y') }} · {{ number_format($apk['size'] / 1048576, 1, ',', '.') }} MB
@@ -128,6 +133,66 @@
 
     <x-device-map-modal />
 
+    {{-- Alta de un móvil por QR (docs/24): Android descarga la APK y la deja como administradora. --}}
+    <x-modal name="device-provisioning" max-width="3xl">
+        <div class="p-6">
+            <h3 class="text-lg font-medium text-slate-900 dark:text-white">{{ __('Dar de alta un móvil') }}</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {{ __('Para móviles nuevos o recién restablecidos de fábrica. El móvil descarga la app, la instala y la deja lista para protegerlo, sin cables ni ordenador.') }}
+            </p>
+
+            <div class="mt-5 grid grid-cols-1 gap-6 md:grid-cols-[auto,1fr]">
+                <div class="flex flex-col items-center">
+                    <div class="rounded-xl bg-white p-3 shadow-soft-sm ring-1 ring-slate-200 dark:ring-slate-700">
+                        @if ($qr = $this->provisioningQr)
+                            <div class="h-64 w-64 [&>svg]:h-full [&>svg]:w-full">{!! $qr !!}</div>
+                        @else
+                            <div class="flex h-64 w-64 items-center justify-center text-center text-sm text-slate-400">
+                                {{ __('Corrige los datos de la Wi-Fi para ver el código.') }}
+                            </div>
+                        @endif
+                    </div>
+                    @if ($provisionExpiresAt)
+                        <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                            {{ __('Válido hasta el :d', ['d' => \Illuminate\Support\Carbon::parse($provisionExpiresAt)->timezone(config('app.timezone'))->format('d/m/Y H:i')]) }}
+                        </p>
+                    @endif
+                </div>
+
+                <div>
+                    <ol class="list-decimal space-y-1.5 pl-5 text-sm text-slate-700 dark:text-slate-300">
+                        <li>{{ __('Restablece el móvil de fábrica (o enciéndelo si es nuevo) y espera a la pantalla de bienvenida.') }}</li>
+                        <li>{{ __('Toca 6 veces seguidas en un mismo punto vacío de esa pantalla: se abre el lector de códigos QR.') }}</li>
+                        <li>{{ __('Si lo pide, conéctalo a una Wi-Fi. Escanea este código.') }}</li>
+                        <li>{{ __('Acepta los avisos de "dispositivo gestionado por tu organización". El móvil descarga e instala la app (unos minutos).') }}</li>
+                        <li>{{ __('Termina de configurar el móvil, abre "Servalillo Tracker" y concede los permisos que pide.') }}</li>
+                        <li>{{ __('El móvil aparecerá en esta lista: asígnale el chofer y, en "Seguridad", pon la clave y las restricciones.') }}</li>
+                    </ol>
+
+                    <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <x-ui.input
+                            name="wifi_ssid" wire:model.live.debounce.500ms="provisioning.wifi_ssid"
+                            label="{{ __('Wi-Fi (opcional)') }}" autocomplete="off"
+                            help="{{ __('Si la pones, el móvil se conecta solo al escanear.') }}"
+                        />
+                        <x-ui.input
+                            name="wifi_password" type="password" wire:model.live.debounce.500ms="provisioning.wifi_password"
+                            label="{{ __('Contraseña de la Wi-Fi') }}" autocomplete="new-password"
+                        />
+                    </div>
+
+                    <p class="mt-4 text-xs text-slate-500 dark:text-slate-400">
+                        {{ __('El código lleva un enlace temporal para descargar la app: no lo compartas fuera de la empresa. Si el móvil no muestra el lector al tocar 6 veces, ese modelo no admite el alta por QR: avisa al servicio técnico.') }}
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <x-ui.button variant="secondary" type="button" x-on:click="$dispatch('close')">{{ __('Cerrar') }}</x-ui.button>
+            </div>
+        </div>
+    </x-modal>
+
     {{-- Protección del terminal (docs/24). La APK tracker, como administradora del dispositivo,
          aplica estas restricciones en todo el móvil y pide la clave para abrirla. --}}
     <x-modal name="device-security" max-width="2xl">
@@ -145,7 +210,7 @@
                     @if ($editing->reported_device_owner === null)
                         {{ __('El terminal aún no ha informado de su estado. Los cambios se aplicarán cuando sincronice (cada pocos minutos).') }}
                     @elseif (! $editing->reported_device_owner)
-                        <span class="text-amber-600 dark:text-amber-400">{{ __('La APK no es administradora de este móvil: hasta hacer el alta con adb (ver el manual), no puede aplicar ninguna restricción.') }}</span>
+                        <span class="text-amber-600 dark:text-amber-400">{{ __('La APK no es administradora de este móvil: hasta darlo de alta con el código QR ("Dar de alta un móvil"), no puede aplicar ninguna restricción.') }}</span>
                     @else
                         {{ __('La APK es administradora de este móvil. Última sincronización: :t.', ['t' => $editing->policies_reported_at?->diffForHumans() ?? '—']) }}
                     @endif

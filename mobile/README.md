@@ -96,7 +96,8 @@ Cuando las 4 estén concedidas y el dispositivo esté enrolado, el servicio arra
 
 ## Protección del terminal (Device Owner)
 
-Para bloquear capturas, desinstalación, etc., cada móvil necesita un alta única con
+Para bloquear capturas, desinstalación, etc., cada móvil necesita un alta única: por **código QR**
+desde la web (`/dispositivos` → "Dar de alta un móvil", móvil recién restablecido) o con
 `adb shell dpm set-device-owner es.servalillo.tracker/es.servalillo.device_policy.AdminReceiver`
 (sin cuentas en el móvil). Procedimiento completo y límites en
 `docs/24-proteccion-terminal-chofer.md`.

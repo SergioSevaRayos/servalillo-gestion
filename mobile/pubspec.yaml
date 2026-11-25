@@ -2,7 +2,7 @@ name: servalillo_tracker
 description: "APK sin interfaz que comparte la ubicación del camión con Gestión Servalillo."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.2.0+2
 
 environment:
   sdk: ^3.11.1

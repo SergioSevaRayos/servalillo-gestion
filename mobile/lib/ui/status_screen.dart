@@ -178,7 +178,7 @@ class _StatusScreenState extends State<StatusScreen>
         title: const Text('¿Liberar este terminal?'),
         content: const Text(
           'Se quitarán todas las restricciones y la app dejará de administrar el móvil. '
-          'Para volver a protegerlo hará falta repetir el alta con el ordenador (adb).',
+          'Para volver a protegerlo hará falta restablecerlo y repetir el alta por QR.',
         ),
         actions: <Widget>[
           TextButton(
@@ -404,7 +404,7 @@ class _StatusScreenState extends State<StatusScreen>
           const SizedBox(height: 8),
           _row(
             'Administra el móvil',
-            a.deviceOwner ? 'sí' : 'no (falta el alta con adb)',
+            a.deviceOwner ? 'sí' : 'no (falta el alta por QR)',
             ok: a.deviceOwner,
           ),
           if (a.deviceOwner) ...<Widget>[

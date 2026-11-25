@@ -81,7 +81,8 @@ En **Dispositivos** (menú *Datos*) están los móviles de los chofers con la ap
 - **Localizar** abre el mapa con su última posición y el recorrido reciente.
 - **Desactivar / Reactivar** detiene o reanuda el envío de posiciones; **Revocar** obliga a la app a volver a darse de alta; **Eliminar** borra el móvil y todas sus posiciones.
 - **Seguridad** abre la protección del terminal (ver abajo).
-- **Descargar APK del tracker** (arriba a la derecha) descarga la app de seguimiento, con su versión y fecha, para instalarla en un móvil nuevo o actualizar uno que ya la tenga. Para instalarla, pasa el fichero al móvil y ábrelo; Android pedirá permitir instalar apps de esa fuente. Una actualización se instala encima sin perder nada, aunque el móvil esté protegido. No la compartas fuera de la empresa: la app lleva dentro el acceso al servidor.
+- **Dar de alta un móvil** (arriba a la derecha) muestra el código QR para preparar un móvil nuevo (ver abajo).
+- **Descargar APK del tracker** descarga la app de seguimiento, con su versión y fecha, para instalarla en un móvil nuevo o actualizar uno que ya la tenga. Para instalarla, pasa el fichero al móvil y ábrelo; Android pedirá permitir instalar apps de esa fuente. Una actualización se instala encima sin perder nada, aunque el móvil esté protegido. No la compartas fuera de la empresa: la app lleva dentro el acceso al servidor.
 
 La columna **Protección** resume el estado de cada móvil: **Protegido** (aplica lo que has pedido), **Pendiente** (aún no lo ha confirmado; los móviles se sincronizan cada pocos minutos), **Sin administración** (el móvil no ha pasado el alta del servicio técnico y no puede aplicar nada), **Sin proteger** o **Liberado**.
 
@@ -101,7 +102,21 @@ Al **Guardar**, el móvil lo aplica en unos minutos y la ventana te muestra, deb
 - **Aplicar a todos**: copia las restricciones marcadas a todos los móviles activos (la clave de cada uno no cambia).
 - **Liberar terminal**: quita todas las restricciones y la app deja de administrar el móvil. Hazlo **siempre antes de retirar, vender o reutilizar un móvil**, porque con la protección puesta no se puede restablecer desde los Ajustes. Para volver a protegerlo, el servicio técnico tendrá que repetir el alta.
 
-> Importante: para poder proteger un móvil, el servicio técnico tiene que hacer antes un **alta especial** con el ordenador (una sola vez por móvil). Mientras no se haga, el móvil aparece como **Sin administración**. La protección solo funciona en móviles Android.
+> Importante: para poder proteger un móvil hay que darlo de alta antes con el **código QR** (una sola vez por móvil, ver abajo). Un móvil que solo tiene la app instalada a mano aparece como **Sin administración** y no se le puede bloquear nada. La protección solo funciona en móviles Android.
+
+### Dar de alta un móvil (código QR)
+
+Sirve para un móvil **nuevo o recién restablecido de fábrica**: el propio móvil descarga la app, la instala y la deja preparada para protegerlo, sin cables ni ordenador.
+
+1. En **Dispositivos**, pulsa **Dar de alta un móvil**. Aparece un código QR. Si quieres que el móvil se conecte solo a la Wi-Fi, escribe su nombre y contraseña debajo (no se guardan, solo van dentro del código).
+2. Restablece el móvil de fábrica (o enciéndelo si es nuevo) y espera a la **pantalla de bienvenida**.
+3. **Toca 6 veces seguidas** en un mismo punto vacío de esa pantalla: se abre el lector de códigos QR.
+4. Si lo pide, conéctalo a una Wi-Fi y **escanea el código** de la pantalla del ordenador.
+5. Acepta los avisos de que el **dispositivo lo gestiona tu organización**. El móvil descarga e instala la app (tarda unos minutos).
+6. Termina de configurar el móvil como siempre, abre **Servalillo Tracker** y concede los permisos que pide.
+7. El móvil aparece en **Dispositivos**: asígnale el chofer y, en **Seguridad**, pon la clave y marca las restricciones.
+
+El código vale **24 horas**; después, vuelve a pulsar **Dar de alta un móvil** para generar otro. No lo compartas fuera de la empresa: permite descargar la app. Si al tocar 6 veces no aparece el lector, ese modelo de móvil no admite el alta por QR: avisa al servicio técnico, que puede hacerla con el ordenador.
 
 ## Chofers, camiones y usuarios
 

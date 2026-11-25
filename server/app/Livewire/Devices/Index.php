@@ -2,11 +2,14 @@
 
 namespace App\Livewire\Devices;
 
+use App\Livewire\Forms\DeviceProvisioningForm;
 use App\Livewire\Forms\DeviceSecurityForm;
 use App\Models\Device;
 use App\Models\Driver;
 use App\Models\GpsPosition;
+use App\Services\DeviceProvisioning;
 use App\Services\TrackerApk;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -23,6 +26,11 @@ use Livewire\Component;
 class Index extends Component
 {
     public DeviceSecurityForm $security;
+
+    public DeviceProvisioningForm $provisioning;
+
+    /** Caducidad del enlace del QR de alta abierto (ISO 8601), o null si no hay ninguno. */
+    public ?string $provisionExpiresAt = null;
 
     public function mount(): void
     {
@@ -44,6 +52,48 @@ class Index extends Component
     public function apk(): ?array
     {
         return app(TrackerApk::class)->info();
+    }
+
+    /** Abre el QR de alta de un móvil nuevo (docs/24), con un enlace válido LINK_HOURS horas. */
+    public function openProvisioning(): void
+    {
+        $this->authorize('create', Device::class);
+
+        if (! app(DeviceProvisioning::class)->available()) {
+            $this->dispatch('toast', message: 'Todavía no se ha publicado ninguna APK: no se puede generar el QR.', variant: 'warning');
+
+            return;
+        }
+
+        $this->provisioning->reset();
+        $this->provisioning->resetValidation();
+        $this->provisionExpiresAt = now()->addHours(DeviceProvisioning::LINK_HOURS)->toIso8601String();
+        $this->dispatch('open-modal', 'device-provisioning');
+    }
+
+    public function updatedProvisioning(): void
+    {
+        $this->provisioning->validate();
+    }
+
+    /** SVG del QR de alta, o null si no hay ninguno abierto o la Wi-Fi no valida. */
+    #[Computed]
+    public function provisioningQr(): ?string
+    {
+        if ($this->provisionExpiresAt === null || $this->getErrorBag()->hasAny(['provisioning.wifi_ssid', 'provisioning.wifi_password'])) {
+            return null;
+        }
+
+        $service = app(DeviceProvisioning::class);
+        if (! $service->available()) {
+            return null;
+        }
+
+        return $service->qrSvg($service->payload(
+            Carbon::parse($this->provisionExpiresAt),
+            $this->provisioning->wifi_ssid ?: null,
+            $this->provisioning->wifi_password ?: null,
+        ));
     }
 
     #[Computed]

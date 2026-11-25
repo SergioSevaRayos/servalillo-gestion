@@ -141,7 +141,7 @@ correspondiente ANTES de tocar el área.** Cada archivo conserva el texto origin
 | Depósitos SGRA (`SgraClient`, Tailscale) | `docs/19-sgra.md` |
 | Mapa de flota `/mapa`, Avisos `/avisos`, DNI/CIF al entregar, Facturas `/facturas`, logotipo, fichaje visible solo para mantenimiento | `docs/22-mapa-avisos-facturas-logo.md` |
 | Manual de uso (`/manual`, Markdown + capturas con `npm run manual:capturas`), tours Driver.js | `docs/23-manual-de-uso.md` |
-| Protección del terminal del chofer (APK Device Owner: bloqueo de capturas, clave, `/dispositivos` en Gestión) | `docs/24-proteccion-terminal-chofer.md` |
+| Protección del terminal del chofer (APK Device Owner: bloqueo de capturas, clave, alta por QR, descarga de la APK, `/dispositivos` en Gestión) | `docs/24-proteccion-terminal-chofer.md` |
 
 ### Reglas transversales que se deben recordar siempre
 - Cualquier `ui/*` de campo nuevo: el error de validación se busca con la clave de `wire:model`

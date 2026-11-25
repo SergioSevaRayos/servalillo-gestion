@@ -76,22 +76,46 @@ protección gestionada en remoto por administrador y mantenimiento.
 - La APK lleva dentro `ENROLMENT_SECRET`: por eso la descarga solo está disponible para quien
   gestiona dispositivos.
 
-## Alta de cada terminal (una vez, servicio técnico)
-Android solo permite el alta como Device Owner si el móvil **no tiene ninguna cuenta** (ni la de
-Google). Un móvil recién restablecido con solo el tracker instalado vale tal cual.
+## Alta de cada terminal por código QR (lo normal; sin ordenador)
+Android Enterprise "QR provisioning": en la pantalla de bienvenida de un móvil **recién restablecido**
+se toca 6 veces, se escanea el QR y Android descarga la APK, comprueba su huella y la deja como Device
+Owner.
+- Web: **Dispositivos → "Dar de alta un móvil"** (`Devices\Index::openProvisioning`, `DevicePolicy@create`)
+  → modal con el QR (SVG, `bacon/bacon-qr-code`) y Wi-Fi opcional (`DeviceProvisioningForm`, que no se
+  guarda y solo va dentro del QR).
+- `App\Services\DeviceProvisioning::payload()` genera el JSON del QR:
+  - `PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME` = `es.servalillo.tracker/es.servalillo.device_policy.AdminReceiver`;
+  - `..._PACKAGE_DOWNLOAD_LOCATION` = **enlace temporal firmado** `GET /alta-movil/apk`
+    (`devices.provision.apk`, middleware `signed` + `throttle:20,1`, **sin sesión**: el móvil aún no la
+    tiene), válido `LINK_HOURS` = 24 h;
+  - `..._PACKAGE_CHECKSUM` = sha256 del fichero en base64url sin relleno, cacheado por mtime y tamaño;
+  - **`PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED=true`**: sin esto Android desactiva las apps del
+    sistema, **Chrome incluido**, y el chofer usa la web en Chrome;
+  - la Wi-Fi opcional (`WPA`/`NONE`).
+- APK: Android 10+ exige al administrador del dispositivo dos actividades, sin ellas Android 12+
+  rechaza el QR. Están en el plugin `device_policy`, son transparentes y responden enseguida:
+  - `ProvisioningModeActivity` (`GET_PROVISIONING_MODE`), que responde `PROVISIONING_MODE_FULLY_MANAGED_DEVICE`;
+  - `PolicyComplianceActivity` (`ADMIN_POLICY_COMPLIANCE`), que confirma. Las restricciones llegan
+    después, con la sincronización normal.
+- Si se republica la APK, el checksum cambia: los QR abiertos antes dejan de valer (hay que generar
+  otro). Por eso el QR se genera al abrir el modal y no se guarda.
+- Algunos fabricantes (gamas muy bajas) no traen el lector de QR del asistente: en ese caso, alta por adb.
+- Con el móvil gestionado se puede añadir después la cuenta de Google en Ajustes, aunque **está por
+  confirmar en un móvil real** que Play Store funciona sin un EMM.
+
+## Alta de cada terminal por adb (alternativa, servicio técnico)
+Para un móvil ya configurado que no se quiere restablecer, o un modelo sin lector de QR. Android solo
+lo permite si el móvil **no tiene ninguna cuenta** (ni la de Google).
 1. Ajustes → Cuentas: quitar todas las cuentas, si hay alguna.
 2. Activar Opciones de desarrollador → Depuración USB y conectar al portátil.
 3. Instalar o actualizar la APK (descargada desde `/dispositivos` o compilada):
-   `adb install -r servalillo-tracker.apk`. Para actualizar sin perder el
-   enrolamiento, tiene que estar **firmada con la misma clave** que la instalada (hoy, la debug de este
-   portátil).
+   `adb install -r servalillo-tracker.apk`. Para actualizar sin perder el enrolamiento, tiene que estar
+   **firmada con la misma clave** que la instalada (hoy, la debug de este portátil).
 4. `adb shell dpm set-device-owner es.servalillo.tracker/es.servalillo.device_policy.AdminReceiver`
-   → debe responder `Success: Device owner set to package ...`. Si dice que ya hay cuentas o usuarios,
-   repetir el paso 1.
-5. Abrir la APK y conceder los permisos, como siempre (`mobile/README.md`).
-6. Volver a añadir la cuenta de Google, si hace falta.
-7. Web → Dispositivos: asignar el chofer, pulsar **Seguridad**, poner la clave y marcar las
-   restricciones. Antes de 5 minutos el móvil sale como "Protegido".
+   → debe responder `Success: Device owner set to package ...`.
+5. Abrir la APK y conceder los permisos (`mobile/README.md`). Volver a añadir la cuenta de Google si
+   hace falta.
+6. Web → Dispositivos: asignar el chofer y, en **Seguridad**, poner la clave y las restricciones.
 
 ## Límites y gotchas
 - El restablecimiento desde **recovery** (botones físicos) no se puede bloquear del todo. Si pasa,
@@ -102,12 +126,12 @@ Google). Un móvil recién restablecido con solo el tracker instalado vale tal c
   sincronizar la protección, aunque las restricciones ya aplicadas siguen en el móvil (persisten tras
   reiniciar). Para liberarlo en ese caso: reactivarlo, o liberarlo desde la APK con la clave.
 - Liberar desde el propio móvil (sin red) deja la web pidiendo restricciones a un móvil que ya no es
-  administrado: saldrá "Sin administración". Volver a protegerlo exige repetir el `adb`.
+  administrado: saldrá "Sin administración". Volver a protegerlo exige repetir el alta (QR tras restablecer, o adb).
 - Solo Android. En iPhone no existe un equivalente.
 - La suspensión de 30 min se reporta tal cual, así que el panel muestra "Pendiente" mientras dura.
 
 ## Tests
-- Servidor: `tests/Feature/DevicesTest.php` (antes `MaintenanceDevicesTest`),
+- Servidor: `tests/Feature/DevicesTest.php` (antes `MaintenanceDevicesTest`), `tests/Feature/DeviceProvisioningTest.php`,
   `tests/Feature/Api/DeviceStateTest.php` y `tests/Unit/DevicePinHasherTest.php`.
 - APK: `mobile/test/policy_sync_service_test.dart` (con un plugin falso) y
   `mobile/test/pin_verifier_test.dart`.

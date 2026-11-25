@@ -2,7 +2,7 @@
     <application>
         <!--
             Receptor de administración del dispositivo. El alta como Device Owner se hace una vez
-            por terminal con:
+            por terminal: por código QR desde /dispositivos (móvil recién restablecido) o con
             adb shell dpm set-device-owner es.servalillo.tracker/es.servalillo.device_policy.AdminReceiver
             (ver docs/24-proteccion-terminal-chofer.md)
         -->
@@ -16,7 +16,30 @@
                 android:resource="@xml/device_admin" />
             <intent-filter>
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+                <action android:name="android.app.action.PROFILE_PROVISIONING_COMPLETE" />
             </intent-filter>
         </receiver>
+
+        <!-- Alta por código QR (Android 10+ las exige; Android 12+ no admite el QR sin ellas). -->
+        <activity
+            android:name=".ProvisioningModeActivity"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.app.action.GET_PROVISIONING_MODE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".PolicyComplianceActivity"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.app.action.ADMIN_POLICY_COMPLIANCE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>
