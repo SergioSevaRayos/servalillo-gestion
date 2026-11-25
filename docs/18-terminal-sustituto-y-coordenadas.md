@@ -85,6 +85,10 @@
   no tiene coordenadas**, se las rellena también — así las próximas paradas de ese cliente
   (recurrentes o planificadas) ya nacen con ubicación. Si el cliente ya tenía coordenadas, no se
   tocan (nunca pisa un dato existente, solo rellena huecos).
+  **(2026-11-25)** Además rellena las paradas `Pending` **ya planificadas** de ese cliente sin
+  ubicación (`Client::fillPendingStopCoordinates()`, el mismo relleno que usa `ClientForm`, movido
+  al modelo): antes solo nacían con ubicación las paradas generadas después, y el chofer volvía a
+  ver "Capturar ubicación" la semana siguiente. Test: `tests/Feature/ChoferCaptureCoordinatesTest.php`.
 - **Dirección inversa (2026-09-24): `ClientForm::save()` rellena las paradas `Pending` ya
   creadas cuando el CLIENTE recibe coordenadas después.** Bug real reportado: un cliente
   planificado con meses de antelación (cientos de `RouteStop` ya creadas, foto fija de los

@@ -39,7 +39,8 @@
                     'released' => ['neutral', __('Liberado')],
                     default => ['neutral', $device->reported_device_owner ? __('Sin restricciones') : __('Sin proteger')],
                 };
-                $itemClass = 'block w-full px-4 py-2 text-start text-sm text-slate-700 transition hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/10';
+                // rounded-lg + el p-1.5 del panel: el resaltado sigue el redondeo del menú en vez de llegar a sus bordes.
+                $itemClass = 'block w-full rounded-lg px-3 py-2 text-start text-sm text-slate-700 transition hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/10';
             @endphp
 
             <x-ui.card :padded="false" wire:key="device-{{ $device->id }}" class="p-4">
@@ -113,7 +114,7 @@
                         <p class="mt-2 truncate font-mono text-[11px] text-slate-400" title="{{ $device->install_identifier }}">{{ $device->install_identifier }}</p>
                     </div>
 
-                    <x-dropdown align="right" width="w-52">
+                    <x-dropdown align="right" width="w-56" contentClasses="p-1.5">
                         <x-slot name="trigger">
                             <x-ui.button variant="secondary" size="sm" class="w-full sm:w-auto">
                                 {{ __('Acciones') }}
@@ -131,9 +132,9 @@
                                     wire:confirm="{{ __('¿Desactivar el modo perdido? Hazlo solo si el móvil ya ha aparecido.') }}"
                                 >{{ __('Desactivar modo perdido') }}</button>
                             @else
-                                <button type="button" class="{{ $itemClass }} !text-rose-600 dark:!text-rose-400" wire:click="editLostMode({{ $device->id }})">{{ __('Modo perdido (robo o pérdida)…') }}</button>
+                                <button type="button" class="{{ $itemClass }} !text-rose-600 dark:!text-rose-400" wire:click="editLostMode({{ $device->id }})">{{ __('Modo perdido…') }}</button>
                             @endif
-                            <div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>
+                            <div class="-mx-1.5 my-1.5 border-t border-slate-100 dark:border-slate-800"></div>
                             <button type="button" class="{{ $itemClass }}"
                                 wire:click="toggleActive({{ $device->id }})"
                                 @if ($device->is_active) wire:confirm="{{ __('¿Desactivar el seguimiento? El móvil deja de enviar su posición y de recibir cambios de protección hasta que lo reactives.') }}" @endif

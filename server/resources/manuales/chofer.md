@@ -46,10 +46,26 @@ Si un cliente te llama, pulsa **Añadir cliente (ha llamado)**, busca su nombre 
 Toca la tarjeta de una parada para abrirla. Arriba ves los datos del cliente:
 
 - **Teléfono**: tócalo para llamarle.
-- **Cómo llegar**: abre Google Maps hasta su puerta. Si el cliente aún no tiene ubicación guardada, verás en su lugar **Capturar ubicación**: púlsalo cuando estés en el sitio y se guardará con el GPS del móvil para las próximas veces.
+- **Cómo llegar**: abre Google Maps hasta su puerta. Si el cliente aún no tiene ubicación guardada, verás en su lugar **Capturar ubicación** (ver *Guardar la ubicación de un cliente*, justo debajo).
 - **Pedido**: lo que tiene previsto este cliente.
 
 Después elige **cómo ha ido**: **Entregada**, **Fallida** o **Cancelada**. El formulario cambia según tu elección.
+
+### Guardar la ubicación de un cliente
+
+Si un cliente no tiene la ubicación guardada, al abrir su parada no aparece **Cómo llegar**, sino el botón **Capturar ubicación**. Guárdala tú cuando estés allí: así la oficina lo ve en el mapa, la ruta se puede ordenar mejor y la próxima vez tendrás **Cómo llegar**.
+
+1. **Ve hasta el punto de entrega** (la puerta o el depósito donde descargas), no lo hagas desde lejos ni antes de llegar: se guarda el sitio donde está el móvil en ese momento.
+2. Abre la parada y pulsa **Capturar ubicación**.
+3. La primera vez, Chrome pregunta si la página puede usar tu ubicación: pulsa **Permitir**.
+4. Espera unos segundos mientras pone **Capturando…**. Al terminar verás **Ubicación guardada** y el botón cambia a **Cómo llegar**.
+
+La ubicación se guarda en esa parada y, si la ficha del cliente no tenía ninguna, también en la ficha, para las próximas entregas. **No se puede cambiar desde el móvil**: si te equivocas o ves que la ubicación de un cliente está mal, avisa a la oficina para que la corrijan.
+
+Si sale un error:
+
+- **«No se pudo obtener la ubicación»**: comprueba que la ubicación del móvil está activada (desliza el menú de arriba y toca *Ubicación*) y vuelve a pulsar. Al aire libre funciona mejor que dentro de una nave.
+- **Si pulsaste «Bloquear» cuando Chrome preguntó**: en Chrome, toca el icono de la izquierda de la dirección de la página → **Permisos** → **Ubicación** → **Permitir**, y vuelve a intentarlo.
 
 ### Entregada
 
@@ -119,6 +135,8 @@ Para que el móvil esté protegido si se pierde:
 **He quitado una parada sin querer.** Avisa a la oficina: pueden volver a colocarla en tu ruta.
 
 **Quiero volver a ver la guía.** Pulsa el botón **?**: junto a «Hoy» para la pantalla de la ruta, y dentro de una parada para el formulario de cierre.
+
+**No me deja guardar la ubicación de un cliente.** Mira *Guardar la ubicación de un cliente*: casi siempre es que la ubicación del móvil está apagada o que Chrome no tiene permiso.
 
 **No puedo hacer capturas de pantalla.** Es a propósito: el móvil de empresa no permite capturas ni grabaciones de pantalla, para proteger los datos de los clientes. Si necesitas enseñar algo a la oficina, explícaselo por teléfono o pídeles que lo miren desde la web.
 

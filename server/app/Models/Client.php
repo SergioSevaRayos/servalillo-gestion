@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
 use App\Enums\PriceType;
+use App\Enums\RouteStopStatus;
 use App\Enums\ServiceKind;
 use App\Enums\WaterType;
 use App\Support\GoogleMaps;
@@ -190,6 +191,32 @@ class Client extends Model implements Auditable
             )
             ->orderByDesc('route_days.route_date')
             ->select('route_stops.*');
+    }
+
+    /**
+     * Rellena con las coordenadas del cliente sus paradas Pendientes que aún no tienen ubicación
+     * (p. ej. las ya planificadas para los próximos días). Lo usan la ficha del cliente
+     * (ClientForm) y "Capturar ubicación" del chofer (Chofer\Today). Nunca pisa una parada con
+     * coordenada propia ni toca las cerradas (son historial). Query builder a propósito: no dispara
+     * RouteStopObserver (no debe avisar al chofer de "parada modificada") ni auditoría.
+     *
+     * @return int nº de paradas rellenadas
+     */
+    public function fillPendingStopCoordinates(): int
+    {
+        if ($this->latitude === null || $this->longitude === null) {
+            return 0;
+        }
+
+        return RouteStop::query()
+            ->where('status', RouteStopStatus::Pending)
+            ->whereNull('latitude')
+            ->when(
+                $this->tax_id,
+                fn ($q) => $q->where('customer_tax_id', $this->tax_id),
+                fn ($q) => $q->where('customer_name', $this->name),
+            )
+            ->update(['latitude' => $this->latitude, 'longitude' => $this->longitude]);
     }
 
     /** @return array<int, int> días ISO (1..7) en los que se reparte, ordenados. */

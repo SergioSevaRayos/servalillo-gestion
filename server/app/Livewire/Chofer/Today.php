@@ -256,15 +256,21 @@ class Today extends Component
 
         $stop->update(['latitude' => $lat, 'longitude' => $lng]);
 
-        Client::query()
+        $client = Client::query()
             ->when(
                 $stop->customer_tax_id,
                 fn ($q) => $q->where('tax_id', $stop->customer_tax_id),
                 fn ($q) => $q->where('name', $stop->customer_name),
             )
             ->whereNull('latitude')
-            ->first()
-            ?->update(['latitude' => $lat, 'longitude' => $lng]);
+            ->first();
+
+        if ($client) {
+            $client->update(['latitude' => $lat, 'longitude' => $lng]);
+            // Y sus paradas ya planificadas para los próximos días: si no, el chofer volvería a ver
+            // "Capturar ubicación" en ese cliente la semana siguiente.
+            $client->fillPendingStopCoordinates();
+        }
 
         unset($this->route);
         $this->dispatch('toast', message: 'Ubicación guardada.', variant: 'success');
